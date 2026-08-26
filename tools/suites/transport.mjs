@@ -69,6 +69,7 @@ import { filterDrive, DRIVE_FIELDS, speedReasonFor } from '../../src/main/drive.
 import { autonavPlan, resolveSuppress, PREFS_KEY, AUTONAV_TOGGLE_SEL } from '../../src/main/autonav.js';
 import { SPEED_JS, SPEED_MIN, SPEED_MAX, SPEED_KEY_LOCK, resolveSpeed, speedPlan } from '../../src/main/speed.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
+import { refuseIfCompromised } from '../lib/tree-guard.mjs';
 
 /**
  * `--static` RUNS SECTIONS 1-4 AND STOPS. Twenty-one of these assertions are
@@ -84,6 +85,22 @@ const STATIC_ONLY = process.argv.includes('--static');
 
 const ID = 'transport';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/**
+ * BEFORE ANYTHING IS MEASURED: is this the tree somebody committed?
+ *
+ * A mutation battery that died without restoring leaves its edit standing on a
+ * shipped file, and a run that starts afterwards reports a red that is not in
+ * the code — stem-workbench#22, which happened twice in one afternoon. This
+ * REFUSES rather than measures, and a refusal is an ERROR: it exits non-zero
+ * with no `SKIPPED` and no assertion line, so `tools/verify.mjs` reports it as a
+ * FAIL and the plan is RED. "I declined to measure" must not read as green any
+ * more than silence may (the VOID rule, one level out).
+ *
+ * It costs one `readdir` of a directory that is almost always absent, plus one
+ * `git status` — at startup, never per assertion.
+ */
+refuseIfCompromised(ID, ROOT);
 const OUT = path.join(ROOT, 'out', ID);
 const PRELOAD = path.join(ROOT, 'src', 'preload', 'youtube.cjs');
 const VENDOR = path.join(ROOT, 'vendor', 'stem-splitter-live', 'extension');

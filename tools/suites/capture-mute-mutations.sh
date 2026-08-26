@@ -47,6 +47,16 @@ OUT="$ROOT/out/capture-mute-mutations"
 SINK="stem_workbench_gate"
 DECOY="stem_workbench_gate_decoy"
 cd "$ROOT"
+# THE MUTATION GUARD. Traps are the belt: this battery restores on INT, TERM and
+# HUP, and `timeout` sends TERM — which is how a long battery is most likely to
+# die and was the one way it did not clean up (stem-workbench#22). The SENTINEL
+# is the braces, for `kill -9`, a crashed host and a full disk, where no trap
+# runs at all: while a mutation is standing there is a file under
+# `out/.mutating/` naming it, and every suite refuses to start while one is
+# there. `tools/lib/tree-guard.mjs` is the long form.
+MG_BATTERY='capture-mute-mutations'; MG_ROOT="$ROOT"
+. "$ROOT/tools/lib/mutation-guard.sh"
+trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 
 # ---------------------------------------------------------------------------
@@ -141,7 +151,7 @@ on_signal() {
   SINK_NAME="$DECOY" SINK_LOCK_HELD=0 bash spike/harness/bin/sink.sh destroy >/dev/null 2>&1
   exit 130
 }
-trap on_signal INT TERM
+MG_ALSO=on_signal
 
 caught=0; missed=0; ran=0
 HOST="vendor/stem-splitter-live/extension/offscreen/host.js"
@@ -241,17 +251,24 @@ mutate_case() {
 
   local IFS=','; local -a flist=($files); unset IFS
   local f
+  local -a mg_pairs=()
   for f in ${flist[@]+"${flist[@]}"}; do
     [ -n "$f" ] || continue
     cp "$ROOT/$f" "$OUT/$n.$(basename "$f").bak"
     printf '%s' "$f" > "$OUT/$n.$(basename "$f").from"
+    mg_pairs+=("$f=$OUT/$n.$(basename "$f").bak")
   done
+  # THE SENTINEL GOES DOWN BEFORE THE FIRST EDIT AND COMES UP ONLY ONCE THE
+  # RESTORE HAS BEEN BYTE-VERIFIED. A `kill -9` here leaves it standing, and
+  # every suite then REFUSES TO RUN rather than measuring the mutation — which
+  # is stem-workbench#22, the false red that outlives the run that caused it.
+  [ "${#mg_pairs[@]}" -gt 0 ] && mg_claim "$n" "${mg_pairs[@]}"
 
   while [ "$#" -ge 3 ]; do
     if ! edit "$ROOT/$1" "$2" "$3"; then
       echo "${C_R}MUTATION $n DID NOT APPLY${C_X} — the anchor text in $1 has moved. Fix this script."
       for f in ${flist[@]+"${flist[@]}"}; do [ -n "$f" ] && cp "$OUT/$n.$(basename "$f").bak" "$ROOT/$f"; done
-      missed=$((missed + 1)); CASE_SETUP=""; CASE_TEARDOWN=""; return 0
+      mg_release "$n"; missed=$((missed + 1)); CASE_SETUP=""; CASE_TEARDOWN=""; return 0
     fi
     shift 3
   done
@@ -272,6 +289,10 @@ mutate_case() {
     fi
     rm -f "$OUT/$n.$(basename "$f").from"
   done
+  # RESTORED AND BYTE-VERIFIED, so the sentinel comes up. A restore that FAILED
+  # returns above without releasing, on purpose: the mutation really is still
+  # standing then, and the next suite must refuse rather than measure it.
+  mg_release "$n"
 
   local ok=1
   local IFS='|'; local -a wants=($expect); unset IFS

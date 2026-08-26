@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Watch every assertion about THE TREE GUARD go red, one mutation at a time, and
+# then reproduce the defect itself end to end. AGENTS.md: "An assertion you did
+# not watch fail is not evidence."
+#
+# THE DEFECT (stem-workbench#22). A mutation battery edits a shipped file, runs a
+# suite, and restores — on its own EXIT. `timeout` sends SIGTERM, so the way a
+# long battery is most likely to die was the one way it did not clean up. Twice
+# in one afternoon a battery was killed and left its edit standing (`tabId` back
+# on `src/main/engine-messages.js`; `--variant=b` in a suite), and the next gate
+# run measured the mutated tree and reported a red that was not in the code.
+#
+# A false red costs exactly as much investigation as a real defect and teaches
+# everyone to distrust reds. This one is also CONTAGIOUS: it outlives the run
+# that caused it and lands on whoever measures next.
+#
+# CASE 4 IS THE WHOLE POINT OF THIS FILE. Cases 1-3 break the assertions; case 4
+# breaks the WORLD — it starts a real battery, `kill -9`s it the instant its
+# mutation is standing (so no trap can possibly run), and then requires a real
+# suite to REFUSE rather than report a number. Case 5 does the same for an
+# uncommitted `src/` with no sentinel at all.
+#
+# NO DISPLAY, NO BROWSER, NO MUTEX. `void-canary` and `deck-seam` are both plain
+# node and instant, which is why this can run beside a windowed battery.
+#
+#   tools/suites/tree-guard-mutations.sh          # all of them
+#   tools/suites/tree-guard-mutations.sh 4        # only that one
+set -uo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+OUT="$ROOT/out/tree-guard-mutations"
+rm -rf "$OUT"; mkdir -p "$OUT"
+cd "$ROOT"
+
+MG_BATTERY='tree-guard-mutations'; MG_ROOT="$ROOT"
+. "$ROOT/tools/lib/mutation-guard.sh"
+trap mg_on_signal INT TERM HUP
+
+C_R=$'\033[31m'; C_G=$'\033[32m'; C_D=$'\033[2m'; C_X=$'\033[0m'
+caught=0; missed=0; ran=0
+ONLY=("$@")
+wanted() { [ "${#ONLY[@]}" -eq 0 ] || [[ " ${ONLY[*]} " =~ " $1 " ]]; }
+
+edit() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import sys
+path, old, new = sys.argv[1], sys.argv[2], sys.argv[3]
+s = open(path).read()
+if old not in s:
+    sys.stderr.write("ANCHOR NOT FOUND in %s:\n%s\n" % (path, old[:200]))
+    sys.exit(3)
+open(path, 'w').write(s.replace(old, new, 1))
+PY
+}
+
+check() {   # <case> <ok?> <what>
+  if [ "$2" = 1 ]; then echo "  ${C_G}saw${C_X}    $3"; else echo "  ${C_R}MISS${C_X}   $3"; fi
+  [ "$2" = 1 ] || return 1
+}
+
+# `canary_case N "label" FILE OLD NEW "expected substring"` — mutate, run
+# void-canary, require the named row to be red, restore, verify the bytes.
+canary_case() {
+  local n="$1" label="$2" file="$3" old="$4" new="$5" want="$6"
+  wanted "$n" || return 0
+  echo; echo "${C_D}=== mutation $n — $label${C_X}  $(date +%H:%M:%S)"
+  ran=$((ran + 1))
+  local bak="$OUT/$n.$(basename "$file").bak"
+  cp "$ROOT/$file" "$bak"
+  mg_claim "$n" "$file=$bak"
+  if ! edit "$ROOT/$file" "$old" "$new"; then
+    echo "  ${C_R}DID NOT APPLY${C_X} — the anchor in $file has moved. Fix this script."
+    cp "$bak" "$ROOT/$file"; mg_release "$n"; missed=$((missed + 1)); return 0
+  fi
+  local log="$OUT/$n.log"; local code=0
+  node tools/suites/void-canary.mjs > "$log" 2>&1 || code=$?
+  cp "$bak" "$ROOT/$file"
+  if ! cmp -s "$ROOT/$file" "$bak"; then
+    echo "  ${C_R}RESTORE FAILED for $file${C_X}"; missed=$((missed + 1)); return 0
+  fi
+  mg_release "$n"
+  local ok=1
+  grep -E '^FAIL' "$log" | grep -qF -- "$want" || ok=0
+  check "$n" "$ok" "$want" || true
+  [ "$code" -ne 0 ] || { echo "  ${C_R}MISS${C_X}   void-canary exited 0 under the mutation"; ok=0; }
+  echo "  ${C_D}exit $code · $(tail -1 "$log") · log out/tree-guard-mutations/$n.log${C_X}"
+  if [ "$ok" = 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
+}
+
+# ==========================================================================
+# 1-3  THE ASSERTIONS THEMSELVES
+# ==========================================================================
+canary_case 1 "a battery loses its INT/TERM/HUP trap" \
+  "tools/suites/deck-seam-mutations.sh" \
+  "trap mg_on_signal INT TERM HUP" \
+  "true # trap removed" \
+  "every mutation battery installs the guard and traps INT, TERM and HUP"
+
+canary_case 2 "a battery stops claiming a sentinel before it edits" \
+  "tools/suites/transport-mutations.sh" \
+  '  mg_claim "$n" "${mg_pairs[@]}"' \
+  '  : # claim removed' \
+  "...and every one of them claims a sentinel before it edits and releases it after the restore"
+
+# THE READER ITSELF CAN LOSE. Blinded, it reports a clean tree whatever is on it
+# — which is what every version of this check looks like from the outside when it
+# is broken, and is why the instrument check plants a sentinel of its own.
+canary_case 3 "blind the sentinel reader, so it reports a clean tree whatever is standing" \
+  "tools/lib/tree-guard.mjs" \
+  "  return names.filter((n) => n.endsWith('.json')).sort().map((n) => {" \
+  "  return [].map((n) => {" \
+  "INSTRUMENT CHECK: a planted sentinel is seen, and a tree without one is not accused"
+
+# ==========================================================================
+# 4  THE DEFECT ITSELF, END TO END, WITH NO TRAP IN THE WAY
+#
+# A REAL BATTERY, KILLED WITH SIGKILL THE INSTANT ITS MUTATION IS STANDING. No
+# trap runs — that is the point of `kill -9` and it is what a crashed host or a
+# full disk look like. Then a REAL suite has to refuse rather than report a
+# number, `restore-all` has to put the tree back, and the suite has to come back
+# green. If this does not work end to end the fix is not done.
+# ==========================================================================
+if wanted 4; then
+  echo; echo "${C_D}=== mutation 4 — kill -9 a battery mid-case, then require a suite to REFUSE${C_X}  $(date +%H:%M:%S)"
+  ran=$((ran + 1))
+  ok4=1
+  rm -f "$ROOT"/out/.mutating/*.json 2>/dev/null
+
+  # Its own process group, so the kill takes the battery AND the suite it spawned.
+  setsid bash tools/suites/deck-seam-mutations.sh 1 > "$OUT/4.battery.log" 2>&1 &
+  victim=$!
+  # WAIT FOR THE EDIT, NOT MERELY FOR THE SENTINEL. The sentinel goes down BEFORE
+  # the first edit — deliberately, or a kill landing between the two would strand
+  # a mutation with nothing naming it — so the instant it appears the file on disk
+  # is still clean. What this case is about is the window AFTER the edit, so it
+  # waits for the file the sentinel names to actually differ.
+  sentinel=''; victimfile=''
+  for _ in $(seq 1 1200); do
+    if [ -z "$sentinel" ]; then
+      sentinel="$(ls "$ROOT"/out/.mutating/*.json 2>/dev/null | head -1)"
+      [ -n "$sentinel" ] && victimfile="$(node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(s.files[0].rel)' "$sentinel" 2>/dev/null)"
+    fi
+    if [ -n "$victimfile" ] && ! git -C "$ROOT" diff --quiet -- "$victimfile"; then break; fi
+    # the case may already have finished and restored; the sentinel is then gone
+    [ -n "$sentinel" ] && [ ! -e "$sentinel" ] && { sentinel=''; victimfile=''; }
+    sleep 0.005
+  done
+  [ -n "$victimfile" ] && git -C "$ROOT" diff --quiet -- "$victimfile" && sentinel=''
+  if [ -z "$sentinel" ]; then
+    echo "  ${C_R}MISS${C_X}   never caught deck-seam-mutations with a mutation standing"
+    kill -9 -"$victim" 2>/dev/null; wait "$victim" 2>/dev/null
+    ok4=0
+  else
+    kill -9 -"$victim" 2>/dev/null; wait "$victim" 2>/dev/null
+    echo "  ${C_D}killed -9 with $(basename "$sentinel") standing on $victimfile${C_X}"
+
+    # (a) the mutation really is on disk — otherwise the rest proves nothing
+    if git -C "$ROOT" diff --quiet -- "$victimfile"; then
+      echo "  ${C_R}MISS${C_X}   the file is unchanged — nothing was actually left standing"; ok4=0
+    else
+      check 4 1 "the mutation is standing on $victimfile after a kill no trap can catch" || true
+    fi
+
+    # (b) A REAL SUITE REFUSES, and names the file and the case. Each half is
+    # reported on its own line: a gate that stops at the first miss hides the
+    # rest of the picture from whoever has to read this.
+    code=0; node tools/suites/deck-seam.mjs > "$OUT/4.refusal.log" 2>&1 || code=$?
+    refok=1
+    [ "$code" -eq 3 ] || { echo "  ${C_R}MISS${C_X}   deck-seam exited $code, not 3"; refok=0; }
+    for want in "REFUSING TO RUN" "deck-seam-mutations case 1" "$victimfile" "GONE (killed"; do
+      grep -qF -- "$want" "$OUT/4.refusal.log" || { echo "  ${C_R}MISS${C_X}   the refusal did not name: $want"; refok=0; }
+    done
+    if grep -q "SKIPPED" "$OUT/4.refusal.log"; then
+      echo "  ${C_R}MISS${C_X}   it printed SKIPPED — a refusal is an ERROR, never a skip"; refok=0
+    fi
+    if [ "$refok" = 1 ]; then
+      check 4 1 "deck-seam REFUSED, exit 3, naming the file and the case" || true
+    else
+      ok4=0
+    fi
+
+    # (c) and the way out puts the tree back
+    node tools/lib/tree-guard.mjs restore-all > "$OUT/4.restore.log" 2>&1
+    if git -C "$ROOT" diff --quiet -- "$victimfile"; then
+      check 4 1 "restore-all put $victimfile back and dropped the sentinel" || true
+    else
+      echo "  ${C_R}MISS${C_X}   restore-all did not restore $victimfile"; ok4=0
+    fi
+
+    # (d) ...and the suite measures again
+    code=0; node tools/suites/deck-seam.mjs > "$OUT/4.after.log" 2>&1 || code=$?
+    [ "$code" -eq 0 ] || { echo "  ${C_R}MISS${C_X}   deck-seam still does not run: exit $code"; ok4=0; }
+    [ "$code" -eq 0 ] && check 4 1 "and deck-seam runs again: $(tail -1 "$OUT/4.after.log")" || true
+  fi
+  echo "  ${C_D}logs out/tree-guard-mutations/4.*.log${C_X}"
+  if [ "$ok4" = 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
+fi
+
+# ==========================================================================
+# 5  A DIRTY src/ WITH NO SENTINEL AT ALL
+#
+# The belt and the braces both assume a battery was involved. This is the third
+# case: somebody's edit, or a battery so old its backups are gone. What a suite
+# must not do is measure it and call the number evidence.
+# ==========================================================================
+if wanted 5; then
+  echo; echo "${C_D}=== mutation 5 — uncommitted src/ and no sentinel${C_X}  $(date +%H:%M:%S)"
+  ran=$((ran + 1))
+  ok5=1
+  victim='src/main/bus.js'
+  cp "$ROOT/$victim" "$OUT/5.bus.js.bak"
+  mg_claim 5 "$victim=$OUT/5.bus.js.bak"
+  printf '\n// left behind by a battery that died\n' >> "$ROOT/$victim"
+  # The sentinel this battery just claimed would exempt the suite, so it is taken
+  # out of the way for the measurement and put back for the restore — the case is
+  # about a tree with NO sentinel on it.
+  mv "$ROOT/out/.mutating/tree-guard-mutations.5.json" "$OUT/5.sentinel.json"
+
+  code=0; node tools/suites/deck-seam.mjs > "$OUT/5.refusal.log" 2>&1 || code=$?
+  [ "$code" -eq 3 ] || { echo "  ${C_R}MISS${C_X}   deck-seam exited $code, not 3"; ok5=0; }
+  grep -qF -- "src/main/bus.js" "$OUT/5.refusal.log" || { echo "  ${C_R}MISS${C_X}   the refusal did not name the dirty file"; ok5=0; }
+  grep -q "SKIPPED" "$OUT/5.refusal.log" && { echo "  ${C_R}MISS${C_X}   it printed SKIPPED — a refusal is an ERROR"; ok5=0; }
+  [ "$ok5" = 1 ] && check 5 1 "deck-seam REFUSED on an uncommitted src/, naming the file" || true
+
+  # ...AND THE ESCAPE ANNOUNCES ITSELF. A run that measured a dirty tree has to
+  # say so in its own transcript; a silent escape is the ignore-list this repo
+  # keeps having to delete.
+  code=0; STEM_WORKBENCH_ALLOW_DIRTY=1 node tools/suites/deck-seam.mjs > "$OUT/5.allowed.log" 2>&1 || code=$?
+  grep -qF -- "MEASURING A DIRTY TREE" "$OUT/5.allowed.log" \
+    && check 5 1 "...and STEM_WORKBENCH_ALLOW_DIRTY=1 measures anyway, announcing it in the transcript" || {
+      echo "  ${C_R}MISS${C_X}   the allowed run did not announce the dirty tree"; ok5=0; }
+
+  mv "$OUT/5.sentinel.json" "$ROOT/out/.mutating/tree-guard-mutations.5.json"
+  cp "$OUT/5.bus.js.bak" "$ROOT/$victim"
+  cmp -s "$ROOT/$victim" "$OUT/5.bus.js.bak" || { echo "  ${C_R}RESTORE FAILED for $victim${C_X}"; ok5=0; }
+  mg_release 5
+  echo "  ${C_D}logs out/tree-guard-mutations/5.*.log${C_X}"
+  if [ "$ok5" = 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
+fi
+
+echo
+echo "========================================================================"
+if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ]; then
+  echo "${C_G}all $caught of $ran mutations were caught${C_X} — a stranded mutation cannot be measured past."
+  exit 0
+fi
+echo "${C_R}$missed of $ran mutations were NOT caught${C_X} (caught $caught). Logs in out/tree-guard-mutations/."
+exit 1

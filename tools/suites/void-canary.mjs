@@ -38,12 +38,30 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STEPS, classify, verdict } from '../verify.mjs';
 import { LOCK_MARKERS, sinkLock, strayLockPaths } from '../lib/locks.mjs';
+import { standingMutations } from '../lib/tree-guard.mjs';
+import { refuseIfCompromised } from '../lib/tree-guard.mjs';
 
 /** Any name at all; the two formulas must agree on all of them, so one is enough. */
 const SINK_PROBE = 'stem_workbench_gate';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ID = 'void-canary';
+
+/**
+ * BEFORE ANYTHING IS MEASURED: is this the tree somebody committed?
+ *
+ * A mutation battery that died without restoring leaves its edit standing on a
+ * shipped file, and a run that starts afterwards reports a red that is not in
+ * the code — stem-workbench#22, which happened twice in one afternoon. This
+ * REFUSES rather than measures, and a refusal is an ERROR: it exits non-zero
+ * with no `SKIPPED` and no assertion line, so `tools/verify.mjs` reports it as a
+ * FAIL and the plan is RED. "I declined to measure" must not read as green any
+ * more than silence may (the VOID rule, one level out).
+ *
+ * It costs one `readdir` of a directory that is almost always absent, plus one
+ * `git status` — at startup, never per assertion.
+ */
+refuseIfCompromised(ID, ROOT);
 const DOC = path.join(ROOT, 'docs', 'TESTING.md');
 
 // ------------------------------------------------------------ the mutation
@@ -192,6 +210,80 @@ ok('...and the shell half computes the SAME sink lock as the module — two form
   + '[entry point: SINK_LOCK in spike/harness/bin/env.sh vs sinkLock() in tools/lib/locks.mjs]',
   shellSink !== null && shellSink === sinkLock(SINK_PROBE),
   shellSink === null ? 'spike/harness/bin/env.sh did not answer' : `bash ${shellSink} · node ${sinkLock(SINK_PROBE)}`);
+
+// ------------------------------------- 2c. a stranded mutation cannot be measured past
+/**
+ * THE FALSE RED THAT OUTLIVES THE RUN THAT CAUSED IT (stem-workbench#22).
+ *
+ * A battery edits a shipped file, runs a suite, restores. It restored on its own
+ * EXIT — and `timeout` sends SIGTERM, so the way a long battery is most likely
+ * to die was the one way it did not clean up. Twice in one afternoon a battery
+ * was killed and left its edit standing, and the next gate run measured the
+ * mutated tree and reported a red that was not in the code.
+ *
+ * Traps are the belt and they are asserted below. The SENTINEL is the braces,
+ * for `kill -9`, a crashed host and a full disk, where no trap runs at all.
+ */
+const plantedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tree-guard-'));
+fs.mkdirSync(path.join(plantedRoot, 'out', '.mutating'), { recursive: true });
+fs.writeFileSync(path.join(plantedRoot, 'out', '.mutating', 'demo-mutations.8.json'),
+  JSON.stringify({ battery: 'demo-mutations', case: '8', pid: 999999, started: '2026-08-26T00:00:00Z',
+                   files: [{ rel: 'src/main/engine-messages.js', bak: '/tmp/nowhere.bak' }] }));
+const seen = standingMutations(plantedRoot);
+const seenEmpty = standingMutations(path.join(plantedRoot, 'out'));   // no sentinel dir under here
+fs.rmSync(plantedRoot, { recursive: true, force: true });
+// A CONTROL THAT CAN LOSE: one root with a sentinel, one without. A reader that
+// answered [] for everything would pass the rows below over a poisoned tree.
+ok('INSTRUMENT CHECK: a planted sentinel is seen, and a tree without one is not accused  '
+  + '[entry point: standingMutations() in tools/lib/tree-guard.mjs]',
+  seen.length === 1 && seen[0].battery === 'demo-mutations' && seen[0].case === '8'
+  && seen[0].files[0].rel === 'src/main/engine-messages.js' && seenEmpty.length === 0,
+  `planted -> ${seen.length} (${seen.map((x) => `${x.battery} case ${x.case}`).join(', ') || 'nothing'}), clean -> ${seenEmpty.length}`);
+
+/**
+ * A REFUSAL IS AN ERROR, NEVER A SKIP AND NEVER A PASS. This drives the REAL
+ * classifier over the real refusal transcript, because "it exits 3" is worth
+ * nothing unless the runner reads 3 the way this file assumes it does. The three
+ * negatives are the point: a refusal that classified as SKIP would sit under
+ * WHAT DID NOT RUN and keep the plan green, which is the failure this whole
+ * mechanism exists to prevent.
+ */
+const refusal = [
+  'shell: REFUSING TO RUN — a mutation battery has an edit standing on this tree.',
+  'shell:   smoke-mutations case 8, started 2026-08-26T11:29:29Z',
+  'shell:     owner pid 1251414 — GONE (killed, or the host died)',
+  'shell:     standing on src/main/engine-messages.js   (backup out/smoke-mutations/8.engine-messages.js.bak)',
+  '',
+].join('\n');
+const refused = classify({ id: 'shell', code: 3, out: refusal });
+ok('a suite that REFUSES to run is a FAIL — not a SKIP, not VOID, not a pass  [entry point: classify()]',
+  refused.verdict === 'FAIL', `${refused.verdict} · ${refused.detail}`);
+ok('...and it turns the whole run RED, so a refusal can never be reported as green  [entry point: verdict()]',
+  verdict([{ id: 'shell', verdict: refused.verdict, hard: refused.hard }], STEPS, [STEPS[0]]).colour === 'RED');
+
+/**
+ * EVERY BATTERY TRAPS INT AND TERM AND RESTORES. Three of the nine did not when
+ * this was written — `deck-seam`, `engine-host` and `transport` — and a battery
+ * without the trap is exactly how #22 happened. This is the audit made
+ * mechanical, so the tenth battery cannot arrive without one.
+ */
+const batteries = fs.readdirSync(path.join(ROOT, 'tools', 'suites'))
+  .filter((n) => n.endsWith('-mutations.sh')).sort();
+const untrapped = batteries.filter((n) => {
+  const t = fs.readFileSync(path.join(ROOT, 'tools', 'suites', n), 'utf8');
+  return !/^trap mg_on_signal INT TERM HUP/m.test(t) || !/mutation-guard\.sh/.test(t);
+});
+ok(`every mutation battery installs the guard and traps INT, TERM and HUP  [${batteries.length} batteries]`,
+  batteries.length > 0 && untrapped.length === 0,
+  untrapped.length ? `NO TRAP: ${untrapped.join(', ')}` : batteries.join(' '));
+
+const unclaimed = batteries.filter((n) => {
+  const t = fs.readFileSync(path.join(ROOT, 'tools', 'suites', n), 'utf8');
+  return !/mg_claim /.test(t) || !/mg_release /.test(t);
+});
+ok('...and every one of them claims a sentinel before it edits and releases it after the restore',
+  unclaimed.length === 0,
+  unclaimed.length ? `NO SENTINEL: ${unclaimed.join(', ')}` : `${batteries.length} claim and release`);
 
 // ---------------------------------------- 3. the VOID rule, against the real classifier
 /**

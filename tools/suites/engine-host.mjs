@@ -118,9 +118,26 @@ import { createEngineMessages } from '../../src/main/engine-messages.js';
 import { ENGINE_HOST_DUTIES, BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js';
 import { MODEL, SR } from '../../vendor/stem-splitter-live/extension/shared/config.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
+import { refuseIfCompromised } from '../lib/tree-guard.mjs';
 
 const ID = 'engine-host';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/**
+ * BEFORE ANYTHING IS MEASURED: is this the tree somebody committed?
+ *
+ * A mutation battery that died without restoring leaves its edit standing on a
+ * shipped file, and a run that starts afterwards reports a red that is not in
+ * the code — stem-workbench#22, which happened twice in one afternoon. This
+ * REFUSES rather than measures, and a refusal is an ERROR: it exits non-zero
+ * with no `SKIPPED` and no assertion line, so `tools/verify.mjs` reports it as a
+ * FAIL and the plan is RED. "I declined to measure" must not read as green any
+ * more than silence may (the VOID rule, one level out).
+ *
+ * It costs one `readdir` of a directory that is almost always absent, plus one
+ * `git status` — at startup, never per assertion.
+ */
+refuseIfCompromised(ID, ROOT);
 const OUT = path.join(ROOT, 'out', ID);
 const MODEL_FILE = path.join(ROOT, 'models', 'htdemucs_6s.onnx');
 

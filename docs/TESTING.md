@@ -272,6 +272,63 @@ Each suite below carries a **Watched red** table listing the mutation per
 assertion group. Filling that table is part of building the suite, not a
 follow-up.
 
+### A battery that dies must not leave its mutation on the tree
+
+A battery edits a shipped file, runs a suite, and restores. It used to restore
+on its own **exit** — and `timeout` sends **SIGTERM**, so the way a long battery
+is most likely to die was the one way it did not clean up. Twice in one
+afternoon a battery was killed and left its edit standing (`tabId` back on
+`src/main/engine-messages.js`; `--variant=b` in a suite), and the next gate run
+measured the mutated tree and **reported a red that was not in the code**
+(stem-workbench#22).
+
+That is the expensive direction. A false red costs exactly as much
+investigation as a real defect and additionally teaches everyone to distrust
+reds — and this one is *contagious*, because it outlives the run that caused it
+and lands on whoever measures next.
+
+**Belt.** Every battery sources `tools/lib/mutation-guard.sh` and installs
+`trap mg_on_signal INT TERM HUP`, which restores and exits 130. A battery that
+had its own handler keeps it — `MG_ALSO` chains it after the restore. Three of
+the nine had no trap at all when this was written.
+
+**Braces.** A trap closes `timeout` and Ctrl-C and closes *nothing* for
+`kill -9`, a crashed host or a full disk. So while a mutation is standing there
+is a **sentinel** under `out/.mutating/` naming the battery, the case, the file
+and its backup:
+
+```bash
+mg_claim "$n" "src/main/main.js=$OUT/8.main.js.bak"   # before the first edit
+mg_release "$n"                                        # after a VERIFIED restore
+```
+
+**Every suite refuses to start while one is present**, naming the file and the
+case, and a refusal is an **ERROR** — exit 3, no `SKIPPED`, no assertion line —
+so `tools/verify.mjs` reports it as a FAIL and the plan is RED. "I declined to
+measure" must not read as green any more than silence may. A suite also refuses
+on an uncommitted `src/` with no sentinel at all; if that is your own work in
+progress, `STEM_WORKBENCH_ALLOW_DIRTY=1` measures anyway and **prints every
+dirty path in the transcript**, so a run that measured a dirty tree says so.
+
+A battery runs its own suites without tripping its own sentinel because the
+sentinel records the battery's **PID** and a suite ignores only sentinels owned
+by one of its own ancestors. Not an environment variable: a stale `ALLOW=1` in
+one shell would silently disable this everywhere, which is the failure mode of
+the thing it guards. A concurrently running *other* battery is not exempt — a
+mutation standing in a shared checkout means nobody else may measure, which is
+the correct answer.
+
+After a `kill -9`, the way out is printed in the refusal:
+
+```bash
+node tools/lib/tree-guard.mjs restore-all
+```
+
+`tools/suites/tree-guard-mutations.sh` watches all of it red, and case 4 is the
+defect itself end to end: it starts a real battery, `kill -9`s it the instant
+its edit is on disk, requires a real suite to REFUSE rather than report a
+number, restores, and requires the suite to come back green.
+
 ---
 
 ## 4. Running a windowed suite
