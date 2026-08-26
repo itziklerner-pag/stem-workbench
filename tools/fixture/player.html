@@ -2,27 +2,60 @@
 <meta charset="utf-8">
 <title>stem-workbench fixture player</title>
 <!-- A CSP, so this page does not trip Electron's "no CSP" dev warning and so the
-     fixture cannot reach the network even by accident. -->
+     fixture cannot reach the network even by accident. `media-src blob:` is the
+     whole of its media policy: the tone is built in this page and never fetched,
+     which is also what makes the L1 request witness meaningful — any non-`blob:`
+     request the source view makes came from somewhere else. -->
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; media-src blob:; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <!--
-  THE LOCAL SOURCE PAGE. docs/TESTING.md §5.
+  THE LOCAL SOURCE PAGE. docs/TESTING.md §5, §6 and §8 all point the source view
+  here instead of at the real thing: CI must never depend on YouTube's DOM and
+  must never hit a bot wall. Same trick as `stem-splitter-live/tools/host.mjs`
+  answering as `huggingface.co`. The real thing is the `youtube` suite, manual.
 
-  CI must never depend on YouTube's DOM and must never hit a bot wall, so every
-  automated suite points the source view here instead of at the real thing. Same
-  trick as `stem-splitter-live/tools/host.mjs` answering as `huggingface.co`.
+  IT GENERATES ITS OWN MEDIA IN-PAGE: a few lines of JS write a RIFF header and a
+  440 Hz stereo sine into a Blob and `URL.createObjectURL()` becomes `video.src`.
+  No binary in git, no ffmpeg at test time, and the level is ANALYTIC — a stereo
+  sine of amplitude 0.5 has RMS 0.5/sqrt(2) = 0.353553, which is the number
+  `capture-mute` needs. 60.0 s at 440 Hz is 26 400 whole cycles, so `loop` wraps
+  phase-continuously and no click can land inside a measurement window.
 
-  IT GENERATES ITS OWN MEDIA IN-PAGE: a few lines of JS write a RIFF header and
-  a 440 Hz stereo sine into a Blob and `URL.createObjectURL()` becomes
-  `video.src`. No binary in git, no ffmpeg at test time, and the level is
-  ANALYTIC — a stereo sine of amplitude 0.5 has RMS 0.5/√2 = 0.353553, which is
-  the number `capture-mute` needs. 60.0 s at 440 Hz is 26 400 whole cycles, so
-  `loop` wraps phase-continuously and no click can land inside a measurement
-  window.
+  ---------------------------------------------------------------------------
+  IT IS ALSO A FAKE *PLAYER*, NOT JUST A <video>
+  ---------------------------------------------------------------------------
+  `tools/suites/transport.mjs` drives the real preload against it, so it has to
+  carry the three pieces of page furniture the transport reaches for, in the
+  markup that was MEASURED on a real watch page (`extension/autonav.js`'s header,
+  2026-08-15) rather than the markup we wish they shipped:
 
-  The suite that loads this page installs a request handler that FAILS any
-  request to a non-local origin, so an accidental youtube.com load is a red
-  rather than a slow test.
+      #movie_player                       <- the ad flag lives here, as a class
+        video                             <- and the element is INSIDE it, so the
+                                             preload's first selector is the one
+                                             exercised
+        .ytp-right-controls
+          .ytp-right-controls-left
+            button.ytp-autonav-toggle
+              div.ytp-autonav-toggle-button-container
+                div.ytp-autonav-toggle-button[aria-checked]   <- the STATE, and
+                                                                 the thing clicked
+        .ytp-autonav-endscreen-upnext-cancel-button
+
+  A fixture asserting against a control the site stopped shipping is what kept
+  the extension's autonav feature green for a whole release while it reported
+  `missing` on every real video. So the state attribute is on the inner `<div>`,
+  the click handler is on the outer `<button>`, and the flip happens by
+  BUBBLING — which is the half that would break if somebody "simplified" the
+  selector to match the button.
+
+  ---------------------------------------------------------------------------
+  ONE `__wb*` GLOBAL, AND IT IS `__wbFixture`
+  ---------------------------------------------------------------------------
+  `tools/suites/shell.mjs` asserts that the source view's `window` carries no
+  bridge of ours by listing every `__wb`-prefixed own property and allowing
+  exactly `__wbFixture`. So every hook below hangs off that one function as a
+  property rather than becoming a second global — adding `__wbFixtureNav` would
+  turn a real assertion about `preload/youtube.cjs` into a red about this file.
 -->
 <style>
   :root { color-scheme: dark; }
@@ -31,12 +64,34 @@
   main { padding: 18px 22px; }
   h1 { font-size: 15px; margin: 0 0 6px; color: #9fd0ff; }
   pre { color: #ffd08a; font: 12px/1.5 ui-monospace, Menlo, monospace; }
-  video { width: 320px; height: 60px; background: #0a1017; }
+  video { width: 320px; height: 60px; background: #0a1017; display: block; }
+  #movie_player { border: 1px solid #24384a; padding: 8px; display: inline-block; }
+  #movie_player.ad-showing { border-color: #ffd08a; }
+  .ytp-right-controls { margin-top: 6px; }
+  button { font: inherit; background: #1d2c3a; color: #dbe7f2; border: 1px solid #35506a;
+           border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+  input { font: inherit; background: #0a1017; color: #dbe7f2; border: 1px solid #35506a; }
+  .hidden { display: none; }
 </style>
 <main>
   <h1>local fixture — the source page every automated suite uses</h1>
   <p>440 Hz stereo sine, amplitude 0.5, RMS 0.353553, generated in this page.</p>
-  <video id="v" loop controls></video>
+
+  <div id="movie_player">
+    <video id="v" loop controls></video>
+    <div class="ytp-right-controls">
+      <div class="ytp-right-controls-left">
+        <button class="ytp-button ytp-autonav-toggle" id="autonav-button">
+          <div class="ytp-autonav-toggle-button-container">
+            <div class="ytp-autonav-toggle-button" aria-checked="true">autoplay</div>
+          </div>
+        </button>
+      </div>
+    </div>
+    <button class="ytp-autonav-endscreen-upnext-cancel-button hidden" id="cancel">cancel</button>
+  </div>
+
+  <p><input id="typebox" type="text" placeholder="a typing target, for the key filter"></p>
   <pre id="s">building…</pre>
 </main>
 <script>
@@ -55,29 +110,187 @@
     tag(36, 'data'); dv.setUint32(40, dataBytes, true);
     const w = 2 * Math.PI * HZ / SR;
     for (let i = 0, o = 44; i < frames; i++) {
-      const v = Math.round(AMP * 32767 * Math.sin(w * i));
-      dv.setInt16(o, v, true); o += 2;
-      dv.setInt16(o, v, true); o += 2;
+      const val = Math.round(AMP * 32767 * Math.sin(w * i));
+      dv.setInt16(o, val, true); o += 2;
+      dv.setInt16(o, val, true); o += 2;
     }
     return new Blob([buf], { type: 'audio/wav' });
   }
 
-  const v = document.getElementById('v');
-  const s = document.getElementById('s');
-  const say = () => {
-    s.textContent = `paused=${v.paused} t=${v.currentTime.toFixed(2)} dur=${v.duration} `
-      + `muted=${v.muted} rate=${v.playbackRate}`;
-  };
-  v.src = URL.createObjectURL(wav());
-  v.addEventListener('loadedmetadata', say);
-  v.addEventListener('timeupdate', say);
-  v.addEventListener('playing', say);
-  v.addEventListener('pause', say);
+  /**
+   * ONE BLOB FOR THE PAGE'S WHOLE LIFE. Building a second one per SPA navigation
+   * would take ~200 ms of main-thread time inside a suite that is measuring
+   * event timing, and the point of the navigation is that the ELEMENT is
+   * replaced, not that the bytes are different.
+   */
+  const MEDIA = URL.createObjectURL(wav());
+
+  const player = document.getElementById('movie_player');
+  const readout = document.getElementById('s');
+  /** How many times this page has swapped its own <video>. The suite's control. */
+  let navigations = 0;
+
+  const video = () => player.querySelector('video');
+
+  function say() {
+    const v = video();
+    readout.textContent = v
+      ? `paused=${v.paused} t=${v.currentTime.toFixed(2)} dur=${v.duration} `
+        + `muted=${v.muted} rate=${v.playbackRate} pitch=${v.preservesPitch} nav=${navigations}`
+      : `no <video> on this page  nav=${navigations}`;
+  }
+
+  function wire(v) {
+    v.src = MEDIA;
+    for (const e of ['loadedmetadata', 'timeupdate', 'playing', 'pause', 'ratechange', 'seeked']) {
+      v.addEventListener(e, say);
+    }
+  }
+
+  wire(document.getElementById('v'));
   say();
 
-  // The gate reads this instead of guessing at the DOM.
-  window.__wbFixture = () => ({
-    ready: v.readyState >= 1, paused: v.paused, duration: v.duration,
-    muted: v.muted, rate: v.playbackRate, rms: AMP / Math.SQRT2,
+  /**
+   * THE SITE'S OWN HANDLER, on the BUTTON, flipping the attribute on the inner
+   * `<div>` — which is the arrangement measured on a real watch page. A click
+   * dispatched on the div bubbles here and flips it in the same tick, which is
+   * what the preload's re-read depends on.
+   */
+  document.getElementById('autonav-button').addEventListener('click', () => {
+    const flag = player.querySelector('.ytp-autonav-toggle-button');
+    if (!flag) return;
+    flag.setAttribute('aria-checked', flag.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    say();
   });
+
+  /** The gate reads this instead of guessing at the DOM. ONE `__wb*` global. */
+  function snapshot() {
+    const v = video();
+    const flag = player.querySelector('.ytp-autonav-toggle-button');
+    return {
+      ready: !!v && v.readyState >= 1,
+      paused: v ? v.paused : null,
+      duration: v ? v.duration : null,
+      muted: v ? v.muted : null,
+      rate: v ? v.playbackRate : null,
+      preservesPitch: v ? v.preservesPitch : null,
+      currentTime: v ? v.currentTime : null,
+      rms: AMP / Math.SQRT2,
+      // `src` IS REPORTED BY THE PAGE, NEVER BY THE PRELOAD — and as a shape,
+      // not a URL. It is here so that "the drive patch's `src` field was
+      // dropped" is an OBSERVATION rather than an inference from the preload
+      // having no code to apply it.
+      srcIsBlob: v ? String(v.src).startsWith('blob:') : null,
+      // Same, for a field that is neither media nor transport: `volume` is not
+      // in the closed write set and must come back untouched.
+      volume: v ? v.volume : null,
+      navigations,
+      adShowing: player.classList.contains('ad-showing'),
+      autonav: flag ? flag.getAttribute('aria-checked') : null,
+      autonavPresent: !!flag,
+    };
+  }
+  window.__wbFixture = snapshot;
+
+  // ------------------------------------------------------------- the hooks
+  // Everything a suite needs to make this page behave like a watch page, hung
+  // off the one global. See the note at the top about why not a second one.
+
+  /** Start playback. Electron's autoplay policy needs no gesture, so this resolves. */
+  window.__wbFixture.play = () => video().play().then(() => 'playing', (e) => `refused: ${e.name}`);
+  window.__wbFixture.pause = () => { video().pause(); return 'paused'; };
+
+  /**
+   * THE PAGE'S OWN SPEED MENU. `playbackRate` has two writers — the Host and
+   * whatever the site gives the user — and `speed.js`'s entire design rests on
+   * telling them apart by the ENTRY POINT rather than by the value, because 1.0
+   * is both "the site reset it" and "the user picked Normal". Without this hook
+   * the YIELD branch is unreachable and a Host that fought the page's own menu
+   * would look identical to one that did not.
+   */
+  window.__wbFixture.pageRate = (r) => { video().playbackRate = r; say(); return r; };
+
+  /**
+   * A SEEK THE USER MADE. Writing `currentTime` from the PAGE is a content jump
+   * and the preload must report it; writing it through `drive` is the deck's own
+   * correction and must NOT be reported. Two writes to one property, told apart
+   * only by who made them, which is exactly the distinction under test.
+   */
+  window.__wbFixture.seek = (t) => { video().currentTime = t; return t; };
+
+  /**
+   * KEY LOCK IS CHROME'S DEFAULT, so the Host writing `preservesPitch = true` is
+   * INVISIBLE unless something set it false first. This is that something: it
+   * makes `speed.js`'s `SPEED_KEY_LOCK` an observable rather than a constant
+   * whose write nobody can see. Without it, deleting the `preservesPitch` line
+   * from the preload changes nothing any assertion could read.
+   */
+  window.__wbFixture.unlockPitch = () => { video().preservesPitch = false; say(); return video().preservesPitch; };
+
+  /** An ad, as a class on the player — there is no event and no other witness. */
+  window.__wbFixture.ad = (on) => { player.classList.toggle('ad-showing', !!on); say(); return !!on; };
+
+  /** The end screen's cancel button, which only exists once a countdown started. */
+  window.__wbFixture.endScreen = (on) => {
+    document.getElementById('cancel').classList.toggle('hidden', !on);
+    return !!on;
+  };
+  window.__wbFixture.cancelClicks = 0;
+  document.getElementById('cancel').addEventListener('click', () => { window.__wbFixture.cancelClicks++; });
+
+  /**
+   * TAKE THE AUTOPLAY CONTROL AWAY, so `missing` and `lost` are reachable states
+   * rather than states nobody has ever seen. Returns the markup so it can be put
+   * back — a suite that could only break the page once cannot assert the repair.
+   */
+  window.__wbFixture.autonavPresent = (on) => {
+    const wrap = player.querySelector('.ytp-right-controls');
+    wrap.classList.toggle('hidden', !on);
+    if (!on) {
+      const flag = wrap.querySelector('.ytp-autonav-toggle-button');
+      if (flag) flag.removeAttribute('aria-checked');
+    } else {
+      const flag = wrap.querySelector('.ytp-autonav-toggle-button');
+      if (flag && !flag.hasAttribute('aria-checked')) flag.setAttribute('aria-checked', 'true');
+    }
+    return !!on;
+  };
+
+  /**
+   * A SINGLE-PAGE NAVIGATION: the `<video>` is REPLACED, not re-pointed, which
+   * is what YouTube does on some navigations and is the case the preload's
+   * `watchVideo()` exists for.
+   *
+   * `announce` is the whole point of the parameter. `yt-navigate-finish` is the
+   * site's PRIVATE event name; a Host that only listened for it would lose the
+   * feature the day it is renamed, and there would be nothing to see. So the
+   * suite runs this BOTH ways and asserts the preload notices either way — once
+   * through the announcement, once through its own tick.
+   */
+  window.__wbFixture.spaNavigate = (announce) => {
+    const old = video();
+    const fresh = document.createElement('video');
+    fresh.id = 'v';
+    fresh.loop = true;
+    fresh.controls = true;
+    old.replaceWith(fresh);
+    wire(fresh);
+    navigations++;
+    if (announce) document.dispatchEvent(new CustomEvent('yt-navigate-finish'));
+    say();
+    return navigations;
+  };
+
+  /** Put focus in a text field, so the key filter has a typing target to refuse. */
+  window.__wbFixture.focusTypeBox = () => { document.getElementById('typebox').focus(); return document.activeElement.id; };
+  window.__wbFixture.blurTypeBox = () => { document.getElementById('typebox').blur(); return document.activeElement.tagName; };
+
+  /**
+   * WHAT THE PAGE ITSELF SAW OF A KEY. The product ruling is that with no deck
+   * armed, `1`-`6` reach the page untouched — so "the preload did not take it"
+   * has to be witnessed HERE, by the page, and not merely inferred from our own
+   * silence. Absence of evidence is what a broken wire looks like too.
+   */
+  window.__wbFixture.pageKeys = [];
+  addEventListener('keydown', (e) => { window.__wbFixture.pageKeys.push(e.code); });
 </script>

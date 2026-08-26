@@ -69,7 +69,7 @@ node tools/verify.mjs --list         # the steps table
 | `shell` | `tools/suites/shell.mjs` | window | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
 | `engine-host` | `tools/suites/engine-host.mjs` | window | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
 | `transport` | `tools/suites/transport.mjs` | window | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
-| `deck-host` | `tools/suites/deck-host.mjs` | window | **the DECK half of the Host seam** — the fourteen members over a stub bridge in plain node AND over one real launch, the three messages the Host originates to the deck, and the autoplay-next wire that would otherwise leave a checkbox dead |
+| `deck-host` | `tools/suites/deck-host.mjs` | window | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
 | `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
@@ -692,85 +692,140 @@ assertions on `FAIL` lines, restores the file and checks the restored bytes. A
 case declares whether its red is `static` (0.3 s) or `live` (one real launch);
 `--static` runs the cheap half.
 
-## 5d. `deck-host` — the deck half of the seam, twice over
+**Three cases were recorded MISSED on the first battery, and all three were
+defects in the EVIDENCE rather than in the code.** They are written up because
+the correction is the useful part — each one is an assertion that looked like it
+was doing its job and was not.
 
-**File:** `tools/suites/deck-host.mjs`. **Flags:** `window`. **Cost:** ~1 s for §1,
-~45 s for §2.
+| case | why it could not lose | what changed |
+|---|---|---|
+| **3** — delete `driveRate`'s key-lock write | `preservesPitch` defaults to `true` in Blink and `SPEED_KEY_LOCK` is `true`, so "it reads true afterwards" is satisfied by an element **nobody ever wrote**. `AGENTS.md`: an estimator that saturates below the claim is not an estimator | the gate now sets `preservesPitch = false` **from the page's own world** one statement before the drive. The case also expected the *static* write-set assertion to go red, which it cannot — `restoreVideo()` writes the property too, legitimately — so that half was dropped |
+| **9** — spread the patch in `filterDrive` | the element was **unmarked**, because the preload names its three fields as well. The live claim is about three layers and one broken layer cannot falsify it | case 9 now spreads **both** `filterDrive` and the preload's `driveVideo` — the pair a "tidy up the duplication" change would make. Single-layer loss is what the *static* enumeration catches, and it did |
+| **23** — delete `speed.dropClaim()` on a source swap | a fresh `<video>` starts at rate 1 and the first state after a swap is a poll, which `speedPlan` answers with a **YIELD** — so the claim is let go as a side effect either way and the element reads 1 whichever happened | the assertion now reads the reports, not the element: `want: null` appears only when the claim is **released**, never when it is adopted. Under the mutation the wants go `[1, 1]` and it is red. The distinction is not academic — the yield is an ordering accident, and a `loadedmetadata` arriving first carries reason `remount`, which WRITES a stale claim onto a video nobody has heard |
 
-Two halves, and neither stands in for the other.
+The battery is **25 cases, 24 of them one-line edits**; nine need no launch.
+Reproduce with `tools/suites/transport-mutations.sh` (or `--static` for the cheap
+half, 0.3 s).
 
-**§1, the conformance half** — plain node, no window, no launch, no mutex. It
-imports the SHIPPED hole module (`vendor/…/extension/ui/host.js`) over a stub
-bridge and drives it with the unit's own `assertHost`, `assertHostOption` and
-duty tables. This is `VENDORING.md` option 3 for the DECK half of `test.js`'s
-`group('host')`: the same claims, about our implementation, in a harness that can
-stub the platform this Host actually has. 38 assertions.
+## 5d. `deck-seam` — the DeckHost's contract, in plain node
 
-**§2, the launch half** — one real `electron .` with `--gate-probe=deck-host`,
-the real preload, the real ipc, the real vendored deck. `tools/gate/deck-host.mjs`
-reaches into the deck renderer and pulls out the very `host` object
-`ui/embed.js` imported (`import('./host.js')` returns the cached instance), so
-every duty exercised is the shipped module in the real renderer. 27 assertions.
+**File:** `tools/suites/deck-seam.mjs`. **Flags:** none — no window, no display,
+no mutex. **Cost:** ~0.3 s. **Battery:** `tools/suites/deck-seam-mutations.sh`.
+
+`VENDORING.md` gives a second Host three things to do about the 122 conformance
+assertions in the vendored `test.js`'s `group('host')`, and this repository takes
+option 3 — point them at our files. Half of that is free: the group reads the two
+holes BY PATH and our implementations are at those paths. The other half is this
+file. That group installs a CHROME platform and drives the module against it; our
+`ui/host.js` reaches for an Electron preload bridge instead, so those assertions
+would fail for the platform rather than for the contract — a red that says
+nothing.
+
+So this suite stubs the PLATFORM and drives the SHIPPED module, with the unit's
+own `assertHost`, `assertHostOption`, `chordLabel` and `ARM_CODES` imported out
+of the vendored tree. Nothing in it reimplements either side.
+
+**It runs on every commit, and that is the point.** The two things a broken Host
+breaks silently are late binding and the envelope, and a browser gate cannot run
+that often. It also carries the claims about `src/main/storage.js` (the two
+lifetimes, absent vs unreadable, the third-area refusal, the change feed) and
+`src/main/keys.js` (the key router's eight cases), because those are pure
+functions and a launch would tell you nothing extra about them.
+
+**What it cannot say:** whether the deck PAINTS, whether `drive` reaches a real
+`<video>`, or what the DECK does with what the Host sent — see §5e, and the
+relay bug recorded there, which is the shape of every defect a stub agrees with.
+
+---
+
+## 5e. `deck-host` — the deck half, over one real launch
+
+**File:** `tools/suites/deck-host.mjs`. **Flags:** `window`. **Cost:** ~45 s.
+**Probe:** `tools/gate/deck-host.mjs`, run by `--gate --gate-probe=deck-host`.
+
+### Why this suite has no plain-node half
+
+It had one — 40 assertions driving the shipped hole module over a stub bridge —
+and they were deleted, because `deck-seam` was already making every one of those
+claims by the same technique and in a fifth of a second. Two suites over one seam
+is two places to edit and one to forget, and this repository rejected that shape
+once already for the runner itself ("T1 — two runners, drifting where it is most
+expensive").
+
+**The two claims that had no counterpart MOVED to `deck-seam.mjs` rather than
+being dropped** — a fresh profile answering `null` in both areas, and main's own
+change feed filtering by area and key — each with its own case in
+`deck-seam-mutations.sh` (39a, 39b). A claim that moves without its mutation is a
+claim that has stopped being evidence.
+
+### What only a launch can say
+
+Two of these were measured here and could not have been measured anywhere else,
+and they are the argument for keeping a 27-assertion suite that costs 45 s:
+
+1. **The relay overwrote the type it was relaying under.** The transport's
+   payloads carry their own `{t:'state'}`, and `toDeck({ t: 'video', ...s })` let
+   the spread win — so every state arrived typed `'state'`, the deck's inbound
+   map had no handler for it, and `onState`, the duty the whole deck follows,
+   never fired. Measured as `toDeck.state: 48, toDeck.video: 0`. A stub bridge
+   cannot see this: it records what the Host sent and agrees with it. What went
+   wrong was what the DECK did with it.
+2. **`requestSpeed(3)` is clamped to 2 on a real element, and the deck's readout
+   follows the element rather than the request.** That is three processes and the
+   vendored `speed.js` agreeing; a stub asserts only that the 3 went on the wire.
 
 ### What it asserts
 
 | # | assertion | detail must carry |
 |---|---|---|
-| 1–5 | `assertHost` accepts the shipped DeckHost, its `page`, and its `transport`; every duty works UNBOUND; `transport` is SPELLED | the duty lists, the detached-call count |
-| 6–8 | the three states of "is there a player above me" — `true`, `false`, and *could not ask* — and that importing the module is INERT | which branch, and the sentence the first duty call throws |
-| 9–12 | `send` carries the finished envelope verbatim, returns nothing, and RESOLVES THE TRANSPORT AT CALL TIME | the keys on the wire; 1-before/1-after |
-| 13–16 | `onMessage` delivers only `to: 'ui'`, hands over the same object, and drops what the deck returns | how many of how many |
-| 17–22 | storage: the area is honoured, absent resolves `null`, unreadable REJECTS, a third area is refused in both shapes, the change feed filters by area AND key | the two values for one key; which shape each refusal took |
-| 23–25 | the arm chord is raw, in `chordLabel()`'s vocabulary, and `null` when the menu could not take it | the raw string and both drawn forms |
-| 26–29 | `drive`'s write set is CLOSED, wrong types are dropped, `requestSpeed` is NOT filtered, and each page duty puts one named command on the wire | the exact command objects |
-| 30–35 | `src/main/storage.js`: `local` outlives the run and `session` does NOT, present-and-broken is not absent, a write clears the unreadable state | the second store's answers, the file name |
-| 36–38 | `deckTakesKey`: a claimed key while armed is ours; eight other cases are the page's; `?` matches by character | which cases were taken |
-| 39–43 | over a real launch: the vendored deck BOOTS, its module is ours, the storage lifetimes survive the ipc hop, a change made by main reaches the deck | the boot time, the two values, the duty list |
-| 44–48 | SESSION paints and clears the not-armed hint; ARM_ERROR paints, is dismissible, offers no Restart, is persisted with `{code, message, at, seq}`, and ARM_ERROR_CLEARED takes it down | the banner title, the record |
-| 49–52 | `claimKeys` arrives with the UNIT's list, `setHeight` is clamped and the view really is that tall, `ready` produced the re-send it owes | the key list, the heights, the counts |
-| 53–57 | `drive` lands on a REAL `<video>` and nothing else does, `release` restores, `requestSpeed(3)` is clamped to 2 and REPORTED, and `onState` really reaches the deck | the element's three values; the message counts |
-| 58–60 | the autoplay-next checkbox is not dead: the click stored the preference, main pushed it, the transport moved, and the report came back | the prefs record, the push count, the file on disk |
-| 61–63 | the preload bridge cannot be rewritten from inside the page; `page.close` hides the deck and the ENGINE IS STILL ALIVE; the deck PAINTED | the swap result, the colour count |
+| 1 | the app launches from its real entry point and the probe writes a report | exit code, electron/chromium versions |
+| 2–4 | **the vendored deck BOOTS** — every `assertHost` at `ui/embed.js` module scope passed — its module is ours, and `transport` is spelled and non-null over a Live source | the boot time, the duty list, both namespaces' members |
+| 5–7 | over the real ipc: one key in both areas comes back as two values, the area refusals keep their two shapes, and a change made by MAIN reaches the deck's own listener | the two values, which refusal took which shape |
+| 8 | `armShortcut` reports the accelerator the application menu REALLY took, and the deck draws it on a key cap | the raw string, what is on screen |
+| 9 | SESSION paints the not-armed hint and arming clears it — the deck PROJECTS the record | the hint before and after |
+| 10–13 | ARM_ERROR paints, is dismissible, offers no Restart it cannot honour, is persisted as `{code, message, at, seq}`, and ARM_ERROR_CLEARED takes it down and drops the record | the banner title, the record |
+| 14–16 | `claimKeys` arrives with the UNIT's list; `setHeight` is clamped and the view really is that tall; `ready` produces the re-send it owes | the key list, the heights, the deltas |
+| 17–21 | `drive` lands on a real `<video>` and `volume`/`evil` do not; `release` restores; `requestSpeed(3)` is clamped and REPORTED; `onState` really reaches the deck | the element's values, the message counts |
+| 22–24 | the autoplay-next checkbox is not dead: the click stored the preference, main pushed it, the transport moved, and `local` is on disk | the record, the push count, the file |
+| 25–27 | the bridge cannot be rewritten from inside the page; `page.close` hides the deck and the ENGINE IS STILL ALIVE; the deck PAINTED | the swap result, the colour count and height |
 
-**Assertion 57 is a bug this suite already caught.** The transport's payloads
-carry their own `{t:'state'}`; the relay in `deck-host.js` was written
-`toDeck({ t: 'video', ...s })`, the spread overwrote the type, the deck's inbound
-map had no handler for `'state'`, and `onState` — the duty the whole deck follows
-— never fired. Nothing went red anywhere: the deck simply showed a player that
-never moved. Measured on this Host's first launch as `toDeck.state: 48,
-toDeck.video: 0`, and the fix is `t` spelled LAST.
+**Assertion 16 counts a DELTA, not a total.** "`ready` produced a re-send" was
+first written as "some video messages have arrived" — and the transport pushes
+state at ~4 Hz regardless, so deleting the re-send changed nothing the assertion
+could see. It measures `speed` and `autonav` across one `ready` instead: neither
+ticks, and `resend()` re-sends the last of each undeduped.
+
+**Assertion 27 reads two numbers.** A blank page and a working one are both a
+PNG — and so are a styled deck and an unstyled one. Measured: with its stylesheet
+the deck is 432 px and 241 distinct colours; served with `embed.css` as
+`text/plain` it is 900 px (the clamp ceiling, because nothing sized it) and 100
+colours. The first threshold, "more than 20 colours", called that a pass.
 
 ### Deliberately not asserted here
 
-- **The engine half of the seam.** `offscreen/host.js`, `captureStream`,
-  `modelBytes` and the three messages addressed to `BUS.engine` are
-  `engine-host`'s.
-- **The source view's own behaviour.** That L1 holds in the preload, that a
-  YouTube `<video>` is driven correctly and that the autoplay toggle is really
-  found and clicked are `transport`'s. What is asserted here is only that the
-  deck's fourteen members REACH it and that what comes back reaches the deck.
+- **The contract** — `deck-seam`.
+- **The engine half of the seam** — `engine-host`.
+- **The source view's own behaviour**: L1 in the preload, a YouTube `<video>`,
+  the autoplay toggle really being found and clicked — `transport`. What is
+  asserted here is that the deck's members REACH it and that what comes back
+  reaches the deck.
 - **Six stems.** Nothing here proves the engine produces audio inside this app.
-- **The three-layer write set, at more than one layer.** `drive` is filtered at
-  the seam, again in `transport.js` and again in the preload. §1 watches the
-  SEAM's layer go red; breaking it alone does not change what reaches the
-  element, because the other two still hold. That is the point of defence in
-  depth and it is also the limit of what one suite can watch.
-- **`test.js`'s `group('host')` itself.** Its deck half installs a `chrome`
-  platform; against ours it cannot pass, because there is no `chrome` here to
-  stub. §1 is that group's deck half re-aimed, and the vendored file is left
-  byte-identical — which is what `vendor-intact` checks.
+- **The write set at more than one layer.** `drive` is filtered at the seam,
+  again in `transport.js` and again in the preload; breaking one alone does not
+  change what reaches the element. `deck-seam` watches the seam's layer.
 
 ### Watched red
 
-`node tools/suites/deck-host-mutations.mjs` is the battery: 58 rows, each one
-edit to one shipped file, the assertions it must turn red, and a restore in a
-`finally`. It fails in two ways — a mutation that produced NO red, and, at the
-end, any assertion no mutation ever turned red. The second is the one worth
-having: it is invisible from inside a green run.
+`node tools/suites/deck-host-mutations.mjs` — one edit to one shipped file per
+row, the assertions it must turn red, and a restore in a `finally`. It fails two
+ways: a mutation that produced NO red, and any assertion no mutation ever turned
+red. Every row costs a launch, because every assertion here is about a real one.
 
-`DECK_HOST_ONLY=conformance` runs §1 alone, which is how the battery pays a
-second for a hole-module mutation instead of forty-five. The runner never sets
-it.
+Two assertions are covered deliberately weakly and say so at their site: the
+three-layer write set (above), and "the bridge cannot be rewritten from inside
+the page", which is a property of `contextBridge` rather than of our code — there
+is nothing of ours to break, and it is recorded because it is the reason the
+launch half cannot test late binding at all.
 
 ---
 

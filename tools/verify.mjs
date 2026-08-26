@@ -114,7 +114,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -652,6 +652,40 @@ function selfCheck() {
     STEPS.every((s) => !('todo' in s) || (typeof s.todo === 'string' && s.todo.length > 8)));
   check('`sink` implies `window` — the capture gate cannot measure a headless app',
     STEPS.every((s) => !s.sink || s.window));
+
+  /**
+   * EVERY SUITE THIS TABLE NAMES IS TRACKED BY GIT — "works in my tree" is a
+   * whole class of green that a fresh clone turns red, and this is the cheap
+   * end of it.
+   *
+   * IT REALLY HAPPENED HERE. The commit that added the `deck-host` step landed
+   * with its suite file still untracked: every gate on the machine that wrote it
+   * was green (`void-canary` checks the file EXISTS, and it did), and a clone
+   * would have failed at the same check. `git ls-files --error-unmatch` is the
+   * only question that tells those two apart.
+   *
+   * NOT AN EXCUSE WHEN GIT IS ABSENT: a tree with no repository at all cannot
+   * answer, and answering "fine" would be the green-on-nothing shape this runner
+   * is written against — so the check reports what it could not do and the
+   * assertion fails.
+   */
+  // A `todo` step's file is DECLARED absent — `void-canary` asserts it really
+  // is — so it is exempt here. Everything else this table names must be in the
+  // index, or the step is a command a clone cannot run.
+  const stepFiles = STEPS.filter((st) => !st.cwd && !st.todo).map((st) => st.cmd[1])
+    .filter((p) => typeof p === 'string' && p.includes('/'));
+  const tracked = (rel) => {
+    const r = spawnSync('git', ['ls-files', '--error-unmatch', rel], { cwd: ROOT, encoding: 'utf8' });
+    return r.status === 0;
+  };
+  const gitHere = spawnSync('git', ['rev-parse', '--git-dir'], { cwd: ROOT, encoding: 'utf8' }).status === 0;
+  const untracked = gitHere ? stepFiles.filter((p) => !tracked(p)) : stepFiles;
+  check('every suite the steps table names is TRACKED BY GIT, not just present on this disk',
+    gitHere && untracked.length === 0,
+    gitHere
+      ? (untracked.length ? `UNTRACKED: ${untracked.join(', ')} — green here, red in a fresh clone`
+        : `${stepFiles.length} step files, all tracked`)
+      : 'there is no git repository here, so this cannot be answered — which is not the same as passing');
 
   console.log(`\n${bad ? `${C.r}${bad} FAILED${C.x}` : `${C.g}self-check green${C.x}`}\n`);
   return bad;
