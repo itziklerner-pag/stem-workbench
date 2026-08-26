@@ -363,6 +363,43 @@ guarantee and holds for the view's whole life (§6.4). `drive({muted})` is the
 unit's clock-lock on the element, for the cached deck. Implementing one is not
 implementing the other, and `release()` must restore only the second.
 
+### 3.5b Three rows above are **out of date**, and here is what shipped
+
+Recorded here rather than edited into the tables, because the tables are the
+design as it was reasoned and these are the three places building it changed the
+answer. `tools/suites/transport.mjs` gates all three.
+
+1. **`onKey` on the SOURCE view is the preload's, not `before-input-event`.**
+   §3.4 says `main` installs `before-input-event` on every `WebContents`. That
+   handler cannot see what has focus, and `content.js`'s `isTypingTarget` filter
+   is the load-bearing half: the cost of getting it wrong is a digit stolen out
+   of a half-written comment on somebody else's site. So the source view's keys
+   are taken in `src/preload/youtube.cjs`, in the capture phase, exactly as the
+   content script takes them — `preventDefault()` + `stopPropagation()`, filtered
+   by `deckArmed`, the claimed code list, and the typing target. `main` keeps
+   `before-input-event` for the views we own (`src/main/keys.js`), where there is
+   no guest page to protect. The fixture's own `keydown` counter is the witness
+   that an unclaimed key still reaches the page.
+
+2. **`onSpeedReport` is not "a port of the same function".** It EXECUTES the
+   vendored `extension/speed.js` in a `node:vm` context
+   (`src/main/speed.js`). `ui/embed-state.js` pins the deck's 29-rung ladder
+   against that exact file, so a Host that re-typed `SPEED_MIN = 0.5` would not
+   have copied a constant — it would have made that pin a lie, silently. One
+   file, one clamp, two readers. `extension/autonav.js` gets the opposite
+   treatment for a reason that is a fact about the copy rather than a choice: it
+   does not travel (finding F4).
+
+3. **None of these ride the `'bus'` channel**, which §3.4 and §3.5 both say they
+   do. `'bus'` carries the UNIT's protocol — `{v,to,from,type}` envelopes that
+   `ui/host.js`'s `onMessage` hands to the deck's own message handler after a
+   `to === 'ui'` guard — and a `VIDEO` or `SPEED` message on it would arrive at a
+   handler with no case for it. In the extension these never touch
+   `chrome.runtime` at all: they are `window.postMessage` from `content.js`, a
+   separate wire. `src/main/transport.js` is an event source in `main` and
+   `src/main/deck-host.js` owns the deck's wire, which keeps Host traffic out of
+   the unit's namespace.
+
 ### 3.6 The duties whose honest answer differs **in kind**
 
 Four. Everything else is the same idea over a different pipe.
@@ -1045,6 +1082,78 @@ in its own CI. The two instructions conflict. Suggested fix, and it is the shape
 the freeze already designed for: make the not-armed hint a Host-supplied string in
 interface v1.1 — a duty added is a MINOR change that every existing Host fails at
 boot, loudly, by `assertHost` naming it.
+
+**F4 — `extension/autonav.js` does not travel with the unit, and nothing says
+which reference-Host files a copy gets.** `unit.json` classifies `content.js`,
+`speed.js` and `autonav.js` all as `host`, but `tools/vendor-unit.sh` §3 derives
+the copy list from the unit's own files plus the holes, the `hostReads`, and
+everything the declared suites and runners READ. `content.js` and `speed.js` are
+read by `qa/speed-pitch.mjs` and `ui/embed-state.js`, so they come over;
+`autonav.js` has no reader, so it does not — 50 files arrived and it is not one
+of them. The consequence is asymmetric and invisible from either side: this Host
+EXECUTES the vendored `speed.js`, so there is exactly one clamp on the machine,
+and it had to PORT `autonavPlan`, `resolveSuppress` and the two selectors, which
+can now drift from the extension's with nothing anywhere going red. The drift
+shows up as a deck banner that never lights, because the deck keys off the
+literals `missing`, `stuck` and `lost`. Suggested fix, cheapest first: say in
+`VENDORING.md` which reference-Host files a copy actually receives and which it
+must write itself — today a reader would reasonably assume all three arrive. The
+fuller fix is to give `autonav.js` a reader `unit.json`'s derivation can see, at
+which point a second Host executes it the way this one executes `speed.js`.
+
+**F5 — `ARM_ERROR`'s `code` IS THE UNIT'S VOCABULARY, and the seam does not say
+so.** `shared/host.js` declares `ARM_ERROR { code, message }` and stops there,
+which reads as "any code you like". It is not: `ui/audio-math.js` holds
+`ARM_CODES`, a set of eight, and `ui/embed.js` branches on membership at three
+sites — `errorAction()` returns `'restart'` for a non-member and puts a Restart
+button under a banner that restarting cannot fix (the unit's own comment calls
+that the QA-16 footgun); `paintBanner` hides the dismiss × for a non-member; and
+`case 'ARM_ERROR_CLEARED'` clears the banner ONLY for a member, so a Host that
+invents a code can never retire its own refusal and the banner stands until
+`ARM_ERROR_TTL_MS`. All three render perfectly. A second Host spelling the
+obvious `code: 'NO_SOURCE'` ships an undismissable banner with a dead button and
+nothing anywhere goes red.
+
+Worse for a desktop Host: five of the eight members are TAB NOUNS (`TAB_GONE`,
+`TAB_BUSY`, `TAB_UNSUPPORTED`, `NO_ACTIVE_TAB`, and `NEEDS_GESTURE`, which is
+Chrome's activation rule), and the deck PRINTS the code in the banner title —
+"Separation has no source — TAB_GONE". So the only members a product with no tabs
+can use without putting a Chrome noun in front of the user are `NOT_ARMED`,
+`ARM_FAILED` and `NOT_CAPTURING`. This Host uses the first two and refuses at
+module evaluation if a future tag drops either (`src/main/deck-host.js`,
+`ARM_REFUSALS`).
+
+Suggested fix: name the set in the `onMessage` typedef beside the message shape,
+the way `armShortcut`'s token vocabulary is named — and, at v2, let the Host
+supply the SENTENCE rather than a code the deck decodes, which is the same shape
+as finding F2.
+
+**F6 — a hole module that throws at module scope CRASHES `group('host')` instead
+of failing it.** `test.js` drives both holes with bare statements —
+`deckHost.send(...)`, `await deckHost.storageGet(...)`, `deckHost.page.close()` —
+with no `try` around them, and it `import`s them under plain Node. So a Host that
+throws where a browser global is missing does not produce a red: it takes the
+whole group down. Measured while building this Host: the run died at
+`test.js:5577` after 482 assertions, and every assertion after it never ran.
+
+That inverts the incentive the group exists to create. A second Host's most
+honest first implementation — "this duty cannot work without its preload, so
+say so loudly" — is exactly the one that makes the conformance report
+unreadable, and the resulting stack trace looks like a broken vendored copy
+rather than an unimplemented duty. Both of this Host's holes therefore hold a
+rule the seam never asked for: NOTHING AT MODULE SCOPE TOUCHES A BROWSER-ONLY
+GLOBAL IN A WAY THAT CAN THROW, and a missing bridge is one `console.error` plus
+an inert answer per duty.
+
+The cost of that workaround is also a finding: `storageGet` must then RESOLVE
+where rule 6 says a failed read must REJECT, because a rejection at a bare
+`await` is the same crash. This Host keeps rule 6 where it is observable (a real
+bridge, `tools/suites/deck-host.mjs`) and breaks it only in the no-bridge case
+the unit's own harness creates.
+
+Suggested fix: wrap each duty drive in `group('host')` so a throwing duty is a
+red naming that duty, and say in `VENDORING.md` that a hole is imported under
+plain Node by the harness.
 
 **F3 — `armShortcut`'s vocabulary is documented in prose and gated nowhere.** A
 Host answering `'CommandOrControl+Shift+9'` renders "CommandOrControl" on the key
