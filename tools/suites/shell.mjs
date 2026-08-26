@@ -328,8 +328,21 @@ ok('...and the envelope arrives exactly as sent — main rewrites nothing  [entr
   pings.length === 1 && eq(pings[0], O(R.bus).expectedPing),
   pings.length === 1 ? `sent ${JSON.stringify(O(R.bus).expectedPing)} got ${JSON.stringify(pings[0])}` : '(nothing arrived)');
 
+// `delivered === 1` USED TO BE A CONJUNCT HERE AND IS NOT ANY MORE, and the
+// removal is a correction rather than a weakening. It was true only while the
+// engine window was INERT: `1` meant "the probe's own ping, and nothing else on
+// the bus in this launch". The engine page now loads the vendored
+// `offscreen/engine.js`, which broadcasts `HELLO`, `STATE` and `XF_STATE` to
+// `to: 'ui'` from module scope, so the total is whatever a live engine happens
+// to have said by the time the probe read it — measured at 6 on the run that
+// caught this. An exact count over traffic the assertion does not control is a
+// number that goes red for a reason outside its own claim, which is a red that
+// costs an investigation to discover is not a bug.
+//
+// NOTHING IS LOST: "the good one got through" is asserted twelve lines above by
+// `pings.length === 1`, which counts the PROBE's message and not the bus.
 ok('...and a message whose protocol version is not 1 is dropped as malformed and counted  [entry point: createBus()]',
-  O(O(O(R.bus).stats).dropped).malformed === 1 && O(O(R.bus).stats).delivered === 1,
+  O(O(O(R.bus).stats).dropped).malformed === 1,
   `dropped ${JSON.stringify(O(O(R.bus).stats).dropped)} delivered=${O(O(R.bus).stats).delivered} received=${O(O(R.bus).stats).received}`);
 
 ok('...and a message to an address nobody listens on is dropped and counted, never retried  [entry point: createBus()]',

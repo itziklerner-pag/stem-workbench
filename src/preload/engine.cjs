@@ -2,10 +2,27 @@
  * The ENGINE renderer's bridge. `contextIsolation: true`, `sandbox: true`,
  * `nodeIntegration: false`.
  *
- * WHAT IS HERE IN THIS WAVE: the bus, and nothing else. The nine `EngineHost`
- * duties (`assetUrl`, `modelBytes`, `storageGet`, …) are the next wave's, and
- * they land in the HOLE module `vendor/…/offscreen/host.js`, not here — this
- * file's whole job is to be the narrow thing that module closes over.
+ * WHAT IS HERE, AND WHY IT IS ONLY TWO THINGS. The nine `EngineHost` duties
+ * live in the HOLE module `vendor/…/offscreen/host.js`, never here; this file's
+ * whole job is to be the narrow thing that module closes over. It is narrow
+ * because seven of the nine duties need NOTHING from the main process:
+ *
+ *   send / onMessage      the bus wire below
+ *   captureStream         `claimCapture` below, then `getDisplayMedia` in the
+ *                         renderer — the constraints and the inspection are the
+ *                         hole module's, because a stream main never sees is a
+ *                         stream main cannot check
+ *   assetUrl              pure URL arithmetic against the hole module's own
+ *                         `import.meta.url`
+ *   onTeardown            `pagehide`, a document event
+ *   modelBytes /          `fetch` and `HEAD` over `app://`, which is a protocol
+ *   modelCached           handler main already installed. 109 MB over ipc would
+ *                         be one structured clone per load, twice per session
+ *   clearModel            an honest no-op over an immutable bundled file
+ *   createBackend         `new WorkerBackend(...)` — unit code, in this renderer
+ *
+ * Every channel added here is a channel a compromised renderer can call, so the
+ * two that ARE here are the two that could not be anywhere else.
  *
  * ---------------------------------------------------------------------------
  * THE SHAPE RULE, AND THE MISTAKE IT AVOIDS
@@ -48,4 +65,20 @@ contextBridge.exposeInMainWorld('__wbEngine', {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
+  /**
+   * SPEND A ONE-SHOT CAPTURE CLAIM. `main` minted the token in the arm path and
+   * put it on `CAPTURE_START`; the unit carried it here without looking inside
+   * it, and the hole module calls this BEFORE it asks for a stream.
+   *
+   * It resolves `{ok: true}` or `{ok: false, code, message}` and NEVER rejects
+   * on a refusal, so the hole module's own throw is the one the engine reports
+   * — `captureStream` must reject with a sentence, not with an ipc error.
+   *
+   * WHAT IT BUYS, precisely: `setDisplayMediaRequestHandler` in main will only
+   * answer a request that has a claim pending, so the engine cannot capture
+   * anything main did not arm. In the extension that property was free — the
+   * token WAS the grant. Here it has to be built, and this is the wire it is
+   * built on (docs/HOST-DESIGN.md §5.2).
+   */
+  claimCapture: (token) => ipcRenderer.invoke('capture:claim', token),
 });

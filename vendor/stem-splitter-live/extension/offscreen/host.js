@@ -1,179 +1,427 @@
 /**
- * THE EXTENSION'S EngineHost — the Chrome half of the engine, and the only file
- * under `offscreen/` that says `chrome.` at all.
+ * OURS — the ELECTRON EngineHost. This file is a HOLE, not vendored code.
  *
- * That is now true of the whole directory and not just of `engine.js`. The five
- * `chrome.runtime.getURL` calls that used to sit in `deck.js`, `cacheddeck.js`,
- * `live.js` and `master.js` — bypassing the seam entirely, so a second Host
- * could implement all five duties and still be blindsided by four sibling files
- * reaching for Chrome on their own — all resolve through `assetUrl` below
- * (S2, #4). The one URL that deliberately does NOT is the inference worker
- * itself, built with `new URL(..., import.meta.url)` inside
- * `../workers/workerbackend.js`: that one is about the unit's own directory
- * layout, which is the unit's contract and not the Host's.
- *
- * AND HALF OF WHAT IS HERE IS NOT `chrome.` AT ALL. `captureStream` is
- * `getUserMedia` with Chrome-proprietary constraints; `onTeardown` is a
- * document-lifetime event; the three model duties are `fetch` and the Cache API.
- * A gate that greps the unit for `chrome.` sees none of them, which is why the
- * seam is a DECLARED interface rather than an inferred one — and why moving the
- * model's URL out of `shared/config.js` (S7) is the only edit that actually
- * removed the network path from the unit.
- *
- * `engine.js` is the orchestration and knows nothing about the browser it is
- * in; this module is what makes it run inside a Chrome extension's offscreen
- * document. The duties, and why each is shaped the way it is, are declared once
+ * `extension/unit.json` declares two holes; this is one of them. The unit's
+ * `offscreen/engine.js` does `import * as host from './host.js'` and then
+ * `assertHost(host, ENGINE_HOST_DUTIES)` at module scope, so this module is what
+ * makes the vendored engine run inside stem-workbench instead of inside a Chrome
+ * extension. The duties, and WHY each is shaped the way it is, are declared once
  * in `../shared/host.js` (`EngineHost`) — read them there. What follows is only
- * what is peculiar to THIS Host.
+ * what is peculiar to THIS Host. `vendor/.pin`'s `ours` array names this path so
+ * that "did somebody edit the unit" and "did somebody edit our Host" stay two
+ * separately answerable questions (CONTRIBUTING.md rule V1).
  *
- * What the offscreen document can and cannot do (measured): its entire
- * `chrome.*` surface is `runtime.{getURL, onMessage, sendMessage}`. It cannot
- * reach `chrome.storage`, `chrome.tabs` or `chrome.runtime.getManifest`.
- * Anything persistent goes through the service worker; anything large goes
- * through OPFS. That is why the seam is this narrow — there was never much
- * `chrome.` here to hide.
+ * The reference implementation this replaces is the extension's own
+ * `offscreen/host.js` at `stem-splitter-live` v0.2.0. Where a duty is the SAME
+ * IDEA over a different pipe it is written the same way on purpose, and where it
+ * differs IN KIND it says so and says why (docs/HOST-DESIGN.md §3.6 names four;
+ * three of them are on this interface).
  *
- * EVERY LOOKUP IS AT CALL TIME, never `.bind()`ed at module scope. Test harnesses
- * replace the `chrome.runtime.sendMessage` PROPERTY after a context has booted
- * in order to observe what it sends; a bound copy captures the original and the
- * observation silently records nothing.
+ * ---------------------------------------------------------------------------
+ * THE SHAPE RULE, AND THE ONE MISTAKE `shared/host.js` NAMES AS ELECTRON'S
+ * ---------------------------------------------------------------------------
+ * *"An Electron preload bridge wrapped one level too deep hands over
+ * `{ send: fn }`"*, and *"a duty implemented as a method that needs its `this` …
+ * passes this check, works for the four duties the engine calls through the
+ * namespace, and fails only at the first worklet load"* — because `engine.js`
+ * hands `host.assetUrl` ITSELF to `MasterBus` and to every deck, unbound, and
+ * copies it onto the `shared` bundle every Deck, LivePipeline and CachedDeck
+ * reads.
+ *
+ * So: EVERY EXPORT BELOW IS A PLAIN FUNCTION THAT CLOSES OVER WHAT IT NEEDS AND
+ * NEVER READS `this`. The preload bridge (`window.__wbEngine`) is never
+ * re-exported and is never captured at import — it is looked up per call, which
+ * is also what lets a gate replace the outgoing wire after boot and actually see
+ * traffic.
+ *
+ * ---------------------------------------------------------------------------
+ * THIS MODULE MUST IMPORT CLEANLY IN PLAIN NODE, AND THAT IS A REQUIREMENT
+ * ---------------------------------------------------------------------------
+ * The vendored `test.js`'s `group('host')` imports this file from Node and drives
+ * every duty with the platform stubbed underneath it. A module-scope `window`,
+ * `location` or `navigator` read here does not turn one assertion red — it takes
+ * the whole `unit` step out AT IMPORT, and 612 assertions with it. Nothing below
+ * touches a global until it is CALLED.
  */
 
 import { MODEL } from '../shared/config.js';
 import { BUS } from '../shared/host.js';
 import { WorkerBackend } from '../workers/workerbackend.js';
-import { MODEL_URL, MODEL_CACHE_NAME } from './host-pin.js';
+
+/** This context's address on the unit's bus, read out of the seam's own declaration. */
+const ME = BUS.engine;
 
 /**
- * This context's address on the extension message bus, READ OUT OF THE SEAM'S
- * OWN DECLARATION rather than spelled here.
+ * WHERE THE MODEL BYTES COME FROM UNDER THIS HOST — one path, on our own origin.
  *
- * It was `const ME = 'off'` until Host interface v1 (S11): three files spelled
- * three literals and nothing connected them, so "hand the engine every message
- * addressed to it" was a duty a second Host could read in full and still not
- * know how to discharge. `BUS` is where the addresses are frozen.
+ * `desktop-app-plan.md` §15 bundles the 109 MB of weights in the installer, so
+ * there is no download and no store: `src/main/protocol.js` streams the file
+ * from `extraResources` (packaged) or `models/` (development) at this path, and
+ * `src/main/assets.js` puts COOP/COEP/CORP on it like every other response.
+ * docs/HOST-DESIGN.md §7 measured the whole path: 114,559,139 bytes in 1383
+ * chunks, 179 ms, zero structured clones.
+ *
+ * THE ORIGIN IS READ OFF THE DOCUMENT rather than spelled here, so this file
+ * carries no second copy of `app://workbench` to drift from `assets.js`. Read
+ * LAZILY — see the module header: `location` does not exist in Node and a
+ * module-scope read would take the vendored `test.js` out at import.
+ *
+ * `offscreen/host-pin.js` IS DELIBERATELY LEFT AS THE EXTENSION'S. It is not one
+ * of `unit.json`'s two holes; it is the extension's own pin (a huggingface.co
+ * URL and a Cache API bucket), the vendored `test.js` reads it to assert claims
+ * about THAT origin policy, and `tools/host.mjs` imports it. Those are claims
+ * about the extension, not about us, and repointing them belongs with the
+ * `group('host')` repointing (docs/TESTING.md §1) rather than here. Nothing in
+ * this file imports it.
  */
-const ME = BUS.engine;
+const MODEL_PATH = '/model/htdemucs_6s.onnx';
+const modelUrl = () => {
+  const loc = globalThis.location;
+  if (!loc || !loc.origin || loc.origin === 'null') {
+    throw new Error('EngineHost.modelBytes: the weights are served from this Host\'s own origin '
+      + `and there is no document here to read it from (location=${String(loc && loc.origin)})`);
+  }
+  return new URL(MODEL_PATH, loc.origin).href;
+};
+
+/**
+ * THE PRELOAD BRIDGE, LOOKED UP PER CALL.
+ *
+ * `src/preload/engine.cjs` exposes `window.__wbEngine` — the bus wire and the
+ * capture claim, and nothing else. It is not captured at import for two
+ * reasons: a gate that replaces the wire after boot must be able to observe
+ * traffic, and this module is imported from Node by `test.js` where there is no
+ * `window` at all.
+ */
+const wire = () => globalThis.__wbEngine || null;
+
+/**
+ * THE HOST'S OWN COUNTERS, and they are READABLE FROM OUTSIDE — see
+ * `__hostStats` at the foot of this file.
+ *
+ * A draft of this file deleted them on the theory that an ES module's exports
+ * are not on `window` and `executeJavaScript` therefore could not reach them.
+ * THAT IS WRONG, and it is written down here because it is the kind of wrong
+ * that gets re-derived: a gate evaluates
+ * `import('./vendor/…/offscreen/host.js').then((host) => …)` IN the renderer and
+ * gets the live module namespace — the same instance the engine imported, not a
+ * second copy. `tools/gate/engine-host.mjs` drives half the duties that way.
+ *
+ * What they buy is the difference between "the engine sent nothing" and "the
+ * wire dropped it", which is otherwise two indistinguishable silences.
+ */
+const stats = { sent: 0, dropped: 0, received: 0, notMine: 0 };
+let announcedMissingBridge = false;
+function noBridge(duty) {
+  if (announcedMissingBridge) return;
+  announcedMissingBridge = true;
+  console.error(`[wb host] window.__wbEngine is absent, so ${duty}() has nowhere to go. `
+    + 'The engine renderer was created without src/preload/engine.cjs, or the preload threw. '
+    + 'Nothing downstream retries and no gate would notice the loss.');
+}
 
 /**
  * @type {import('../shared/host.js').EngineHost['send']}
  *
- * `chrome.runtime.sendMessage` is a BROADCAST — every extension context with a
- * listener receives it — so `to` is the routing and not the transport. The
- * `.catch(() => {})` is load-bearing rather than defensive: with no surface
- * open there is no listener, and an unhandled rejection per 10 Hz heartbeat
- * fills the console with a condition that is entirely normal.
+ * RETURNS UNDEFINED, NEVER A PROMISE. Twenty-two call sites in `engine.js` end a
+ * `case` with `return send({...})` inside an `async` function; a promise here
+ * would be awaited by every one of them.
+ *
+ * IT IS A FAN-OUT, NOT A POINT-TO-POINT LINK, and that survives the change of
+ * transport: `ipcRenderer.send('bus', env)` reaches `src/main/bus.js`, which
+ * delivers to EVERY renderer registered on `to`. Today that set has one member;
+ * the day a first-run screen exists it will have two and nothing here changes.
+ * The extension relies on the same property already — `ui/welcome.js` paints the
+ * model-download progress off the engine's `STATE` messages.
+ *
+ * THE ENVELOPE IS STAMPED HERE, and only here. Freeze item 5: the engine's
+ * `send` stamps and the deck's does not, `main` stamps only what IT originates,
+ * and three stampers would be one too many.
+ *
+ * DELIVERY FAILURE IS SWALLOWED, on purpose and for the extension's reason: with
+ * no surface open there is no listener, that is entirely normal, and one report
+ * per 10 Hz heartbeat is a console nobody can read. `ipcRenderer.send` is
+ * fire-and-forget, so there is not even a promise to swallow — the drop happens
+ * one process away, in the router, where it is COUNTED (`bus.stats.dropped`).
  */
 export const send = (msg) => {
-  chrome.runtime.sendMessage({ v: 1, to: BUS.deck, from: ME, ...msg }).catch(() => {});
+  const w = wire();
+  if (!w) { stats.dropped++; noBridge('send'); return; }
+  stats.sent++;
+  w.send({ v: 1, to: BUS.deck, from: ME, ...msg });
 };
 
 /**
  * @type {import('../shared/host.js').EngineHost['onMessage']}
  *
- * `return false` is deliberate and belongs to the Host, not to the engine: MV3
- * reads a truthy return as "I will call `sendResponse` asynchronously" and would
- * hold the message channel open for every message the engine ever receives.
- * `fn` is handed the raw envelope and its result is discarded.
+ * THE ROUTING GUARD IS THE HOST'S. `main`'s router already delivers by address,
+ * so this second check is belt to its braces — and it is the one the unit's
+ * interface actually asks for, so it is spelled here rather than assumed of a
+ * transport that could be replaced.
+ *
+ * `fn` IS HANDED THE RAW ENVELOPE — the same object, not a copy, not the
+ * payload, not normalised. `shared/host.js`: re-wrapping or filtering it breaks
+ * receivers quietly.
+ *
+ * THE RETURN VALUE IS DROPPED. The extension returns `false` because MV3 reads a
+ * truthy return as "I will call `sendResponse` asynchronously" and would hold the
+ * message channel open; Electron has no such channel, so there is nothing to
+ * hold open and nothing to return.
+ *
+ * IT THROWS WHEN THERE IS NO BRIDGE, unlike `send`, and the asymmetry is
+ * deliberate: this is called ONCE, from `engine.js` module scope, and an engine
+ * with no inbox is an engine that will never answer `STATUS` — a deck that
+ * simply never paints, with nothing in the console at all, which `shared/host.js`
+ * names as the quietest failure on this seam. A throw here stops the boot at the
+ * line that caused it.
  */
 export const onMessage = (fn) => {
-  chrome.runtime.onMessage.addListener((m) => {
-    if (!m || m.to !== ME) return;
+  const w = wire();
+  if (!w) {
+    noBridge('onMessage');
+    throw new Error('EngineHost.onMessage: window.__wbEngine is absent, so the engine would have no inbox '
+      + '— it would boot, send HELLO, and never answer STATUS again.');
+  }
+  w.onMessage((m) => {
+    stats.received++;
+    if (!m || m.to !== ME) { stats.notMine++; return; }
     fn(m);
-    return false;
   });
 };
 
 /**
+ * The five settings a capture must come back with, and the ONE reason this Host
+ * inspects a stream the extension never had to.
+ *
+ * In the extension the token IS the grant: `chrome.tabCapture.getMediaStreamId`
+ * returns something `getUserMedia` consumes directly with proprietary
+ * constraints, and what comes back is a tab's audio at the tab's rate. Here the
+ * grant is a decision made in `main` at request time and the renderer asks with
+ * ordinary `getDisplayMedia` constraints — which are REQUESTS, not guarantees.
+ *
+ * `docs/spike-capture-mute.md` Limitation 6 is the whole argument, and it is
+ * measured rather than feared: a naive `getDisplayMedia({audio: true})` on this
+ * box yields MONO, 48 kHz, with automatic gain control that decays the level 17x
+ * over 8 seconds — and it reads 10.8x above a naive floor, so a gate that only
+ * checks "is there sound" calls it a PASS. That is a dead product for stem
+ * separation. The unit cannot see this: it is handed a `MediaStream` and trusts
+ * it. This is the one place the Host can, so this is where it happens.
+ *
+ * ALL FIVE MUST BE REPORTED AND RIGHT. "Absent" is not "fine" — a settings
+ * object that does not say whether AGC is on is one this Host cannot clear, and
+ * an estimator that saturates before the claim begins is the failure AGENTS.md
+ * bans by name.
+ */
+const CAPTURE_MUST_BE = Object.freeze({
+  channelCount: 2,
+  sampleRate: 44100,
+  autoGainControl: false,
+  echoCancellation: false,
+  noiseSuppression: false,
+});
+
+/**
  * @type {import('../shared/host.js').EngineHost['captureStream']}
  *
- * The token is minted by the service worker (`chrome.tabCapture.getMediaStreamId`),
- * which is the only context that can see `chrome.tabs`; the engine carries it
- * here without ever looking inside it. Note this is NOT a `chrome.*` call — it is
- * `getUserMedia` with Chrome-proprietary constraints, which a grep for `chrome.`
- * cannot see. That is exactly why the duty is declared rather than inferred.
+ * THE TOKEN IS OPAQUE TO THE UNIT and it is a ONE-SHOT CAPTURE CLAIM here:
+ * `main` mints it in the arm path, bound to the source view and to a deadline,
+ * and hands it to the engine on `CAPTURE_START`. This function spends it before
+ * it asks for anything (`src/main/capture.js`), and `main`'s
+ * `setDisplayMediaRequestHandler` will only answer a request that has a claim
+ * pending. The correlation IS the security property: the engine cannot capture
+ * anything `main` did not arm. `docs/ARCHITECTURE.md` §5 R4's mechanism (a
+ * browser-level grant) does not exist here; its consequence is kept deliberately.
  *
- * Rejects on failure, as the duty requires: `getUserMedia` already does.
+ * `video: true` IS NOT A MISTAKE. The spec forbids an audio-only
+ * `getDisplayMedia`, so a video track is always created and is stopped and
+ * removed below before the stream reaches the engine.
+ *
+ * REJECTS RATHER THAN RESOLVING NULL — every caller is `.catch`-wrapped and a
+ * null would travel on as a capture with no track.
+ *
+ * OWNERSHIP TRANSFERS to the engine, which stops the tracks (R5). This function
+ * holds nothing and stops nothing it hands over — but it DOES stop everything on
+ * every failing path after the stream exists, because a track opened and then
+ * abandoned is a live capture indicator over silence with no affordance to fix
+ * it.
  */
-export const captureStream = (sourceToken) => navigator.mediaDevices.getUserMedia({
-  audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: sourceToken } },
-  video: false,
-});
+export const captureStream = async (sourceToken) => {
+  const w = wire();
+  if (!w) {
+    noBridge('captureStream');
+    throw new Error('EngineHost.captureStream: window.__wbEngine is absent — there is no way to spend the claim.');
+  }
+
+  // SPEND THE CLAIM FIRST, BEFORE ANY TRACK EXISTS. A refusal here costs
+  // nothing; a refusal after `getDisplayMedia` would have to be unwound.
+  const claim = await w.claimCapture(sourceToken);
+  if (!claim || claim.ok !== true) {
+    throw new Error(`capture refused: ${(claim && (claim.message || claim.code)) || 'the Host answered nothing'}`);
+  }
+
+  const stream = await navigator.mediaDevices.getDisplayMedia({
+    audio: {
+      autoGainControl: false,
+      echoCancellation: false,
+      noiseSuppression: false,
+    },
+    video: true,
+  });
+
+  try {
+    for (const t of stream.getVideoTracks()) { t.stop(); stream.removeTrack(t); }
+
+    const audio = stream.getAudioTracks();
+    if (audio.length !== 1) {
+      throw new Error(`capture came back with ${audio.length} audio tracks, expected exactly 1`);
+    }
+    const got = audio[0].getSettings ? audio[0].getSettings() : null;
+    if (!got) throw new Error('the capture track will not report its settings, so this Host cannot tell a usable capture from a ruined one');
+    const wrong = Object.entries(CAPTURE_MUST_BE)
+      .filter(([k, want]) => got[k] !== want)
+      .map(([k, want]) => `${k}=${JSON.stringify(got[k])} (wanted ${JSON.stringify(want)})`);
+    if (wrong.length) {
+      throw new Error(`the capture is not usable for stem separation: ${wrong.join(', ')}. `
+        + 'A mono, 48 kHz or gain-controlled capture looks fine to a level meter and is not the signal the model was trained on.');
+    }
+  } catch (err) {
+    // R5, on the one path where it is not the engine's yet.
+    for (const t of stream.getTracks()) t.stop();
+    throw err;
+  }
+
+  return stream;
+};
+
+/**
+ * The unit's own root, derived from THIS MODULE'S LOCATION.
+ *
+ * `extension/offscreen/host.js` -> `extension/`. Deriving it rather than
+ * spelling `app://workbench/vendor/stem-splitter-live/extension/` is what makes
+ * `assetUrl`'s third obligation — THE URL MUST BE LOCAL TO THE UNIT'S OWN
+ * BUNDLE (M1: everything this duty resolves EXECUTES — three worklet modules and
+ * the ORT wasm runtime) — a property of the code rather than of a string
+ * somebody keeps in step. Move the vendored tree and this follows it; change the
+ * origin and this follows that too.
+ *
+ * Computed at module scope on purpose: `import.meta.url` is a module property,
+ * not a global, so it is present in Node as well and this cannot be the thing
+ * that takes the vendored `test.js` out at import.
+ */
+const UNIT_BASE = new URL('../', import.meta.url).href;
 
 /**
  * @type {import('../shared/host.js').EngineHost['assetUrl']}
  *
- * Extension-root-relative, no leading slash: `assetUrl('offscreen/capture-processor.js')`.
- * A path that ends in `/` resolves to a directory URL and keeps its trailing
- * slash — `../workers/workerbackend.js` hands `assetUrl('vendor/ort/')` to
- * the inference worker's `INIT`, and ORT appends its own file names to it.
+ * SYNCHRONOUS, unit-relative, no leading slash:
+ * `assetUrl('offscreen/capture-processor.js')`. Called from constructors that
+ * run before there is an AudioContext to await on.
+ *
+ * A PATH ENDING IN `/` KEEPS ITS TRAILING SLASH. `workers/workerbackend.js`
+ * hands `assetUrl('vendor/ort/')` to the inference worker's `INIT` and ONNX
+ * Runtime appends its own file names to it. `new URL(rel, base)` preserves it;
+ * `path.join()` and `url.pathToFileURL()` — the first two things a Node or
+ * Electron Host reaches for — both drop it, and R0 measured what that costs:
+ * ORT throws "w is not a function" several layers from the mistake. This is the
+ * single most likely way for THIS Host to be wrong and it is one function call.
+ *
+ * THE RESULT IS FETCHABLE. `app://` is registered with
+ * `supportFetchAPI: true` (`src/main/protocol.js`) precisely because
+ * `workerbackend.js` probes the ORT bundle with `fetch(url, {method:'HEAD'})`,
+ * and a scheme `fetch` refuses turns that diagnosis into a false report about a
+ * file that is present.
+ *
+ * THE GUARD IS NOT DECORATION. `new URL('/etc/passwd', base)` resolves to the
+ * ORIGIN root, outside the unit, and this is the one duty on the whole interface
+ * that can break M1. Nothing in the unit passes such a path today; the point is
+ * that it cannot start to without saying so out loud.
  */
-export const assetUrl = (relPath) => chrome.runtime.getURL(relPath);
-
-/**
- * @type {import('../shared/host.js').EngineHost['createBackend']}
- *
- * THE HOST PICKS THE BACKEND — that is the whole of what this duty is for, and
- * under this Host there is exactly one to pick. `WorkerBackend` is unit code
- * (`../workers/workerbackend.js`), not Chrome code: it needs a `Worker`, a
- * `fetch` and somewhere to resolve `vendor/ort/`, and none of those is
- * `chrome.*`. What makes it THIS Host's choice is the line below and nothing
- * else, which is what a desktop Host replaces when a native backend exists —
- * one line, against an interface, rather than a fork of the engine.
- *
- * A FRESH INSTANCE EVERY CALL. Memoising is the obvious optimisation and it is
- * the one shape this duty must never take: two decks sharing one worker means
- * two ORT sessions on one wasm instance, and a concurrent `run()` there
- * PERMANENTLY WEDGES both (`offscreen/deck.js:18-25`). `new` on every call is
- * how that stays structurally impossible rather than merely unlikely.
- *
- * `assetUrl` is passed as the module's own function, unbound, exactly as
- * `engine.js` passes it to `MasterBus` and to the decks.
- *
- * THE HOOKS ARE FORWARDED WHOLE, and that is the one part of this duty
- * `assertHost(backend, BACKEND_DUTIES)` structurally cannot check. `onReady` and
- * `onFail` arrive OUTSIDE any call the unit made — the hardware the backend
- * found, and a death with nothing in flight — so a Host that built the backend
- * and dropped them answers with an object that owes every declared duty and
- * still loses both: the deck's `state.boot.{ep,adapter,threads}` line goes
- * blank, and an idle backend death is silent again until the next arm. Review
- * measured exactly that: `new WorkerBackend({ assetUrl })` left `node test.js`
- * at 602 passed and `embed-smoke` at 130/130. `test.js`'s `host` group now
- * drives the hooks through THIS function rather than around it.
- *
- * `...hooks` FIRST, `assetUrl` LAST, so the unit cannot overwrite the resolver
- * the Host chose. The declared hook type has no `assetUrl` in it, so nothing
- * reaches this today; the order is what keeps "the Host decides where its files
- * live" a property of the code rather than of the caller's good manners.
- */
-export const createBackend = (hooks) => new WorkerBackend({ ...hooks, assetUrl });
+export const assetUrl = (relPath) => {
+  const rel = String(relPath);
+  const url = new URL(rel, UNIT_BASE).href;
+  if (!url.startsWith(UNIT_BASE)) {
+    throw new Error(`EngineHost.assetUrl: '${rel}' resolves to ${url}, which is outside the unit's own bundle `
+      + `(${UNIT_BASE}). Everything this duty resolves is executed — three worklets and the ORT wasm runtime — `
+      + 'so it may only ever answer with a path local to the unit (M1).');
+  }
+  return url;
+};
 
 /**
  * @type {import('../shared/host.js').EngineHost['onTeardown']}
  *
- * Under this Host the engine's lifetime IS the offscreen document's, so the
- * teardown signal is `pagehide`. It is host-coupled with no `chrome.` in it —
- * a document-lifetime event that a renderer-hosted engine would raise from
- * somewhere else entirely — which is why it is a duty and not a line in
- * `engine.js`.
+ * THE IDENTICAL LINE THE EXTENSION USES, and that is worth saying rather than
+ * hiding: under both Hosts the engine's lifetime is a document's, so the
+ * teardown signal is `pagehide`. What makes it FIRE here is a decision in
+ * `src/main/main.js`: the engine window is `close()`d on `before-quit` and never
+ * `destroy()`ed, because `destroy()` skips `pagehide` and the leak is then a live
+ * capture and a ~1.7 GB wasm heap (R5 in a different shape).
+ *
+ * The engine's callback is registered UNWRAPPED. Teardown does not await, so a
+ * wrapper that returned a promise would drop the track stop that is the whole
+ * point of the duty.
  */
 export const onTeardown = (fn) => { addEventListener('pagehide', fn); };
 
+/**
+ * @type {import('../shared/host.js').EngineHost['createBackend']}
+ *
+ * THE IDENTICAL LINE AGAIN, and for the reason the extension's own comment
+ * gives: `WorkerBackend` is UNIT code, not Chrome code — it needs a `Worker`, a
+ * `fetch` and somewhere to resolve `vendor/ort/`, and none of those is
+ * `chrome.*`. What makes it THIS Host's choice is this line and nothing else,
+ * which is what a native backend in a utility process (seed §16, step 7)
+ * replaces: one line, against an interface, rather than a fork of the engine.
+ *
+ * A FRESH INSTANCE EVERY CALL. Memoising is the obvious optimisation and it is
+ * the one shape this duty must never take: two decks sharing one worker means
+ * two ORT sessions on one wasm instance, and a concurrent `run()` there
+ * PERMANENTLY WEDGES both (`offscreen/deck.js:18-25`).
+ *
+ * THE HOOKS ARE FORWARDED WHOLE — the one part of this duty
+ * `assertHost(backend, BACKEND_DUTIES)` structurally cannot check, because a
+ * backend built without them owes every declared duty and answers to nobody.
+ * `...hooks` FIRST and `assetUrl` LAST, so the unit cannot overwrite the
+ * resolver the Host chose.
+ *
+ * `assetUrl` is passed as this module's own function, UNBOUND, exactly as
+ * `engine.js` passes it to `MasterBus` and to the decks. It reads no `this`.
+ */
+export const createBackend = (hooks) => new WorkerBackend({ ...hooks, assetUrl });
+
 /* ------------------------------------------------------------------ the model
- * THE MODEL'S BYTES — the P1 surface, and the half of the model pin that is this
- * Host's. `MODEL_URL` and the Cache API bucket come from `./host-pin.js`; the
- * SHA-256 and the byte count stay in the unit, which checks them over whatever
- * arrives here (`../shared/modelcache.js`). NOTHING BELOW VERIFIES ANYTHING, and
- * that is the design: a Host that could verify is a Host that could decline to.
+ * THE WEIGHTS — and the half of this seam no grep for `chrome.` could ever see.
+ *
+ * `desktop-app-plan.md` §15: the model ships INSIDE the installer, so this Host
+ * has no download, no store, and nothing to clear. `shared/host.js` anticipated
+ * exactly this Host and blesses the shape — "a Host whose bytes are immutable —
+ * the file vendored next to the binary … has nothing to throw away and would
+ * otherwise have to satisfy this duty by lying" — ON CONDITION that
+ * `fromCache: false` travels with it, so the unit stops after one ask. The two
+ * are ONE DECISION and are written next to each other for that reason.
+ *
+ * NOTHING BELOW VERIFIES ANYTHING, and that is the design rather than an
+ * omission. The SHA-256 and the byte count are the unit's
+ * (`../shared/config.js`, checked by `../shared/modelcache.js::verifyModel` over
+ * whatever arrives, on EVERY load). A Host that verified would be a Host that
+ * could decline to, and M1 is not a property the unit can delegate.
  * -------------------------------------------------------------------------- */
 
 /**
- * Drain a `Response` into one contiguous `Uint8Array`, reporting progress.
+ * Drain a `Response` into ONE CONTIGUOUS `Uint8Array`, reporting progress.
  *
- * `MODEL.bytes` is the fallback total, and it is COSMETIC: a `Content-Length`
- * is normally there, and when it is not, a progress bar with a plausible total
- * beats one with none. The number that decides anything is the unit's, checked
- * after the last byte lands.
+ * `byteOffset === 0 && byteLength === buffer.byteLength` is not an accident of
+ * this shape, it is the reason for it: the unit TRANSFERS `bytes.buffer` into
+ * the inference worker, so a `Uint8Array` that is a VIEW into something larger
+ * would transfer the larger thing and bind a session over the wrong offset —
+ * the bytes that passed the check would not be the bytes that ran.
+ * `shared/modelcache.js::requireWholeBuffer` enforces it on every load; this is
+ * the side that has to be right.
+ *
+ * `MODEL.bytes` is the fallback total and it is COSMETIC — our protocol handler
+ * always sets `Content-Length`. It is imported here for a progress bar and for
+ * nothing else; the number that DECIDES anything is the unit's, checked after
+ * the last byte lands.
  */
 async function readAll(res, onProgress) {
   const total = Number(res.headers.get('Content-Length')) || MODEL.bytes;
@@ -196,60 +444,61 @@ async function readAll(res, onProgress) {
 /**
  * @type {import('../shared/host.js').EngineHost['modelBytes']}
  *
- * P1 IS HELD BY THE ORDER OF THESE LINES: `cache.match` short-circuits before
- * `fetch` is even referenced, so after the first successful download this
- * function makes zero network requests. M1 is held by what it does with them —
- * the bytes are data, and nothing here is ever `import`ed or evaluated.
+ * A FRESH BUFFER EVERY CALL, AND NOTHING IS MEMOISED. Two decks exist and each
+ * one asks; the unit detaches what it is given, so a cached `Uint8Array` would
+ * hand the second load a 0-byte array. Memoising 109 MB is the obvious
+ * optimisation here and it is wrong — the file is on local disk and the measured
+ * cost of not doing it is 179 ms.
  *
- * The cache is written BEFORE the unit has verified a byte, because the
- * alternative is buffering 109 MB twice, and the unit's `loadModel` is written
- * knowing it: bytes that fail the check take `clearModel()` with them on the way
- * out. That contract is stated in `../shared/modelcache.js` and asserted there.
+ * `fromCache: false`, ALWAYS, and it is load-bearing rather than telemetry. The
+ * bytes are immutable and shipped in the installer: asking twice cannot improve
+ * them, so the unit must stop after one ask. Reporting `true` here — with the
+ * no-op `clearModel` below — is the exact failure `shared/host.js` warns about:
+ * one corrupt file would become a permanently dead deck that fails identically
+ * for ever.
  *
- * The phase is announced BEFORE any bytes move. `fromCache` in the return value
- * is a post-hoc record and arrives ~2 minutes too late to choose the wording on
- * a progress card; `phase` is the authoritative signal, and this is what makes
- * it authoritative from the instant the answer is known rather than from the
- * first byte of a fetch whose headers may take a second.
+ * THE PHASE IS `'cache'` AND IS ANNOUNCED BEFORE ANY BYTES MOVE. The deck reads
+ * the phase to decide what a progress card may say, and "downloading" is a lie
+ * about a file that shipped with the app — no byte of the user's data is being
+ * spent. `fromCache` in the RESULT is the retry decision and arrives ~2 minutes
+ * too late to choose wording; the phase is the authoritative signal and it is
+ * authoritative from the instant the answer is known.
  */
 export const modelBytes = async (onProgress = () => {}) => {
-  const cache = await caches.open(MODEL_CACHE_NAME);
-  const hit = await cache.match(MODEL_URL);
-  onProgress(hit ? 'cache' : 'download', 0, MODEL.bytes);
-  if (hit) {
-    return { bytes: await readAll(hit, (g, t) => onProgress('cache', g, t)), fromCache: true };
-  }
-
-  const res = await fetch(MODEL_URL);
-  if (!res.ok) throw new Error(`model fetch failed: HTTP ${res.status}`);
-  const bytes = await readAll(res, (g, t) => onProgress('download', g, t));
-  await cache.put(MODEL_URL, new Response(bytes, {
-    headers: { 'Content-Length': String(bytes.length), 'Content-Type': 'application/octet-stream' },
-  }));
+  const url = modelUrl();
+  onProgress('cache', 0, MODEL.bytes);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`model read failed: HTTP ${res.status} for ${url}`);
+  const bytes = await readAll(res, (g, t) => onProgress('cache', g, t));
   return { bytes, fromCache: false };
 };
 
 /**
  * @type {import('../shared/host.js').EngineHost['modelCached']}
  *
- * Cheap on purpose — `cache.match` resolves a `Response` without reading its
- * body, so this answers the setup page's "will arming cost 109 MB?" without
- * spending anything. It is the reason `STATUS` can answer at boot.
+ * "Would `modelBytes()` cost a download?" — no, never, so the honest answer is
+ * whether the file is THERE. A `HEAD` over `app://` answers that without reading
+ * a byte: `src/main/protocol.js` `stat`s the file and returns the headers, which
+ * is the same question `fs.stat` would answer over an ipc round trip and one
+ * fewer channel to expose. It does NOT compare against `MODEL.bytes` and does
+ * NOT hash — "is the install complete" is the Host's question, "are these the
+ * right bytes" is the unit's.
  *
- * `false` WHEN IT CANNOT LOOK, which is the duty's own wording and is why the
- * `catch` is here rather than at the call site. Both awaits below can reject —
- * the Cache API is unavailable when storage is blocked or partitioned away —
- * and `engine.js`'s `STATUS` case awaits this BEFORE `ensureBackend()`,
- * `echoXf()` and `push()`, so a rejection does not become a model error: it
- * abandons the rest of the case, and `handle()`'s catch writes the reason to
- * `state.job.error`, which nothing paints. The deck simply stays blank. `false`
- * is also the safe direction of the two: the user is offered a download they
- * may decline, rather than having 109 MB spent on a `true` nobody checked.
+ * RESOLVES, NEVER REJECTS, and this duty is alone among the three in that:
+ * `engine.js`'s `STATUS` case awaits it BEFORE `ensureBackend()`, `echoXf()` and
+ * `push()`, so a rejection here is not a model error — it is a deck that paints
+ * nothing at all, with the reason written to `state.job.error`, a field nothing
+ * reads. `false` is also the safe direction: the user is offered a download they
+ * may decline rather than having their data spent on a `true` nobody checked.
+ *
+ * A pleasant consequence of `true` for a bundled file: the deck's
+ * `maybePrepare()` fires at boot, so the ORT session is built before the first
+ * play instead of during it.
  */
 export const modelCached = async () => {
   try {
-    const cache = await caches.open(MODEL_CACHE_NAME);
-    return !!(await cache.match(MODEL_URL));
+    const res = await fetch(modelUrl(), { method: 'HEAD' });
+    return res.ok === true && Number(res.headers.get('Content-Length')) > 0;
   } catch {
     return false;
   }
@@ -258,10 +507,28 @@ export const modelCached = async () => {
 /**
  * @type {import('../shared/host.js').EngineHost['clearModel']}
  *
- * Drops the whole bucket rather than the one entry: the bucket holds exactly
- * one thing, and "delete the store" is the duty a Host that keeps its bytes in a
- * file rather than a Cache can actually implement.
+ * AN HONEST NO-OP, AND IT IS ONLY HONEST BECAUSE `modelBytes` REPORTS
+ * `fromCache: false`. There is no store: the bytes are a read-only file inside
+ * the installed app, and throwing it away is not something this Host can do or
+ * should. `shared/host.js` scopes its MUST — "A HOST THAT EVER REPORTS
+ * `fromCache: true` MUST REALLY DROP THAT STORE" — precisely so that a Host in
+ * this position does not have to satisfy the duty by lying.
+ *
+ * THE CONSEQUENCE, NAMED RATHER THAN DISCOVERED: a corrupt bundled model fails
+ * the unit's integrity check, this cannot help, and the deck is dead until the
+ * app is reinstalled. That is the right outcome for a file that shipped in the
+ * installer — the alternative is a Host that reports a store it does not have
+ * and turns one corrupt file into two.
  */
-export const clearModel = async () => {
-  await caches.delete(MODEL_CACHE_NAME);
-};
+export const clearModel = async () => {};
+
+/**
+ * NOT A DUTY — this Host's own counters, for the gate and for a person reading a
+ * console.
+ *
+ * `assertHost` only ever asks whether each DECLARED duty is callable, so an
+ * extra export is inert to it: it cannot make a short Host look complete. It is
+ * a function rather than the object so that a reader cannot mutate the numbers
+ * it is reading.
+ */
+export const __hostStats = () => ({ ...stats });

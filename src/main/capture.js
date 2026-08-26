@@ -16,7 +16,9 @@
  * `getDisplayMedia({audio: true})` yields MONO 48 kHz with AGC that decays the
  * level 17x over 8 s and still looks fine to a careless gate
  * (spike-capture-mute.md Limitation 6). That belongs to the engine's hole
- * module, `offscreen/host.js`, in the next wave.
+ * module, `vendor/…/offscreen/host.js`, and it is there now: it constrains the
+ * ask, stops the video track, and REJECTS a stream whose settings came back
+ * wrong. A stream `main` never sees is a stream `main` cannot check.
  */
 import { webContents } from 'electron';
 
@@ -37,15 +39,24 @@ import { webContents } from 'electron';
  * engine loses nothing. A later wave that needs one of these must add it HERE,
  * by name, rather than by widening the default.
  *
+ * THE THIRD GATE, ADDED WITH THE ENGINE HOST: A CLAIM MUST BE PENDING.
+ * `isCaptor` answers "is this the engine"; it cannot answer "did the arm path
+ * ask for this". A compromised engine renderer that could call
+ * `getDisplayMedia()` whenever it liked would be a capture the user never
+ * started, and the extension gets that property for free because there the token
+ * IS the grant. `claims.takePending()` is how it is kept here. See
+ * `createCaptureClaims` above.
+ *
  * @param {Electron.Session} ses            the session the CAPTOR renderer lives in
  * @param {() => Electron.WebFrameMain|null} resolveSourceFrame  read at call time
  * @param {(wc: Electron.WebContents) => boolean} isCaptor
+ * @param {ReturnType<typeof createCaptureClaims>} claims  the one-shot claim registry
  */
-export function installCapturePolicy(ses, resolveSourceFrame, isCaptor) {
+export function installCapturePolicy(ses, resolveSourceFrame, isCaptor, claims) {
   const stats = {
     requests: 0, granted: 0, refused: 0,
     permissionAsks: 0, permissionDenied: 0,
-    lastRefusal: null, lastPermissionDenied: null, lastGrantedFrame: null,
+    lastRefusal: null, lastPermissionDenied: null, lastGrantedFrame: null, lastClaim: null,
   };
 
   const mayCapture = (wc) => !!wc && isCaptor(wc);
@@ -109,6 +120,17 @@ export function installCapturePolicy(ses, resolveSourceFrame, isCaptor) {
       return callback({});
     }
 
+    // THE CLAIM. Consumed here and only here, so one arm gesture buys exactly
+    // one capture. Checked AFTER the asker, so a request from something that is
+    // not the engine cannot burn the engine's claim on its way to being
+    // refused.
+    const claim = claims ? claims.takePending() : null;
+    if (!claim) {
+      stats.refused++;
+      stats.lastRefusal = 'no capture claim is pending — main did not arm this';
+      return callback({});
+    }
+
     const frame = resolveSourceFrame();
     if (!frame) {
       stats.refused++;
@@ -117,6 +139,7 @@ export function installCapturePolicy(ses, resolveSourceFrame, isCaptor) {
     }
 
     stats.granted++;
+    stats.lastClaim = claim.token;
     // The two numbers the renderer will see inside `track.getSettings().deviceId`:
     // measured as `web-contents-media-stream://<processId>:<routingId>` — NOT the
     // WebContents id, which is a different number and the one a gate reaches for

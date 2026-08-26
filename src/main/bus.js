@@ -13,17 +13,18 @@
 import { ipcMain } from 'electron';
 
 /**
- * The three addresses, from the unit's `shared/host.js:181-188`.
+ * The three addresses, IMPORTED FROM THE UNIT'S OWN DECLARATION rather than
+ * copied. `shared/host.js` freezes them next to the duty that consumes them, and
+ * it is the one file on the seam with no imports, no `chrome.`, and no DOM — so
+ * the main process can read it directly.
  *
- * COPIED, NOT IMPORTED, AND THAT IS TEMPORARY. `vendor/stem-splitter-live/` does
- * not exist on this tree yet, so there is nothing to import from. The moment the
- * copy lands, this object must become
- *   `import { BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js'`
- * and this comment must go. A second copy of a constant is a constant that
- * drifts, and this one drifts into "the deck is blank" — the quietest failure on
- * the whole seam.
+ * This was a local copy for one commit, with a note saying to replace it the
+ * moment `vendor/stem-splitter-live/` landed. It has landed. A second copy of a
+ * constant is a constant that drifts, and this one drifts into "the deck is
+ * blank" — the quietest failure on the whole seam.
  */
-export const BUS = Object.freeze({ engine: 'off', deck: 'ui', host: 'sw' });
+export { BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js';
+import { BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js';
 
 export const BUS_CHANNEL = 'bus';
 
@@ -60,24 +61,44 @@ export function createBus() {
   /** @type {Set<(msg: object, sender: Electron.WebContents) => void>} */
   const hostListeners = new Set();
 
+  /**
+   * READ-ONLY OBSERVERS OF EVERYTHING THE ROUTER CARRIES.
+   *
+   * A tap cannot inject, cannot address, cannot refuse and cannot change an
+   * envelope — it is handed the message after the router has decided what to do
+   * with it, and its return value is discarded. It exists because the alternative
+   * for `tools/gate/engine-host.mjs` was to put a diagnostic message log inside
+   * the shipping preload, where a renderer could read it; this is in `main`,
+   * which no renderer can reach.
+   *
+   * It is deliberately NOT a hook: nothing here awaits, and a tap that throws is
+   * swallowed, because an observer that can break delivery is not an observer.
+   */
+  const taps = new Set();
+  const observe = (msg, verdict) => {
+    for (const fn of taps) { try { fn(msg, verdict); } catch { /* an observer may not break delivery */ } }
+  };
+
   const knows = (wc) => [...REG.values()].some((set) => set.has(wc));
   const drop = (why) => { stats.dropped[why] = (stats.dropped[why] || 0) + 1; };
 
   ipcMain.on(BUS_CHANNEL, (event, msg) => {
     stats.received++;
-    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') return void drop('malformed');
-    if (!knows(event.sender)) return void drop('unknown-sender');
+    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') { drop('malformed'); return void observe(msg, 'malformed'); }
+    if (!knows(event.sender)) { drop('unknown-sender'); return void observe(msg, 'unknown-sender'); }
     if (msg.to === BUS.host) {
       stats.host++;
       if (!hostListeners.size) {
         // Loud, once per message, and on purpose: this is finding F1 arriving.
         console.warn(`[bus] no host inbox — ${String(msg.type)} from ${String(msg.from)} went unanswered`);
       }
+      observe(msg, 'host');
       for (const fn of hostListeners) fn(msg, event.sender);
       return;
     }
     const targets = REG.get(msg.to);
-    if (!targets || !targets.size) return void drop('no-listener');
+    if (!targets || !targets.size) { drop('no-listener'); return void observe(msg, 'no-listener'); }
+    observe(msg, 'delivered');
     for (const wc of targets) {
       if (wc.isDestroyed()) continue;
       wc.send(BUS_CHANNEL, msg);     // the SAME object. Not a copy with a field added.
@@ -104,10 +125,13 @@ export function createBus() {
     originate(to, msg) {
       const envelope = { v: 1, to, from: BUS.host, ...msg };
       const targets = REG.get(to);
-      if (!targets || !targets.size) { drop('no-listener'); return false; }
+      if (!targets || !targets.size) { drop('no-listener'); observe(envelope, 'no-listener'); return false; }
+      observe(envelope, 'originated');
       for (const wc of targets) if (!wc.isDestroyed()) { wc.send(BUS_CHANNEL, envelope); stats.delivered++; }
       return true;
     },
     onHostMessage(fn) { hostListeners.add(fn); return () => hostListeners.delete(fn); },
+    /** @see `taps` above. Returns an unsubscribe function. */
+    tap(fn) { taps.add(fn); return () => taps.delete(fn); },
   };
 }

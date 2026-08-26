@@ -188,7 +188,22 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   };
 
   // --------------------------------------------------------------- capture
+  //
+  // A CLAIM IS MINTED FIRST, because since the EngineHost landed there are three
+  // gates and not two: the permission layer, the request handler's `isCaptor`,
+  // and a ONE-SHOT CLAIM that only the arm path mints (src/main/claims.js). The
+  // engine's own `captureStream` spends its claim through `capture:claim`; this
+  // probe is asking the platform DIRECTLY, below the Host module, so it has to
+  // spend one itself or it would be measuring the third gate rather than the
+  // grant. `state.claims` is main's registry — the real one, not a stand-in.
+  //
+  // The deck and the source view get NO claim, deliberately: they are refused at
+  // the permission layer, one gate earlier, and that is what those two rows
+  // assert.
+  const gateToken = state.claims.mint({ sourceWcId: srcWc.id, deck: 'gate' });
+  const gateClaim = await evalIn(engineWc, `window.__wbEngine.claimCapture(${JSON.stringify(gateToken)})`);
   R.capture = {
+    claim: gateClaim,
     fromEngine: await evalIn(engineWc, GDM),
     fromDeck: await evalIn(deckWc, GDM),
     fromSource: await evalIn(srcWc, GDM),

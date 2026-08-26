@@ -11,15 +11,23 @@
   <pre id="probe">probing…</pre>
 
   <!--
-    THE UNIT'S ENTRY JOINS HERE IN THE NEXT WAVE, as one more module script:
-
-      <script type="module"
-              src="./vendor/stem-splitter-live/extension/offscreen/engine.js"></script>
-
-    This page is OURS and the unit's entry is loaded from it by RELATIVE URL, so
-    every `../shared/…` and `../workers/…` specifier inside `engine.js` resolves
-    against the MODULE's URL and lands inside the vendored tree
-    (docs/HOST-DESIGN.md §12). Nothing here is a copy of a unit file.
+    OUR page's own boot: the isolation probe the gate reads. It runs FIRST and it
+    is deliberately independent of the unit — if the engine below throws at module
+    scope, `window.__wbProbe()` still answers and the report still says why the
+    page was or was not cross-origin isolated.
   -->
   <script type="module" src="./engine-boot.js"></script>
+
+  <!--
+    THE UNIT'S ENTRY. This page is OURS and the engine is loaded from it by
+    RELATIVE URL, so every `../shared/…` and `../workers/…` specifier inside
+    `engine.js` resolves against the MODULE's URL and lands inside the vendored
+    tree (docs/HOST-DESIGN.md §12). Nothing here is a copy of a unit file.
+
+    `offscreen/engine.js` imports `./host.js` — the HOLE — which is OURS at that
+    path inside `vendor/`, and `assertHost(host, ENGINE_HOST_DUTIES)` runs at its
+    module scope before anything else. A Host short a duty is refused HERE, by
+    name, rather than at the first arm.
+  -->
+  <script type="module" src="./vendor/stem-splitter-live/extension/offscreen/engine.js"></script>
 </body>

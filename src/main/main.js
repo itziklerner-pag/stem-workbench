@@ -13,18 +13,24 @@
  * allowlist, the capture grant, and the mute that lands before the source view
  * loads anything.
  *
- * NOT BUILT, and every one of them is named here rather than left to be
+ * SINCE THEN: the unit is vendored, the ENGINE half of the Host seam is
+ * implemented (`vendor/…/offscreen/host.js` — ours, nine duties), the engine
+ * page loads the unit's own entry, the model has a root on the protocol handler
+ * (§7), and `main` originates the three messages the engine is owed and mints
+ * the one-shot capture claims they carry (§5).
+ *
+ * STILL NOT BUILT, and every one of them is named here rather than left to be
  * discovered:
- *   · THE 32 DUTIES. `vendor/…/offscreen/host.js` and `vendor/…/ui/host.js` do
- *     not exist. The preloads carry the bus and nothing else.
- *   · THE SIX MESSAGES THE HOST ORIGINATES, and the six it must ANSWER
- *     (`SW_*` — HOST-DESIGN.md §5.3, finding F1). `bus.js` warns on each one it
- *     drops, loudly, once per message.
+ *   · THE DECK HALF. `vendor/…/ui/host.js` is still the extension's, so the
+ *     deck view loads `embed.html` and its Host throws at module scope. The
+ *     engine does not care — it has one correspondent and `main` is not it.
+ *   · THE SIX MESSAGES ADDRESSED TO THE DECK, and the six the deck sends that a
+ *     Host must ANSWER (`SW_*` — HOST-DESIGN.md §5.3, finding F1). `bus.js`
+ *     warns on each one it drops, loudly, once per message.
  *   · THE ARM GESTURE (§6). The chrome bar's Arm button is present and
- *     disabled; there is no menu accelerator yet.
- *   · THE MODEL (§7). No `/model/` root on the protocol handler.
- *   · THE UNIT ITSELF. Until `vendor/stem-splitter-live/` lands, the deck slot
- *     shows our own placeholder and says so.
+ *     disabled; there is no menu accelerator yet, so nothing a USER can touch
+ *     calls `engineMessages.captureStart()`. The gate calls it, over the real
+ *     path, which is the difference between "wired" and "reachable".
  *
  * ---------------------------------------------------------------------------
  * ARGUMENTS — three, all for development and the gate
@@ -38,6 +44,12 @@
  *                      actually did into DIR and exit. See tools/gate/probe.mjs;
  *                      it is imported ONLY when this flag is present, so the
  *                      product's module graph does not contain its own gate.
+ *   --gate-probe=NAME  which probe under tools/gate/ that flag runs. Default
+ *                      `probe` (the app skeleton, for `shell`); `engine-host`
+ *                      drives the engine seam. One flag per QUESTION rather than
+ *                      one launch that answers everything: a probe that both
+ *                      arms a capture and asserts the window is a probe whose
+ *                      failures cannot be told apart.
  */
 import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu, session } from 'electron';
 import fs from 'node:fs';
@@ -47,7 +59,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { registerAppSchemeAsPrivileged, installAppProtocol, appUrl } from './protocol.js';
 import { createSourceView } from './youtube.js';
 import { installCapturePolicy } from './capture.js';
+import { createCaptureClaims } from './claims.js';
 import { createBus, BUS } from './bus.js';
+import { createTransport } from './transport.js';
+import { createEngineMessages } from './engine-messages.js';
+import { createStorage } from './storage.js';
+import { installDeckHost, clampDeckHeight } from './deck-host.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = path.resolve(HERE, '..', '..');
@@ -70,6 +87,7 @@ const val = (k, d) => {
 };
 const SOURCE_URL = val('source-url', 'https://www.youtube.com/');
 const GATE = val('gate', '');
+const GATE_PROBE = val('gate-probe', 'probe');
 const USER_DATA = val('user-data', '');
 
 // A run's profile never lands in ~/.config/Electron during development: the
@@ -87,7 +105,31 @@ const clampDeck = (h) => Math.max(120, Math.min(900, h));
 const DECK_ENTRY = 'vendor/stem-splitter-live/extension/ui/embed.html';
 const deckVendored = () => fs.existsSync(path.join(APP_ROOT, DECK_ENTRY));
 
+/**
+ * WHERE THE 109 MB OF WEIGHTS ARE, and the two branches are never conflated.
+ *
+ * HOST-DESIGN.md §7.1 chose electron-builder's `extraResources` over
+ * `asarUnpack`: both put a plain file on disk, but `asarUnpack` leaves it under
+ * `…/app.asar.unpacked/…`, a path derived by string surgery on
+ * `app.getAppPath()` that is correct until somebody renames the asar.
+ * `process.resourcesPath` is a documented location and the same shape on all
+ * three platforms — and it is read ONLY when `app.isPackaged`, because in
+ * development it points inside `node_modules/electron/dist`, where the file is
+ * never there.
+ *
+ * In development the file is fetched by `bash tools/vendor-unit.sh --model` and
+ * is NOT in git (`.gitignore` excludes `*.onnx`): 114,559,139 bytes at
+ * CC BY-NC 4.0, which is the licence that makes this whole product
+ * non-commercial (NOTICE.md).
+ */
+const MODEL_DIR = app.isPackaged
+  ? path.join(process.resourcesPath, 'model')
+  : path.join(APP_ROOT, 'models');
+
 const ROOTS = [
+  // Longest prefix wins in `resolveAppPath`, so `/model/` is reachable even
+  // though `/` maps the renderer directory.
+  { prefix: '/model/', dir: MODEL_DIR },
   { prefix: '/vendor/', dir: path.join(APP_ROOT, 'vendor') },
   { prefix: '/', dir: path.join(APP_ROOT, 'src', 'renderer') },
 ];
@@ -112,6 +154,13 @@ const state = {
   bus: null,
   protocol: null,
   capture: null,
+  claims: null,          // the one-shot capture claims (src/main/claims.js)
+  transport: null,       // the source view's transport (src/main/transport.js)
+  engineMessages: null,  // the three messages the Host owes the engine (§5)
+  storage: null,         // the deck's two storage areas (src/main/storage.js)
+  deckHost: null,        // the deck's Host, main-process half (src/main/deck-host.js)
+  deckH: DECK_H,         // what the deck last measured itself to be, already clamped
+  deckClosed: false,     // `page.close()` — the surface goes, the audio does not
   refusals: [],
   engineBoot: null,      // filled from the engine's own probe, for the chrome bar
   quitting: false,
@@ -155,7 +204,10 @@ function noteRefusal(r) {
 
 function layout() {
   const { width, height } = state.win.getContentBounds();
-  const deckH = clampDeck(DECK_H);
+  // `page.close()` takes the deck OFF THE PAGE and the audio does not stop —
+  // the engine is a different process and hiding a view cannot reach it. The
+  // slot goes to the source view rather than being left as a gap.
+  const deckH = state.deckClosed ? 0 : clampDeck(state.deckH);
   state.chrome.setBounds({ x: 0, y: 0, width, height: CHROME_H });
   state.source.view.setBounds({ x: 0, y: CHROME_H, width, height: Math.max(0, height - CHROME_H - deckH) });
   state.deck.setBounds({ x: 0, y: Math.max(CHROME_H, height - deckH), width, height: deckH });
@@ -172,9 +224,11 @@ async function boot() {
   state.protocol = installAppProtocol(ours, ROOTS);
   state.bus = createBus();
 
-  // No address bar, no tabs — and for now no menu either. The menu arrives in
-  // the next wave carrying ONE item that matters: Source -> Arm, whose
-  // accelerator is what `armShortcut()` answers with (§6.3).
+  // No address bar and no tabs. The menu is not empty any more: `installDeckHost`
+  // below builds ONE that matters — Source -> Arm, whose accelerator is what
+  // `armShortcut()` answers with (§6.3) — and it is built there rather than here
+  // because the item's `click` is the arm gesture and the chord is read back off
+  // the installed item. Until then there is nothing to show.
   Menu.setApplicationMenu(null);
 
   state.win = new BaseWindow({
@@ -193,6 +247,32 @@ async function boot() {
   forwardConsole(state.source.webContents, 'source');
   state.source.webContents.on('page-title-updated', pushStatus);
   state.source.webContents.on('did-navigate', pushStatus);
+
+  /**
+   * THE TRANSPORT, constructed with the source view and BEFORE anything is
+   * loaded into it. The preload announces itself with `{t:'hello'}` at document
+   * end, and a listener installed after `load()` would miss the announcement and
+   * then poll for a state nobody was going to send.
+   *
+   * It is an event source in `main`, not a wire to the deck renderer:
+   * `src/main/deck-host.js` takes it as an injected dependency and turns it into
+   * the `DeckTransport` the deck sees. A Host with no player injects nothing and
+   * spells `transport: null`.
+   */
+  state.transport = createTransport({
+    source: () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents : null),
+    sourceSession: theirs,
+  });
+  // A DOCUMENT SETTLED. `hello` already does this from the preload's side; this
+  // is the half that survives a preload that failed to run at all, and it is
+  // where a re-navigated view gets its config back.
+  state.source.webContents.on('did-finish-load', () => state.transport.attach());
+  // The same-document half of a single-page app. `main` sees it; the preload
+  // cannot, because nothing in the page announces it to an isolated world.
+  // It asks for a re-look and does NOT declare a jump: only the preload can tell
+  // a replaced element from a re-pointed one, and a jump the page did not make
+  // is a model download the user declined.
+  state.source.webContents.on('did-navigate-in-page', () => state.transport.relook());
 
   // -------------------------------------------------------------- deck view
   state.deck = new WebContentsView({ webPreferences: { ...OUR_WEB_PREFERENCES, preload: PRELOAD('deck') } });
@@ -221,16 +301,101 @@ async function boot() {
   // ------------------------------------------------------- the capture grant
   // Installed on OUR session, not the source view's: the handler answers the
   // renderer that ASKS, and the only renderer allowed to ask is the engine.
+  //
+  // THREE GATES NOW, NOT TWO. The permission layer refuses everything that is
+  // not the engine; the request handler refuses it again; and the CLAIM refuses
+  // a request the arm path did not ask for. The third is the one the extension
+  // got for free, because there the token WAS the grant — see src/main/claims.js.
+  state.claims = createCaptureClaims();
   state.capture = installCapturePolicy(
     ours,
     () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents.mainFrame : null),
     (wc) => !!state.engineWin && !state.engineWin.isDestroyed() && wc === state.engineWin.webContents,
+    state.claims,
   );
+
+  /**
+   * SPENDING A CLAIM — the one ipc channel the engine's Host module needs that
+   * is not the bus.
+   *
+   * ONLY THE ENGINE MAY CALL IT, and the check is on `event.sender` rather than
+   * on anything in the message: a channel is reachable from every renderer with
+   * a preload that names it, and ours is exposed to the engine alone — which is
+   * a fact about a file, not a guarantee. A `code` comes back rather than a
+   * throw, so the engine's own `captureStream` produces the sentence the user
+   * sees (`shared/host.js`: it must REJECT, never resolve null).
+   */
+  ipcMain.handle('capture:claim', (event, token) => {
+    if (!state.engineWin || state.engineWin.isDestroyed() || event.sender !== state.engineWin.webContents) {
+      return { ok: false, code: 'not-the-engine', message: 'only the engine renderer may spend a capture claim' };
+    }
+    if (typeof token !== 'string' || !token) {
+      return { ok: false, code: 'no-token', message: 'a capture claim is a string minted by the arm path' };
+    }
+    return state.claims.spend(token);
+  });
+
+  /**
+   * THE THREE MESSAGES THE HOST ORIGINATES TO THE ENGINE. `source` is read at
+   * CALL time — a captured `WebContents` would be a stale one the first time the
+   * view is recreated.
+   */
+  state.engineMessages = createEngineMessages({
+    bus: state.bus,
+    claims: state.claims,
+    source: () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents : null),
+  });
 
   // ------------------------------------------------------------- addresses
   // Assigned by main, never claimed by a renderer.
   state.bus.register(BUS.engine, state.engineWin.webContents);
   state.bus.register(BUS.deck, state.deck.webContents);
+
+  /**
+   * THE DECK'S HOST, main-process half. It owes the deck fourteen members
+   * through `vendor/…/ui/host.js`, three messages nothing can check for it
+   * (SESSION, ARM_ERROR, ARM_ERROR_CLEARED), an answer to each of the six
+   * `SW_*` the deck boots by polling for, and the autoplay-next wire that a
+   * Host which implements every duty still ships dead.
+   *
+   * INSTALLED BEFORE THE DECK IS LOADED, and that ordering is not cosmetic: the
+   * deck's preload asks `deck:profile` SYNCHRONOUSLY for whether there is a
+   * player above it, and `ui/embed.js` reads the answer at module scope. A
+   * handler registered after `loadURL` would leave that `sendSync` unanswered.
+   *
+   * THE TRANSPORT IS PASSED, NEVER IMPORTED. `src/main/transport.js` owns the
+   * source view; this is where its five reports and six verbs become the six
+   * `DeckTransport` duties and the two `DeckPage` duties a player is the source
+   * of. A Host with no player passes `transport: null` — spelled, never omitted.
+   */
+  state.storage = createStorage({ dir: app.getPath('userData') });
+  state.deckHost = installDeckHost({
+    storage: state.storage,
+    bus: state.bus,
+    deck: () => (state.deck && !state.deck.webContents.isDestroyed() ? state.deck.webContents : null),
+    chrome: () => (state.chrome && !state.chrome.webContents.isDestroyed() ? state.chrome.webContents : null),
+    source: () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents : null),
+    transport: state.transport,
+    engine: state.engineMessages,
+    /**
+     * The engine window is created in `boot()` and nothing in this wave tears it
+     * down, so "ensure" is already true — but it THROWS rather than resolving if
+     * the window has gone, because the deck's boot poll asks twenty times and a
+     * silent `undefined` would make an engine that died look like one that was
+     * never asked for. Recreating it is the engine slice's, not this line's.
+     */
+    ensureEngine: () => {
+      if (state.engineWin && !state.engineWin.isDestroyed()) return;
+      throw new Error('the engine window is gone, and this wave cannot recreate it');
+    },
+    onHeight: (px) => { state.deckH = clampDeckHeight(px); layout(); },
+    onClose: () => {
+      state.deckClosed = true;
+      state.deck.setVisible(false);
+      layout();
+      pushStatus();
+    },
+  });
 
   // Only the chrome view may ask for a status push. Nothing else has the
   // channel, and an address is not something a renderer gets to claim.
@@ -268,8 +433,11 @@ app.whenReady().then(async () => {
 
   if (GATE) {
     // Imported ONLY here. The product's module graph does not contain its own
-    // gate, and `tools/` is not packaged.
-    const probe = await import(pathToFileURL(path.join(APP_ROOT, 'tools', 'gate', 'probe.mjs')).href);
+    // gate, and `tools/` is not packaged. WHICH probe is `--gate-probe`: one
+    // module per QUESTION, because a probe that both measured the window and
+    // armed a capture would have failures nobody could tell apart.
+    const file = path.join(APP_ROOT, 'tools', 'gate', `${path.basename(GATE_PROBE)}.mjs`);
+    const probe = await import(pathToFileURL(file).href);
     const code = await probe.runGate({ state, outDir: path.resolve(GATE), sourceUrl: SOURCE_URL, appRoot: APP_ROOT });
     app.exit(code);
   }
