@@ -386,7 +386,34 @@ export const STEPS = [
     cmd: ['node', 'tools/suites/capture-mute.mjs'],
     window: true,
     sink: true,
-    todo: 'specified in docs/TESTING.md §8 (the CORRECTED gate); not built',
+    /**
+     * THE ONLY STEP ON THIS PLAN THAT MEASURES THE PRODUCT'S PREMISE — *the app
+     * can hear the view while the user cannot* — and the only one that needs a
+     * running PipeWire daemon and an audio device it can own.
+     *
+     * IT WILL NEVER RUN IN GITHUB CI, AND THAT IS NAMED RATHER THAN DISCOVERED.
+     * A hosted runner has no PipeWire, no sink and no soundcard, so the suite
+     * SKIPS there — a property of the machine, `docs/TESTING.md` §3 rule 8 — and
+     * a SKIP is not a pass anywhere in this file: `classify()` reports it as
+     * SKIP, `verdict()` puts it under "WHAT DID NOT RUN" and refuses an
+     * unqualified GREEN over the plan that contained it. The suite also prints
+     * three lines under its own SKIPPED line saying, in words, that nothing
+     * checked the property.
+     *
+     * THE CONSEQUENCE, STATED: no automated check anywhere will catch a
+     * regression in the mute or in the capture-side silencing until somebody
+     * runs this on a Linux box with PipeWire — and on macOS, nobody has run it
+     * at all (`docs/TESTING.md` §11).
+     *
+     * IT COSTS ~45 s and takes TWO exclusive locks (the PipeWire sink lock
+     * first, then the shared browser mutex) for two real launches: the app, and
+     * a variant (d) CONTROL process that must be HEARD on the same sink or the
+     * silence readings are printed VOID rather than green.
+     *
+     * WHAT FALSIFIES IT — `tools/suites/capture-mute-mutations.sh`, whose first
+     * case removes `setAudioMuted(true)` and reproduces the leak this whole gate
+     * was rewritten to catch.
+     */
   },
   {
     id: 'youtube',

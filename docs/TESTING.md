@@ -121,13 +121,13 @@ green from the outside.
 `sink` additionally needs PipeWire and an exclusive null sink; `--quick` drops it.
 `manual` is never on any default plan at all.
 
-**`todo`.** Three of the twelve steps above — `p1`, `capture-mute` and `youtube`
-— are specified and **not built**. They are in the steps table anyway, marked
-`todo`. A suite that is not in the table is indistinguishable from a suite
-nobody thought of — that is the standing rule at the top of the extension's
-runner, and it cost that repository three separate incidents. A `todo` step
-never runs, is printed under **WHAT DID NOT RUN** every time, and makes an
-unqualified `GREEN` impossible until it is built.
+**`todo`.** Two of the twelve steps above — `p1` and `youtube` — are specified
+and **not built**. They are in the steps table anyway, marked `todo`. A suite
+that is not in the table is indistinguishable from a suite nobody thought of —
+that is the standing rule at the top of the extension's runner, and it cost that
+repository three separate incidents. A `todo` step never runs, is printed under
+**WHAT DID NOT RUN** every time, and makes an unqualified `GREEN` impossible
+until it is built.
 
 ### The VOID rule
 
@@ -1270,38 +1270,84 @@ hold.
 Variant (b), against the **local fake player** from §6 (analytic RMS `0.353553`).
 Two independent meters over the same seconds, never by ear.
 
-1. Take the **browser mutex** and the **sink lock**, in that order.
-2. Create an isolated `support.null-audio-sink` — **your own name**, e.g.
+1. Take the **sink lock** (§4: `sink` suites take it first, on top), then the
+   **browser mutex**. Both are held by a child sitting on its stdin for the life
+   of the suite, because Node has no `flock(2)`; the mutex covers BOTH launches,
+   so the recorder is never left running through somebody else's queue.
+2. Create an isolated `support.null-audio-sink` — **your own name**,
    `stem_workbench_gate`, never `harness_sink` (the machine's session default)
-   and never the spike's `stem_workbench_spike`. Destroy it in a `trap`.
-3. **Start `pw-record` on the sink's monitor BEFORE Electron launches, and stop
+   and never the spike's `stem_workbench_spike`. Destroy it on the way out.
+3. **Run the CONTROL first** (assertion 10). If the meter cannot hear a variant
+   (d) process, nothing measured afterwards is evidence of silence, and finding
+   that out before spending the app's run is free.
+4. **Start `pw-record` on the sink's monitor BEFORE Electron launches, and stop
    it AFTER Electron exits.** This is the single correction that makes the gate
    mean what it says. A capture-window-scoped meter structurally cannot see the
    **1.90 s of full-level audio at peak 0.499893** that variant (a) leaks between
    `+0.60 s` and `+2.50 s`, before the capture opens at `+2.48 s`. The spike's own
    meter read `0.0` for that leak in three recorded runs — and `0.0199`, **39× over
    its own ceiling**, in a fourth where `pw-record` happened to start earlier.
-4. Launch the app under `xvfb-run -a`, with `PULSE_SINK` and `PIPEWIRE_NODE`
-   pointed at the gate sink.
-5. Sample `spike/harness/bin/pwlinks.py <sink> --pid <the Electron process tree> --json`
-   **inside** the window, at least twice. Chromium puts audio output in its own
-   utility process, so the app is never one pid.
-6. Score after the app exits.
+   The recorder is *waited for* rather than slept past, and the lead and tail are
+   both reported (observed: up ~50 ms before the launch, stopped ~400 ms after
+   the exit).
+5. Launch the app under `xvfb-run -a`, with `PULSE_SINK` and `PIPEWIRE_NODE`
+   pointed at the gate sink. **The probe plays the source and only then opens the
+   capture**, with `PRE_CAPTURE_MS` (1.5 s) in between — variant (a)'s leak
+   window, deliberately reproduced, because an app that armed first would never
+   produce the thing the gate exists to catch.
+6. Sample `spike/harness/bin/pwlinks.py <sink> --pid <the Electron process tree> --json`
+   **inside** the window — three times, at +0, +1.3 and +2.6 s of a 4 s window.
+   The window announces itself by the probe touching `out/capture-mute/window.open`
+   rather than being guessed with a `sleep`. Chromium puts audio output in its own
+   utility process, so the app is never one pid: the tree is walked out of `/proc`
+   at each sample, and the browser pid the probe reported must be in it.
+7. Score after the app exits, then destroy the sink and drop both locks.
+
+**The suite may not hang.** It holds two machine-global locks, so a sibling
+queued on the browser mutex waits exactly as long as it does. Every subprocess
+has its own timeout and the suite has a last one on top — armed only once BOTH
+locks are held, so a long queue is never reported as a hang. That deadline is not
+hypothetical: the first mutation run that truncated a recording left `pw-record`
+dead before the app exited, the suite waited for a `close` event that had already
+fired, and it sat on both locks until it was killed by hand.
 
 ### The capture-side instrument is not shipped
 
 The RMS worklet measuring the captured stream is **test code**, not product code.
-The app exposes the captured `MediaStream` on `window.__gate` in the host
-renderer **only when `process.env.STEM_WORKBENCH_GATE === '1'`**, and the gate
-asserts that the packaged build never sets it (see assertion 9). The alternative
-— a second `getDisplayMedia()` from the test — perturbs the thing being measured;
-the alternative of shipping a meter is worse. The worklet itself is
-`tools/fixture/rms-worklet.js`, lifted from `spike/host.html`, and it reaches
-`ctx.destination` through a gain of **exactly 0**: connected, because Chromium
-only pulls nodes that reach the destination and an unconnected worklet reports 0
-forever — a zero meaning "not measured" — and inaudible, because the question is
-whether the *original* leaks and the speaker meter cannot tell an original from a
-replay.
+It is `tools/fixture/rms-worklet.js`, lifted from `spike/host.html`, and it
+reaches `ctx.destination` through a gain of **exactly 0**: connected, because
+Chromium only pulls nodes that reach the destination and an unconnected worklet
+reports 0 forever — a zero meaning "not measured" — and inaudible, because the
+question is whether the *original* leaks and the speaker meter cannot tell an
+original from a replay.
+
+**The capture it measures is the product's own.** `tools/gate/capture-mute.mjs`
+mints a claim the way `engineMessages.captureStart()` mints one and hands it to
+the SHIPPING `vendor/…/offscreen/host.js: captureStream(token)` — the real claim,
+the real `setDisplayMediaRequestHandler`, the real constraints. It never calls
+`getDisplayMedia` itself. That distinction cost the `engine-host` battery a case
+(its 8): a probe holding a *copy* of the Host's constraints stayed green while the
+Host's own were broken.
+
+What it does **not** exercise is the bus hop and the engine's own ring —
+`CAPTURE_START` -> `engine.js` -> the SAB. That is `engine-host`'s, it needs the
+109 MB of weights, and this gate must run on a box that has none.
+
+**How the meter is loaded, and the one seam it opens.** A worklet module is
+fetched under `script-src`, and this origin's CSP is `script-src 'self'
+'wasm-unsafe-eval'` (`src/main/assets.js`), so a `blob:` module is **refused** —
+measured, not assumed: *"Loading the script 'blob:app://workbench/…' violates …
+script-src 'self' 'wasm-unsafe-eval'"*. `Page.setBypassCSP` over the debugger was
+tried and does not reach an already-committed document. So `src/main/main.js`
+mounts one extra `app://` root:
+
+```js
+if (GATE) ROOTS.push({ prefix: '/gate/', dir: path.join(APP_ROOT, 'tools', 'fixture') });
+```
+
+`--gate=DIR` is the same flag that decides whether `tools/gate/<probe>.mjs` is
+imported at all, a packaged build never passes it, and `tools/` is not packaged.
+**That line is a seam, and assertion 9 is what asserts it shut.**
 
 ### The assertions
 
@@ -1347,10 +1393,25 @@ replay.
 8. No node other than this run's pids is linked to the measured sink during the
    window (`pwlinks.py --pid` exits 4 if one is), **and** the run held the sink
    lock for its whole life.
-9. The packaged build never sets `STEM_WORKBENCH_GATE` — a scan of the
-   electron-builder configuration and the app's own source, comments stripped,
-   naming the files scanned. The test hook in assertion 1's rig is a seam, and a
-   seam that is not asserted shut is a hole.
+9. **The test seam is shut.** A scan of the app's own source, comments stripped,
+   naming the number of files scanned and the electron-builder configuration by
+   status. The product opens exactly **two** doors for its own gate and both are
+   `--gate=DIR`: the `/gate/` root above, and the dynamic `import()` of the probe.
+   So: the string `tools` appears in `src/**` **exactly twice**, both in
+   `src/main/main.js`, and **both under an `if (GATE)`** — the first matched by
+   shape (`if (GATE) ROOTS.push(`), the second by sitting inside the `if (GATE) {`
+   block. Neither `rms-worklet` nor any gate environment variable appears anywhere
+   in `src/**`.
+
+   The scan matches a quoted bare segment (`'tools'`, which is how `path.join`
+   spells a path) and the three test directories by name — **not** the word
+   `tools` in a sentence. That is not fastidiousness: `src/main/speed.js` tells the
+   user to run `bash tools/vendor-unit.sh` in a runtime error message, and the
+   first version of this assertion went red on that English. The rule was narrowed;
+   the message was not reworded.
+
+   **There is no electron-builder configuration yet.** The scan says so in its
+   detail on every run rather than passing silently over an absent file.
 
 **The control, which must be able to lose**
 
@@ -1382,6 +1443,30 @@ A **cheap bonus, not a substitute:** `getSettings().deviceId` carries
 `?local_echo=false` when the flag is unset and drops the query when it is set, so
 the knob is directly observable. It catches none of assertion 4.
 
+### What a green run reads
+
+Recorded so a drift is visible as a number rather than as a feeling. Electron
+44.0.0 / Chromium 152.0.7977.54, Linux 6.17, `xvfb-run`, sink
+`stem_workbench_gate`:
+
+| | |
+|---|---|
+| `capturedRms` | **0.350831** — band `[0.30, 0.40]`, analytic 0.353553, peak 0.500004 |
+| the series | `0.348798, 0.365593, 0.374062, 0.369202, …` — flat, no AGC decay |
+| the window | **1496** quanta, 1496 with channels, 382 976 samples, worklet rate 48 000, 3.989 s |
+| `getSettings()` | `channelCount 2 · sampleRate 44100 · autoGainControl false · echoCancellation false · noiseSuppression false` |
+| `deviceId` | `web-contents-media-stream://5:1?local_echo=false` — the bonus observable, asserted by nothing |
+| `speakerRms` | **0.0**, peak **0.0**, over 7.360 s / 353 280 frames — recorder up 49 ms before the launch, stopped 402 ms after the exit |
+| the node witness | `stem-workbench#<pid> target=stem_workbench_gate running/active`, in **3/3** in-window samples |
+| exclusivity | 0 foreign writers, `pwlinks --pid` exit `0,0,0`; `flock -n` refused for us 3/3 |
+| the control (d) | `speakerRms` **0.255229**, peak 0.500004 over 11.189 s; its own capture read 0.350852 |
+| `isCurrentlyAudible()` | **true** — reported every run, asserted on by nothing |
+
+The control reads 0.255 rather than the spike's 0.344–0.348 for a stated reason:
+it is averaged over the whole process lifetime, boot included, not over a window
+placed on the tone. The discrimination that carries the claim is **0.255 against
+0.0**, and it is that gap — not the threshold — that is doing the work.
+
 ### Known weaknesses of this gate, stated
 
 - **`SILENCE_CEILING` (0.0005) has never been exercised.** Every silent reading
@@ -1394,14 +1479,86 @@ the knob is directly observable. It catches none of assertion 4.
 
 ### Watched red
 
-| assertion | mutation |
-|---|---|
-| 1, 5 | remove `setAudioMuted(true)` — variant (a). Must go red on **5**, and *only* the whole-lifetime recording sees it |
-| 2 | drop the audio constraints so AGC engages — captured falls to ~0.108, **below the band** |
-| 4 | flip `autoGainControl` to `true`; then request mono |
-| 5, 7 | point the app at a decoy sink (`APP_SINK`) — **7** must go red naming the wrong `target.object` |
-| 6 | truncate the recording to 0.2 s — must be an error, not a `0.0` |
-| 10 | run the control with the mute on — the control must **lose** |
+`tools/suites/capture-mute-mutations.sh`. It runs the suite **unmutated first and
+requires green** — a mutation runner that is red before it mutates has proved
+nothing — then, per case, applies the edit, refuses to continue if the anchor has
+moved, runs the suite, requires the named assertions on `FAIL` lines, restores the
+file and checks the restored bytes. It also fails a case whose run **SKIPPED**: a
+box that lost its audio daemon mid-battery proves nothing, and a skip is not a red.
+
+It takes the **sink lock and then the browser mutex** for its whole run, by
+re-execing itself under both, because it holds a mutation on a shipped file for
+the length of a launch and a sibling launching into the middle of one would be
+testing mutated product code without knowing it. It restores on `SIGINT`/`SIGTERM`
+from a `<case>.bak` + `<case>.from` pair per file — a killed battery once left
+`--variant=b` standing in the suite, and the next run's baseline went red for a
+reason that had nothing to do with the code.
+
+Every row was **run**, on 2026-08-26, Electron 44.0.0 / Chromium 152.0.7977.54 on
+Linux. A clean baseline reads `capturedRms 0.350831` over `1496` quanta with the
+device at bit-exact `0.0`. The "red" column is what actually failed.
+
+| # | mutation | file | red |
+|---|---|---|---|
+| 1 | remove `setAudioMuted(true)` before the first load — **variant (a)** | `src/main/youtube.js` | 1, 5 |
+| 2 | **the Limitation-6 run**: ask for `audio: true`, and neuter `CAPTURE_MUST_BE` so the settings themselves are what fails | `vendor/…/offscreen/host.js` | 2, and all five of 4 |
+| 3b | ask for echo cancellation and noise suppression, guard neutered | `vendor/…/offscreen/host.js` | 2, and four of 4 |
+| 4 | route the app to a **decoy sink** while the meter stays on the real one | `tools/suites/capture-mute.mjs` | **7 only** |
+| 5 | a PATH shim truncating **only the app's** recording to 0.2 s | *(no edit)* | 5, 6 |
+| 6 | run the control with the mute **on** | `tools/suites/capture-mute.mjs` | 10 — and 5 and 6 print **VOID**, not green |
+| 7 | serve `/gate/` unconditionally — the test seam left open | `src/main/main.js` | **9 only** |
+| 8 | the probe writes no `report.json` | `tools/gate/capture-mute.mjs` | the launch assertion — and the suite **stops at 1 passed, 1 failed** rather than exiting 0 |
+| 9 | the worklet stops counting quanta | `tools/fixture/rms-worklet.js` | 3, 2, 6 |
+| 10 | shorten the window to 1 s | `tools/gate/capture-mute.mjs` | 3, 6 (and 7, 8 — the samples fall outside a 1 s window) |
+| 11 | an unrelated process plays a 700 Hz tone into the measured sink | *(no edit)* | 8, 5 |
+| 12 | point the lock witness at a lock file nobody holds | `tools/suites/capture-mute.mjs` | **8 only** |
+
+**Case 1 is the case this whole gate was rewritten for.** With the mute gone the
+source plays for `PRE_CAPTURE_MS` before the capture opens, the whole-lifetime
+recording hears it, and assertion 5 goes red. A capture-window-scoped meter reads
+`0.0` for exactly that leak — which is how the spike originally recorded variant
+(a) as a PASS.
+
+**Case 2 reproduced Limitation 6 to three decimal places.** Measured under it:
+`rms 0.106369` (the write-up says 0.108), `channelCount 1`, `sampleRate 48000`,
+all three processing flags `true`, and a per-quantum series decaying
+`0.266 → 0.184` inside one 4 s window. A floor-only gate calls that a pass.
+
+**Case 4 is the hypothesis assertion 7 exists to exclude, and its result must be
+read carefully:** with the app on a decoy sink, **assertion 5 stays GREEN** —
+`rms 0.000000`, a pass for the wrong reason — and the node witness is the only
+thing that goes red (`0/3 in-window samples carried it`, `routed to
+stem_workbench_gate_decoy, measuring stem_workbench_gate`). That is precisely how a
+reviewer greened the spike's entire matrix.
+
+**Case 10 is why assertion 3 is a COUNT.** A 1 s window still reads `0.35`, so the
+level assertion stays green and only the count-grounded one goes red.
+
+**There is no isolated mutation for `autoGainControl`, and that is a measured
+platform fact rather than a gap.** Asking for `autoGainControl: true` **alone**,
+with the Host's guard neutered, was run: the track still came back
+`channelCount 2, sampleRate 44100, autoGainControl false`. Chromium ignores it for
+a web-contents capture; it takes `echoCancellation` or `noiseSuppression` to move
+the capture onto the processed path, and that path turns everything on at once. The
+AGC assertion's red therefore comes from case 2, where it reads
+`autoGainControl=true` next to mono/48000.
+
+**"Kill the lock holder" is not a mutation that can exist here, and finding that
+out was worth the run.** Written that way, case 12 was watched MISSING: an
+`flock(2)` lock lives on the OPEN FILE DESCRIPTION and every descendant inherits
+it across `fork`+`exec`, so with the battery holding the sink lock outermost the
+whole process tree holds it and killing the `flock` process releases nothing —
+all three in-window probes still read "somebody holds it". The same fact is why
+`holdLock`'s `release()` closes its child's stdin **first** and only then signals
+it. What case 12 falsifies instead is that the witness is a live probe of a real
+lock rather than a constant: point it at a file nobody holds and both halves —
+the per-sample `flock -n` and `sinkLock.alive()` — read false.
+
+**Coverage is mechanical, not claimed by hand.** `tools/suites/coverage.py` runs
+after a FULL battery and compares every assertion name in the baseline log against
+every name that ever appeared on a `FAIL` line, exiting non-zero if any has never
+been seen red. Current state: **12 of 12 mutations caught, 15 of 15 assertions
+watched red.** A subset run cannot make that claim and does not try.
 
 ---
 
@@ -1608,3 +1765,11 @@ Two further honesty items, carried from the spike's write-up:
 - **There are no speakers on this box.** `aplay -l` finds no soundcards. Silence
   here is measured off the monitor of a null sink wired to no hardware. It has
   never been *heard*.
+- **`capture-mute` never runs in GitHub CI, so CI never checks the premise.** A
+  hosted runner has no PipeWire daemon, no sink and no audio device, so the suite
+  SKIPS there — honestly, with three lines under its own `SKIPPED` saying that
+  nothing checked the property, and `tools/verify.mjs` refuses an unqualified
+  GREEN over a plan containing a SKIP. The consequence is not softened by any of
+  that: **a regression in the mute, or in Chromium's capture-scoped silencing,
+  will pass CI.** It is caught only when somebody runs this suite on a Linux box
+  with PipeWire — and on macOS, by nobody at all yet.

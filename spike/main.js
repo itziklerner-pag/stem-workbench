@@ -14,7 +14,14 @@
 // instead of being lined up with a guessed sleep.
 //
 //   --page=local|youtube   which source the view loads (default local)
-//   --url=URL              override the page URL
+//   --url=URL              override the page URL. For --page=youtube it replaces
+//                          the default watch URL; for --page=local it replaces
+//                          the bundled fixture, which is how tools/suites/
+//                          capture-mute.mjs points the variant-(d) CONTROL at the
+//                          same tools/fixture/player.html the app under test uses
+//                          (spike/fixture/tone.wav is 11 MB and gitignored, so a
+//                          gate that ran on it would depend on an untracked file).
+//                          Omit it and every default is exactly what it was.
 //   --variant=a|b|c|d|nocapture|silent
 //        a          enableLocalEcho unset (the Electron default, false), view NOT muted
 //        b          setAudioMuted(true) on the view
@@ -50,6 +57,10 @@ const NAV      = val('nav', 'none');
 const READY    = val('ready-file', '');
 const OUT      = val('out', '');
 const YT_URL   = val('url', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+// Explicitly GIVEN, as opposed to defaulted: the local branch below loads its
+// bundled fixture unless somebody passed a URL, and `val()` cannot tell those
+// apart because YT_URL always has a value.
+const URL_GIVEN = argv.some((a) => a.startsWith('--url='));
 const CTX_RATE = Number(val('ctx-rate', 0));   // 0 = let the renderer choose
 
 const KNOBS = {
@@ -175,8 +186,10 @@ app.whenReady().then(async () => {
       cb(streams);
     });
 
-    result.url = PAGE === 'youtube' ? YT_URL : `file://${path.join(HERE, 'fixture', 'player.html')}`;
+    const LOCAL_URL = URL_GIVEN ? YT_URL : null;
+    result.url = PAGE === 'youtube' ? YT_URL : (LOCAL_URL || `file://${path.join(HERE, 'fixture', 'player.html')}`);
     if (PAGE === 'youtube') await view.webContents.loadURL(YT_URL);
+    else if (LOCAL_URL) await view.webContents.loadURL(LOCAL_URL);
     else await view.webContents.loadFile(path.join(HERE, 'fixture', 'player.html'),
                                          KNOBS.silent ? { query: { silent: '1' } } : undefined);
 

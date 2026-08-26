@@ -415,6 +415,26 @@ The click was a real click in the page. No URL was resolved or parsed by us
 
 ## The permanent gate
 
+> **BUILT.** `tools/suites/capture-mute.mjs`, registered in `tools/verify.mjs` as
+> the `capture-mute` step (`window`, `sink`), specified in `docs/TESTING.md` §8
+> and falsified by `tools/suites/capture-mute-mutations.sh`. Everything below is
+> the specification it implements; the differences that emerged while building it
+> are recorded in `docs/TESTING.md` §8, not here. Two are worth naming from this
+> side:
+>
+> - **The measured level came out where this document says it should.** A clean
+>   run reads `capturedRms 0.350831` over `1496` quanta with the device at
+>   bit-exact `0.0`, and the mutation that asks for `audio: true` reproduces
+>   Limitation 6 to three decimal places: `rms 0.106369`, `channelCount 1`,
+>   `sampleRate 48000`, all three processing flags `true`, and a per-quantum
+>   series decaying `0.266 -> 0.184` inside one 4 s window.
+> - **`autoGainControl: true` alone is ignored** by Chromium for a web-contents
+>   capture — asked for on its own, the track still comes back stereo/44100 with
+>   AGC off. It takes `echoCancellation` or `noiseSuppression` to move the capture
+>   onto the processed path, and that path turns everything on at once. So there
+>   is no isolated mutation for the AGC assertion; its red comes from the
+>   Limitation-6 run.
+
 Variant (b), against the local fixture. The four assertions this spike first
 proposed are **not sufficient** — review built a run that satisfies all four
 while producing a stream that is useless for stem separation (Limitation 6). The
@@ -758,6 +778,13 @@ still only recorded, never asserted — gate assertion 7 (*the app's own
 sink*) is what actually closes "the app was never connected", and it is tracked
 in [#3](https://github.com/itziklerner-pag/stem-workbench/issues/3), not built
 here.
+
+**Built there, and watched losing.** `tools/suites/capture-mute.mjs` asserts it
+per run, and `capture-mute-mutations.sh` case 4 is the review scenario verbatim:
+the app is routed to `stem_workbench_gate_decoy` while the meter stays on
+`stem_workbench_gate`, the silence assertion goes **green — for the wrong
+reason**, and the node witness is the only thing that goes red
+(`0/3 in-window samples carried it`). That is the assertion earning its keep.
 
 Forced routing itself is *not* in the causal chain: review ran (b) with neither
 `PULSE_SINK` nor `PIPEWIRE_NODE` set, so the app used the system default device,

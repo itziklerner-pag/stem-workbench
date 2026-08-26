@@ -44,6 +44,10 @@
  *                      actually did into DIR and exit. See tools/gate/probe.mjs;
  *                      it is imported ONLY when this flag is present, so the
  *                      product's module graph does not contain its own gate.
+ *                      IT IS ALSO THE ONE FLAG THAT WIDENS THE `app://` ORIGIN:
+ *                      `/gate/` maps `tools/fixture/` only while it is set, so
+ *                      `capture-mute`'s RMS worklet can be fetched under this
+ *                      origin's `script-src 'self'`. See the ROOTS table.
  *   --gate-probe=NAME  which probe under tools/gate/ that flag runs. Default
  *                      `probe` (the app skeleton, for `shell`); `engine-host`
  *                      drives the engine seam. One flag per QUESTION rather than
@@ -133,6 +137,31 @@ const ROOTS = [
   { prefix: '/vendor/', dir: path.join(APP_ROOT, 'vendor') },
   { prefix: '/', dir: path.join(APP_ROOT, 'src', 'renderer') },
 ];
+
+/**
+ * THE ONE SEAM THIS PRODUCT OPENS FOR ITS OWN GATE, AND IT IS ASSERTED SHUT.
+ *
+ * `capture-mute` measures the captured stream with an `AudioWorkletProcessor`
+ * (`tools/fixture/rms-worklet.js`) — TEST CODE, which must not be in
+ * `src/renderer/` and must not be added to the vendored tree. A worklet module
+ * is fetched under `script-src`, and this origin's CSP is `script-src 'self'
+ * 'wasm-unsafe-eval'` (`src/main/assets.js`), so a `blob:` module is refused —
+ * measured, not assumed: *"Loading the script 'blob:app://workbench/…' violates
+ * … script-src 'self' 'wasm-unsafe-eval'"*. `Page.setBypassCSP` over the
+ * debugger was tried and does not reach an already-committed document. The
+ * remaining honest option is a root that only exists when the gate is running.
+ *
+ * SO: `/gate/` is added ONLY when `--gate=DIR` is on the command line, which is
+ * the same flag that decides whether `tools/gate/<probe>.mjs` is imported at
+ * all. A packaged build never passes it, `tools/` is not packaged, and
+ * `tools/suites/capture-mute.mjs`'s assertion 9 scans this file — comments
+ * stripped — for exactly two mentions of `tools`, and fails if either one is
+ * outside an `if (GATE)`.
+ *
+ * IF THE GUARD IS EVER REMOVED, the product serves its own test fixtures on its
+ * own origin. That is why the assertion exists and why it names this line.
+ */
+if (GATE) ROOTS.push({ prefix: '/gate/', dir: path.join(APP_ROOT, 'tools', 'fixture') });
 
 const PRELOAD = (name) => path.join(APP_ROOT, 'src', 'preload', `${name}.cjs`);
 

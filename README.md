@@ -130,8 +130,18 @@ is [#3](https://github.com/itziklerner-pag/stem-workbench/issues/3). Read the
 Limitations section before citing any number from the write-up.
 
 `spike/` holds the throwaway app that produced the evidence. It is kept rather
-than deleted because the permanent capture-mute gate will be built from it — it
-is **not** the product, and nothing should be built on top of it.
+than deleted because the permanent capture-mute gate is built **on** it — it is
+**not** the product, and nothing else should be built on top of it.
+
+**The permanent gate exists now**: `tools/suites/capture-mute.mjs`, the
+`capture-mute` step of `tools/verify.mjs`, specified in
+[`docs/TESTING.md`](docs/TESTING.md) §8. It measures the PRODUCT's capture path,
+not the spike's — but it reuses two pieces of the spike, and only two: the
+vendored PipeWire harness in `spike/harness/` (the sink, the RMS reader, the link
+witness) and `spike/main.js --variant=d` as the control process that must be able
+to hear itself. **It will not run in GitHub CI** — no PipeWire, no audio device —
+so it skips there, loudly, and the runner refuses an unqualified GREEN over a
+plan it skipped in. Nothing in CI checks this property; see `docs/TESTING.md` §11.
 
 ## The documents
 
