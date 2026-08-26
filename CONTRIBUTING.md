@@ -147,15 +147,34 @@ text rather than a moving one. Bump it when you bump the pin.
 
 ## Getting set up
 
-**Not yet possible.** There is no vendor script and no application. This section
-is the procedure the vendor script will automate, so that it is written down
-before it is written in bash.
-
 ```bash
 git clone https://github.com/itziklerner-pag/stem-workbench
 cd stem-workbench
 npm install                 # Electron
+npm start                   # the app shell — a window, and not much else yet
 ```
+
+**On Linux, `npm start` will refuse to run before you do one thing.** Chromium's
+setuid sandbox helper ships in `node_modules` without its permissions, and
+Electron aborts rather than run unsandboxed:
+
+```
+FATAL:sandbox/linux/suid/client/setuid_sandbox_host.cc:166] The SUID sandbox
+helper binary was found, but is not configured correctly.
+
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+It is a property of an unpackaged `node_modules` tree, not of the app — a
+packaged build installs the helper correctly. `ELECTRON_DISABLE_SANDBOX=1`
+starts it too, **with the sandbox off**, which is the wrong trade for an app
+whose whole job is to put somebody else's website in a window. `npm install`
+replaces the file, so the two lines are needed again after one.
+
+**Vendoring is not yet possible.** There is no vendor script and no `vendor/`
+tree. What follows is the procedure that script will automate, written down
+before it is written in bash.
 
 Vendoring the unit is the upstream procedure in
 [`docs/VENDORING.md`](https://github.com/itziklerner-pag/stem-splitter-live/blob/main/docs/VENDORING.md),

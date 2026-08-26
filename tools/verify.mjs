@@ -221,18 +221,24 @@ export const STEPS = [
     },
   },
   {
+    id: 'shell',
+    title: 'node tools/suites/shell.mjs — one real launch of `electron .`: the window, isolation, the capture grant, the mute, the allowlist',
+    cmd: ['node', 'tools/suites/shell.mjs'],
+    window: true,
+  },
+  {
     id: 'p1',
     title: "node tools/suites/p1.mjs — P1': every session the app creates reaches the update host and nothing else",
     cmd: ['node', 'tools/suites/p1.mjs'],
     window: true,
-    todo: 'specified in docs/TESTING.md §8; not built',
+    todo: 'specified in docs/TESTING.md §9; not built',
   },
   {
     id: 'smoke',
     title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
     cmd: ['node', 'tools/suites/smoke.mjs'],
     window: true,
-    todo: 'specified in docs/TESTING.md §5; not built',
+    todo: 'specified in docs/TESTING.md §6; not built',
   },
   {
     id: 'capture-mute',
@@ -240,7 +246,7 @@ export const STEPS = [
     cmd: ['node', 'tools/suites/capture-mute.mjs'],
     window: true,
     sink: true,
-    todo: 'specified in docs/TESTING.md §7 (the CORRECTED gate); not built',
+    todo: 'specified in docs/TESTING.md §8 (the CORRECTED gate); not built',
   },
   {
     id: 'youtube',
@@ -248,7 +254,7 @@ export const STEPS = [
     cmd: ['node', 'tools/suites/youtube.mjs'],
     window: true,
     manual: true,
-    todo: 'specified in docs/TESTING.md §6; not built',
+    todo: 'specified in docs/TESTING.md §7; not built',
   },
 ];
 

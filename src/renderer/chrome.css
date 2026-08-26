@@ -1,0 +1,22 @@
+/* The 44 px bar. There is no toolbar icon in a desktop app, so this is the
+   first thing the owner touches — HOST-DESIGN.md §1.1, last row. */
+:root { color-scheme: dark; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  display: flex; align-items: center; gap: 10px;
+  height: 44px; box-sizing: border-box; padding: 0 10px;
+  background: #161d26; border-bottom: 1px solid #24303d; color: #dce6f0;
+  font: 12px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+}
+#brand { font-weight: 600; color: #9fd0ff; letter-spacing: .02em; white-space: nowrap; }
+#arm {
+  font: inherit; font-weight: 600; padding: 6px 12px; border-radius: 5px;
+  border: 1px solid #2f6f4f; background: #1d3a2c; color: #a9e5c3; cursor: pointer;
+}
+#arm[disabled] { opacity: .45; cursor: not-allowed; border-color: #313d4a; background: #1a222c; color: #8595a6; }
+.field { display: flex; gap: 5px; align-items: baseline; min-width: 0; }
+.k { color: #6f8296; }
+.v { color: #cfe0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch; }
+#refusal { margin-left: auto; color: #ff9a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
+#refusal:empty { display: none; }

@@ -1,0 +1,25 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>stem-workbench engine</title>
+<link rel="stylesheet" href="./page.css">
+<body class="engine">
+  <h1>engine</h1>
+  <p>
+    The hidden renderer. It is never shown; it holds the AudioContext, the
+    capture, the SharedArrayBuffer ring, the workers and the model.
+  </p>
+  <pre id="probe">probing…</pre>
+
+  <!--
+    THE UNIT'S ENTRY JOINS HERE IN THE NEXT WAVE, as one more module script:
+
+      <script type="module"
+              src="./vendor/stem-splitter-live/extension/offscreen/engine.js"></script>
+
+    This page is OURS and the unit's entry is loaded from it by RELATIVE URL, so
+    every `../shared/…` and `../workers/…` specifier inside `engine.js` resolves
+    against the MODULE's URL and lands inside the vendored tree
+    (docs/HOST-DESIGN.md §12). Nothing here is a copy of a unit file.
+  -->
+  <script type="module" src="./engine-boot.js"></script>
+</body>

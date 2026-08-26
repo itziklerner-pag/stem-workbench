@@ -1,7 +1,10 @@
 # stem-workbench
 
-**Pre-alpha. There is nothing to install.** This repository currently holds one
-spike and its write-up. No application has been built yet.
+**Pre-alpha. There is nothing to install.** There is now an application, and it
+starts: a window, youtube.com inside it, a cross-origin-isolated origin for the
+engine and the deck, and the capture grant. **It does not split anything yet** —
+the vendored unit is not in this tree and the Host's 32 duties are not written.
+`npm start` shows you a shell.
 
 ---
 
@@ -57,7 +60,43 @@ that decides what this product may become. The code itself is
 |---|---|
 | step 1 — the capture/mute spike | **done on Linux; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware** |
 | step 2 — the Host seam in `stem-splitter-live` | not started; **authorised** on the Linux evidence, by decision |
-| steps 3+ — the app itself | not started |
+| step 3 — desktop host v0 | **the shell runs on Linux** (`npm start`): the window, the three views, `app://` with `crossOriginIsolated === true`, the muted source view, the capture grant. 34 assertions, every one watched red by mutation |
+| step 3, the rest | the vendored unit, the 32 duties, the arm gesture, the model — **not started** |
+
+### What actually runs today
+
+```bash
+npm start                     # a window: our 44 px bar, youtube.com, the deck slot
+node tools/verify.mjs         # the gate — GREEN (partial), because four suites are unbuilt
+```
+
+The shell that starts is: one `BaseWindow` with three `WebContentsView`s (our
+chrome bar, youtube.com on its own `persist:youtube` session, the deck slot) and
+a hidden `BrowserWindow` for the engine. Everything of ours is served from
+`app://workbench` with COOP/COEP, so `crossOriginIsolated === true` and
+`SharedArrayBuffer` constructs — in the document **and** inside a module worker,
+which is the half ORT's threaded wasm needs. The source view is muted before it
+loads anything. Navigation is allow-listed to youtube.com and the four sign-in
+hosts; `window.open` is denied; every permission is denied; downloads are
+refused. `getDisplayMedia` from the engine returns one stereo 44 100 Hz track
+naming that view's frame — and the same call from the deck, or from a page
+inside the view, is refused.
+
+What is **not** there: the deck (the vendored copy has not landed, so the slot
+shows a placeholder that says so), the engine (same), the 32 Host duties, the arm
+gesture, the model, and any audio at all.
+
+**On a Linux development tree** Chromium's setuid sandbox helper ships without
+its permissions, and Electron refuses to start rather than run unsandboxed:
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+That is a property of `node_modules`, not of the app; a packaged build installs
+it correctly. `ELECTRON_DISABLE_SANDBOX=1` also starts it, with the sandbox off,
+which is worth knowing and not worth doing.
 
 ### The spike
 
@@ -111,9 +150,17 @@ docs/ARCHITECTURE.md         the map: how the product is put together
 docs/HOST-DESIGN.md          the design: the Electron Host, duty by duty
 docs/adr/                    the decisions, with their alternatives
 docs/spike-capture-mute.md   step 1's findings, limitations, and the gate spec
-docs/TESTING.md              how this repo is gated, and the four host suites
+docs/TESTING.md              how this repo is gated, and the five host suites
+src/main/                    the main process: the window, app://, the bus, the
+                             capture grant, the source view's short list
+src/preload/                 four preloads: engine, deck, chrome — and youtube,
+                             which exposes nothing on `window`, by design
+src/renderer/                our own pages: the chrome bar, the engine's page
 tools/verify.mjs             the gate. `node tools/verify.mjs`
-tools/suites/                the host suites (one built, four specified)
+tools/suites/                the host suites (two built, four specified)
+tools/gate/probe.mjs         what `--gate` reads out of a real launch. It never
+                             asserts; the suite does
+tools/fixture/player.html    the local source page every automated suite uses
 spike/                       the throwaway Electron app + every recorded run
 spike/harness/               the external speaker meter it is measured with
 CONTEXT.md                   the glossary
@@ -125,6 +172,8 @@ NOTICE.md                    the non-commercial statement and attribution
 ```bash
 node tools/verify.mjs                # the gate
 node tools/verify.mjs --self-check   # the runner's own classifier, ~0 s
+node tools/verify.mjs --only shell   # one real launch of `electron .`, ~2 s
+tools/suites/shell-mutations.sh      # watch all 34 of its assertions go red
 ```
 
 The engine and the deck are gated by **their own** suites, which travel with the

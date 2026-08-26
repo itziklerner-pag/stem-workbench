@@ -64,6 +64,7 @@ node tools/verify.mjs --list         # the steps table
 |---|---|---|---|
 | `void-canary` | `tools/suites/void-canary.mjs` | — | the runner's own VOID rule, and the steps table against this document |
 | `vendor-unit` | *(the vendored runner)* | — | the unit's 12 suites over the exact tag we pinned |
+| `shell` | `tools/suites/shell.mjs` | window | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
 | `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
 | `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
@@ -199,12 +200,21 @@ This box is a tty session with no `DISPLAY`, no soundcard, and sibling agents
 working concurrently. Three rules, and they compose:
 
 ```bash
-# 1. the browser/Electron mutex — sibling agents share this machine
-flock "$SCRATCH/browser.lock" -c '
-  # 2. a display
-  xvfb-run -a -s "-screen 0 1280x1024x24" \
-    node tools/suites/smoke.mjs'
+# 1. the browser/Electron mutex — sibling agents share this machine.
+#    The suite takes it ITSELF, around the electron spawn; the name comes from
+#    $STEM_WORKBENCH_BROWSER_LOCK, defaulting to a per-user file in $TMPDIR.
+#    On a shared box, point it at the box's lock:
+export STEM_WORKBENCH_BROWSER_LOCK="$SCRATCH/browser.lock"
+node tools/suites/shell.mjs
+
+# which spawns, internally:
+#   flock "$STEM_WORKBENCH_BROWSER_LOCK" -c '
+#     xvfb-run -a -s "-screen 0 1280x1024x24" node_modules/.bin/electron . --gate=…'
 ```
+
+`xvfb-run -a` picks a display number by scanning for a free one, which is a race
+two concurrent launches can both win. That, and not politeness, is why the mutex
+is around the spawn.
 
 ```bash
 # 3. and for `sink` suites, the PipeWire sink lock, ON TOP, taken FIRST
@@ -222,7 +232,178 @@ flock "$SCRATCH/browser.lock" -c '
 
 ---
 
-## 5. `smoke` — Playwright-for-Electron against a local fake player
+## 5. `shell` — the app skeleton, over one real launch
+
+**File:** `tools/suites/shell.mjs`. **Flags:** `window`. **Cost target:** < 30 s.
+
+The first suite that runs the product. It spawns **the real entry point** —
+`electron .`, the real `package.json` `main`, the real protocol handler, the real
+windows — under the shared browser mutex and `xvfb-run`, with three development
+arguments:
+
+```bash
+flock "$STEM_WORKBENCH_BROWSER_LOCK" -c "xvfb-run -a -s '-screen 0 1280x1024x24' \
+  node_modules/.bin/electron . --gate=out/shell --user-data=out/shell/userdata \
+  --source-url=file://$PWD/tools/fixture/player.html"
+```
+
+`--gate=DIR` makes `src/main/main.js` dynamically import `tools/gate/probe.mjs`,
+hand it the live handles, write `DIR/report.json` and three `capturePage` PNGs,
+and exit. **The probe never asserts** — a probe that decided its own verdict would
+be a suite that exits 0 having asserted nothing, which is the VOID case one level
+in. Every judgement is in the suite, which is a separate process and can be run
+against a report from a mutated build.
+
+### Why the launch is real and the judgement is outside it
+
+A second main process that imported the same modules would be a second app, and
+the two would agree right up until the day the real one changed. So the launch is
+the product's own, and the probe only **observes**: it adds no capability,
+changes no `webPreferences`, and installs no handler.
+
+### The source page is local
+
+`tools/fixture/player.html` — the same fixture `smoke` and `capture-mute` use
+(§6). CI must never depend on YouTube's DOM or its bot walls. The real thing is
+`youtube` (§7), manual only.
+
+### What it asserts
+
+Six of them are pure functions with no launch at all; the rest read one report.
+
+| # | assertion | detail must carry |
+|---|---|---|
+| 1–3 | the navigation allowlist admits every listed host, refuses every other one **including `youtube.com.evil.test`**, and refuses every non-`https` scheme | the counts, and any URL that got through |
+| 4–6 | the `app://` path table maps our two roots, and refuses a percent-encoded traversal, a NUL byte, a sibling directory sharing a root's prefix, and an unknown host | the counts, and what was let through |
+| 7 | the app launches from its real entry point and writes a report | exit code, electron/chromium versions |
+| 8–9 | one `BaseWindow`, three child views in the fixed order; the engine is a **hidden `BrowserWindow`** | the class names, the three URLs |
+| 10–12 | all four renderers have `contextIsolation` on, `sandbox` on, `nodeIntegration` off; none can see `require`/`process`/`module`; **the source view's page sees no bridge of ours** | the three flags per renderer; what `window` actually carries |
+| 13 | the source view is alone on `persist:youtube`; chrome, deck and engine are on the default session | the partition's storage directory |
+| 14–17 | the engine document is cross-origin isolated, `SharedArrayBuffer` constructs, **a module worker inherits it and `Atomics` round-trips a posted SAB**, and the deck slot is isolated too | `coi`, `sab`, the worker's reply |
+| 18–19 | every `app://` response carries COOP, COEP and CORP; a `HEAD` answers with a `content-length` and no body; the live handler returns 403 for a traversal and 404 for a missing file | the header values, the statuses |
+| 20–23 | a **detached** `send()` reaches the deck's address, the envelope arrives deep-equal to what was sent, a wrong `v` is dropped as malformed, an address with no listener is dropped — both counted | the envelopes, the drop counters |
+| 24–27 | the capture grant answers the engine with the **source view's frame** (`deviceId` names its `processId:routingId`), one stereo 44 100 track with AGC/EC/NS all `false`; the deck may not capture; a page **inside** the source view may not capture | the `deviceId`, both frames, the settings |
+| 28 | the source view is muted **before it loads anything**, and no navigation ever starts unmuted | `mutedAtCreate`, the per-load samples, the unmuted-navigation count |
+| 29–31 | a renderer-initiated navigation off the allowlist is refused and the view does not move; `window.open` is denied; **the refusal is visible in the chrome bar** | the refused URLs, the bar's text |
+| 32–33 | the chrome bar painted with its Arm control present and disabled; all three views drew more than one distinct colour | the bar's fields; per-view size and colour count |
+| 34 | the deck slot loads the vendored deck when it is present and our placeholder when it is not | which branch ran, and the URL |
+
+**Assertion 33 is not decoration.** A blank view and a painted one are both a
+PNG, and a byte count cannot tell them apart — a solid-colour 1280×600 PNG
+compresses to a few hundred bytes and so does a broken one. The distinct-colour
+**count** can: 1 for anything uniform, more for anything with text on it.
+
+**Assertion 26 is the one that would undo the product.** A page inside the source
+view that could call `getDisplayMedia` itself would not need us at all. It is
+refused twice — at the permission layer on `persist:youtube`, and by the fact
+that the display-media handler is installed on our session only.
+
+### Deliberately not asserted here
+
+- **The unit.** `vendor/stem-splitter-live/` is not on this tree. Nothing here
+  proves the vendored engine or deck loads, runs, or produces audio. Assertion 34
+  reads the placeholder branch today and the vendored branch the day the copy
+  lands — the same assertion, both ways.
+- **The 32 duties.** There is no Host yet, so `assertHost` has nothing to check.
+  That is `group('host')` in the vendored `test.js`, and it is the next wave's.
+- **Silence at the audio device.** This suite proves the view is *muted* and that
+  a capture opens. A muted view and a silent speaker are two claims, and
+  `capture-mute` (§8) is the one that measures the second. **This suite cannot
+  replace it.**
+- **The bus router's sender check.** `bus.js` drops a `'bus'` message from a
+  renderer that is on no address. No renderer we ship has both that channel and
+  no address, so there is nothing to send the message that would prove it.
+- **The mute's re-assert on navigation.** Chromium preserves the mute flag across
+  a navigation in the same `WebContents`, so removing the re-assert changes no
+  observable. The belt is gated; the braces are not.
+- **P1′.** Which host the app talks to is `p1`'s job (§9).
+
+### Watched red
+
+Reproduce every row with `tools/suites/shell-mutations.sh`, which runs the suite
+**unmutated first and requires green** — a mutation runner that is red before it
+mutates has proved nothing — then, per case, applies the edit, refuses to
+continue if the anchor text has moved, runs the suite, requires the named
+assertions on `FAIL` lines, restores the file and checks the restored bytes.
+
+Every row below was **run**, on 2026-08-26, against Electron 44.0.0 / Chromium
+152.0.7977.54 on Linux. The "red" column is what actually failed, not what was
+expected to.
+
+| # | mutation | file | red |
+|---|---|---|---|
+| 1 | drop COOP + COEP from `ISOLATION_HEADERS` | `src/main/assets.js` | 14, 15, 16, 17, 18, 32 |
+| 2 | drop the containment test from `resolveAppPath` | `src/main/assets.js` | 5, 19 |
+| 3 | suffix match → `host.includes('youtube.com')` | `src/main/navigation.js` | 2 |
+| 4 | `setAudioMuted(true)` **after** the first load | `src/main/youtube.js` | 28 |
+| 5 | delete the `will-navigate` guard | `src/main/youtube.js` | 29 |
+| 6 | window-open handler → `{ action: 'allow' }` | `src/main/youtube.js` | 30 |
+| 7 | grant the **chrome** frame instead of the source's | `src/main/main.js` | 24 |
+| 8 | do not `addChildView(deck)` | `src/main/main.js` | 8, 33 |
+| 9 | stamp `hostSaw: true` onto a routed envelope | `src/main/bus.js` | 21 |
+| 10 | delete the `v !== 1` guard | `src/main/bus.js` | 22 |
+| 11 | `mayCapture` → `(wc) => !!wc \|\| isCaptor(wc)` | `src/main/capture.js` | 26 |
+| 12 | `nodeIntegration: true` | `src/main/main.js` | 10 |
+| 13 | delete the Arm button | `src/renderer/chrome.html` | 32 |
+| 14 | do not write `report.json` | `tools/gate/probe.mjs` | 7 — and the suite **fails** with 6 passed, 1 failed rather than exiting 0 |
+| 15 | ask for `getDisplayMedia({ audio: true })` | `tools/gate/probe.mjs` | 25 |
+| 16 | `noteRefusal` stops calling `pushStatus()` | `src/main/main.js` | 31 |
+| 17 | allow only the exact hosts, dropping `*.youtube.com` | `src/main/navigation.js` | 1 |
+| 18 | stop requiring `https:` | `src/main/navigation.js` | 3 |
+| 19 | match the **shortest** root prefix, not the longest | `src/main/assets.js` | 4, 19 |
+| 20 | serve any `app://` host, not only `workbench` | `src/main/assets.js` | 6 |
+| 21 | `show: true` on the engine window | `src/main/main.js` | 9 |
+| 22 | `exposeInMainWorld` in the source view's preload | `src/preload/youtube.cjs` | 12 |
+| 23 | put the source view on **our** session | `src/main/main.js` | 13 |
+| 24 | never `register(BUS.deck, …)` | `src/main/main.js` | 20, 21, 23, 34 |
+| 25 | count a no-listener drop as a malformed one | `src/main/bus.js` | 22, 23 |
+| 26 | give the source view every permission it asks for | `src/main/youtube.js` | 27 |
+| 27 | point the deck slot at the wrong page | `src/main/main.js` | 17, 20, 21, 34 |
+| 28 | `contextIsolation: false`, `sandbox: false`, `nodeIntegration: true` | `src/main/main.js` | 10, 11, and six more |
+
+**Cases 17–28 exist because of a coverage audit, not a hunch.** The first sixteen
+left eleven of the 34 assertions with no mutation of their own. That is not
+visible from inside a green run, so `tools/suites/coverage.py` now makes it
+mechanical: after a full battery it compares every assertion name in the baseline
+log against every name that ever appeared on a `FAIL` line, and the script exits
+non-zero if any assertion has never been seen red. **Current state: 28 of 28
+mutations caught, 34 of 34 assertions watched red.**
+
+**Case 27 found a defect in the suite rather than in the app.** Pointing the deck
+slot at the wrong page removed `window.__wbBusLog`, the probe returned
+`{THREW: …}` where an array was expected, and the suite died on
+`.filter is not a function` — with eleven assertions still to run, including the
+one that mutation was written to turn red. A suite that crashes has not reported
+a red; it has stopped looking. Every read of the report now goes through two
+one-line guards, and the crash is the reason they are there.
+
+**Mutation 1 also takes 32** because the chrome bar prints the engine's
+`coi`/`sab`, so "the bar painted" and "what it says is true" go red together.
+That is information, not a defect in either assertion — and it is why the runner
+prints every red, not only the expected one.
+
+**Mutation 5 does NOT take 31.** The `window.open` denial writes the refusal line
+too, so the bar stays populated with the navigation guard gone. Mutation 16 is
+the one that empties it. Two mutations that look interchangeable and are not is
+exactly what a mutation table is for.
+
+**Mutation 12 takes 10 and not 11.** `sandbox: true` keeps `require` out of the
+main world even with `nodeIntegration: true`, so the *preference* assertion
+catches it and the *reach* assertion is a second layer this mutation cannot
+reach. That is what mutation 28 is for: turning all three preferences off at once
+puts `require` in the main world and takes assertion 11 with it.
+
+**Mutation 15 is the Limitation-6 run**, and it is the reason assertion 25 lists
+every field instead of checking that a track exists. Measured under the
+mutation: **`ch=1 sr=48000 agc=true ec=true ns=true`** — mono, 48 kHz, with
+automatic gain control whose level decays 17× over 8 s. The spike's original
+four-assertion gate called that a PASS. The constraints belong to the *engine*,
+not to `main`, so today they live in the gate probe; when `offscreen/host.js`
+lands they move there and assertion 25 moves with them.
+
+---
+
+## 6. `smoke` — Playwright-for-Electron against a local fake player
 
 **File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Cost target:** < 60 s.
 
@@ -296,7 +477,7 @@ two claims is not gated until `smoke-live` is written.
 
 ---
 
-## 6. `youtube` — the real thing, manual only
+## 7. `youtube` — the real thing, manual only
 
 **File:** `tools/suites/youtube.mjs`. **Flags:** `window`, `manual`.
 **Never on a default plan.** `node tools/verify.mjs --only youtube`, or `--manual`.
@@ -328,7 +509,7 @@ fixture cannot exercise — both measured in the spike:
 where every other run read `213.061`, with a capture series dipping to `0.00428`,
 within 2.3× of the proposed floor. So the level claim here is
 **presence/absence only**: `capturedRms >= 0.01` (the floor, 26 dB above the
-silence ceiling). The `getSettings()` constraints (§7 assertion 4) are
+silence ceiling). The `getSettings()` constraints (§8 assertion 4) are
 level-independent and **are** asserted, unchanged.
 
 Record, in the run's output: the video id, `duration`, `volume`, and whether an
@@ -340,7 +521,7 @@ default run, because it is not on one.
 
 ---
 
-## 7. `capture-mute` — the permanent gate
+## 8. `capture-mute` — the permanent gate
 
 **File:** `tools/suites/capture-mute.mjs`. **Flags:** `window`, `sink`.
 **Tracked as [#3](https://github.com/itziklerner-pag/stem-workbench/issues/3).**
@@ -357,7 +538,7 @@ hold.
 
 ### The rig
 
-Variant (b), against the **local fake player** from §5 (analytic RMS `0.353553`).
+Variant (b), against the **local fake player** from §6 (analytic RMS `0.353553`).
 Two independent meters over the same seconds, never by ear.
 
 1. Take the **browser mutex** and the **sink lock**, in that order.
@@ -480,7 +661,7 @@ the knob is directly observable. It catches none of assertion 4.
 - **The window is 4 s.** A leak shorter than that is averaged down. The 1.90 s
   variant-(a) leak is precisely a short leak, and it is caught by assertion 5's
   whole-lifetime recording rather than by the window.
-- **No macOS, no audio hardware.** Silence here has never been *heard*. See §10.
+- **No macOS, no audio hardware.** Silence here has never been *heard*. See §11.
 
 ### Watched red
 
@@ -495,7 +676,7 @@ the knob is directly observable. It catches none of assertion 4.
 
 ---
 
-## 8. `p1` — the P1′ acceptance test
+## 9. `p1` — the P1′ acceptance test
 
 **File:** `tools/suites/p1.mjs`. **Flags:** `window`.
 
@@ -571,7 +752,7 @@ everything.
 
 ---
 
-## 9. `vendor-unit` and `vendor/.pin`
+## 10. `vendor-unit` and `vendor/.pin`
 
 `vendor/.pin` is JSON beside the vendored tree:
 
@@ -615,7 +796,7 @@ reporting a green step as VOID.
 
 ---
 
-## 10. What is verified here, and what is only configured
+## 11. What is verified here, and what is only configured
 
 **Linux is the verification platform for this phase, by ruling.** The plan's pass
 condition for step 3 is a notarized macOS pre-release. There is no Mac and no

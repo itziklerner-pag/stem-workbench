@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Non-commercial Electron desktop product for stem-splitter-live: six live stems from a YouTube view or a local file. Pre-alpha — currently the step-1 capture/mute spike only.",
+  "description": "Non-commercial Electron desktop product for stem-splitter-live: six live stems from a YouTube view or a local file. Pre-alpha — the app shell runs; the Host duties and the vendored unit are not in yet.",
   "license": "MIT",
+  "main": "src/main/main.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/itziklerner-pag/stem-workbench.git"
@@ -24,6 +25,7 @@
     "on-device"
   ],
   "scripts": {
+    "start": "electron .",
     "verify": "node tools/verify.mjs",
     "verify:quick": "node tools/verify.mjs --quick",
     "verify:self-check": "node tools/verify.mjs --self-check",

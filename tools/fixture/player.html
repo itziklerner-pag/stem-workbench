@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>stem-workbench fixture player</title>
+<!-- A CSP, so this page does not trip Electron's "no CSP" dev warning and so the
+     fixture cannot reach the network even by accident. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; media-src blob:; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<!--
+  THE LOCAL SOURCE PAGE. docs/TESTING.md §5.
+
+  CI must never depend on YouTube's DOM and must never hit a bot wall, so every
+  automated suite points the source view here instead of at the real thing. Same
+  trick as `stem-splitter-live/tools/host.mjs` answering as `huggingface.co`.
+
+  IT GENERATES ITS OWN MEDIA IN-PAGE: a few lines of JS write a RIFF header and
+  a 440 Hz stereo sine into a Blob and `URL.createObjectURL()` becomes
+  `video.src`. No binary in git, no ffmpeg at test time, and the level is
+  ANALYTIC — a stereo sine of amplitude 0.5 has RMS 0.5/√2 = 0.353553, which is
+  the number `capture-mute` needs. 60.0 s at 440 Hz is 26 400 whole cycles, so
+  `loop` wraps phase-continuously and no click can land inside a measurement
+  window.
+
+  The suite that loads this page installs a request handler that FAILS any
+  request to a non-local origin, so an accidental youtube.com load is a red
+  rather than a slow test.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #14202b; color: #dbe7f2;
+               font: 13px/1.6 ui-sans-serif, system-ui, sans-serif; }
+  main { padding: 18px 22px; }
+  h1 { font-size: 15px; margin: 0 0 6px; color: #9fd0ff; }
+  pre { color: #ffd08a; font: 12px/1.5 ui-monospace, Menlo, monospace; }
+  video { width: 320px; height: 60px; background: #0a1017; }
+</style>
+<main>
+  <h1>local fixture — the source page every automated suite uses</h1>
+  <p>440 Hz stereo sine, amplitude 0.5, RMS 0.353553, generated in this page.</p>
+  <video id="v" loop controls></video>
+  <pre id="s">building…</pre>
+</main>
+<script>
+  const SR = 44100, SECONDS = 60, CH = 2, HZ = 440, AMP = 0.5;
+
+  function wav() {
+    const frames = SR * SECONDS;
+    const dataBytes = frames * CH * 2;
+    const buf = new ArrayBuffer(44 + dataBytes);
+    const dv = new DataView(buf);
+    const tag = (off, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
+    tag(0, 'RIFF'); dv.setUint32(4, 36 + dataBytes, true); tag(8, 'WAVE');
+    tag(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true);
+    dv.setUint16(22, CH, true); dv.setUint32(24, SR, true);
+    dv.setUint32(28, SR * CH * 2, true); dv.setUint16(32, CH * 2, true); dv.setUint16(34, 16, true);
+    tag(36, 'data'); dv.setUint32(40, dataBytes, true);
+    const w = 2 * Math.PI * HZ / SR;
+    for (let i = 0, o = 44; i < frames; i++) {
+      const v = Math.round(AMP * 32767 * Math.sin(w * i));
+      dv.setInt16(o, v, true); o += 2;
+      dv.setInt16(o, v, true); o += 2;
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  const v = document.getElementById('v');
+  const s = document.getElementById('s');
+  const say = () => {
+    s.textContent = `paused=${v.paused} t=${v.currentTime.toFixed(2)} dur=${v.duration} `
+      + `muted=${v.muted} rate=${v.playbackRate}`;
+  };
+  v.src = URL.createObjectURL(wav());
+  v.addEventListener('loadedmetadata', say);
+  v.addEventListener('timeupdate', say);
+  v.addEventListener('playing', say);
+  v.addEventListener('pause', say);
+  say();
+
+  // The gate reads this instead of guessing at the DOM.
+  window.__wbFixture = () => ({
+    ready: v.readyState >= 1, paused: v.paused, duration: v.duration,
+    muted: v.muted, rate: v.playbackRate, rms: AMP / Math.SQRT2,
+  });
+</script>

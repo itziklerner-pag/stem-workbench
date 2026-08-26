@@ -419,7 +419,8 @@ The substituted pass condition, and the honest labels for it:
 | | claim | what backs it |
 |---|---|---|
 | **VERIFIED** | the capture/mute mechanism | Linux, Electron 44.0.0 / Chromium 152.0.7977.54, an external out-of-process meter, ~40 recorded runs, three adversarial audits, one of which refuted part of the original claim |
-| **VERIFIED** (target) | a runnable Linux app the owner can start and arm on this box | an automated smoke, once it exists |
+| **VERIFIED** | a runnable Linux app the owner can **start** on this box | `tools/suites/shell.mjs` — 34 assertions over one real launch of `electron .`: the window and its three views, every renderer's isolation flags, `crossOriginIsolated === true` with `SharedArrayBuffer` in the document and in a module worker, the capture grant naming the source view's frame, the mute landing before the first load, the allowlist refusing. Every one watched red by a named mutation (`tools/suites/shell-mutations.sh`), and the tables are in `docs/TESTING.md` §5 |
+| **NOT YET** (target) | ...and **arm** it | the deck, the engine and the 32 duties are not in this tree. There is nothing to arm |
 | **CONFIGURED, NEVER BUILT** (target) | electron-builder and CI for macOS and Windows | configuration files and a workflow. **Nothing is compiled, signed or notarized here.** A green CI file is not a green build |
 | **WRITTEN DOWN ONLY** | everything about macOS behaviour | nothing. See §3 and issue #2 |
 
