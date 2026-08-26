@@ -96,6 +96,7 @@ than to make one honest afterwards.
 |---|---|
 | [`CONTEXT.md`](CONTEXT.md) | the domain model and the glossary. Most of the words are defined in `stem-splitter-live`, and are quoted verbatim here rather than paraphrased — a glossary that disagrees with that one is worse than no glossary |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the process topology, the Host seam and its thirty-two duties, the capture path — and §7, which defines the difference between *verified*, *configured but never built*, and *written down only* |
+| [`docs/HOST-DESIGN.md`](docs/HOST-DESIGN.md) | the Electron Host in full — the topology, the 32 duties one by one, the bus, the arm gesture, the model. Every decision tagged `[decided]`, `[measured]` or `[unknown]` |
 | [`docs/adr/0001-…`](docs/adr/0001-the-shape-of-the-desktop-product.md) | the decisions this product had already taken and had nowhere to record: Electron, the capture path, the player window, non-commercial, the bundled model, and the release story |
 | [`docs/TESTING.md`](docs/TESTING.md) | how this repository is gated, and the VOID rule |
 | [`PRIVACY.md`](PRIVACY.md) | one host for the app's own code; the YouTube view's traffic is your own browsing; what is stored on disk and where |
@@ -106,7 +107,8 @@ than to make one honest afterwards.
 ## Layout
 
 ```
-docs/ARCHITECTURE.md         how the product is put together, and what is pending
+docs/ARCHITECTURE.md         the map: how the product is put together
+docs/HOST-DESIGN.md          the design: the Electron Host, duty by duty
 docs/adr/                    the decisions, with their alternatives
 docs/spike-capture-mute.md   step 1's findings, limitations, and the gate spec
 docs/TESTING.md              how this repo is gated, and the four host suites
