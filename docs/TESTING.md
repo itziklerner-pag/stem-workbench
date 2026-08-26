@@ -1056,9 +1056,19 @@ empty.
 | 2 | the network guard is live on **both** sessions — it saw two deliberate off-box navigations and refused them | which probes were recorded, how many came back `ERR_BLOCKED_BY_CLIENT` |
 | 3 | `assertHost` accepted **both** halves of the Host: the deck reached module scope (`window.__embed`) and the engine answered `STATUS` with a `STATE` | the members `ui/host.js` exports, the two duty counts |
 | 4 | **`SESSION`** — clicking `Arm this Source` in the application menu originates it to `BUS.deck` with `{armed,title,url,armedAt}`, and the deck stops painting its not-armed hint | the menu label and accelerator, the session keys, the hint before and after |
-| 5 | **`CAPTURE_START`** is originated to `BUS.engine`, carrying a minted token | the address it went to, the token's length |
+| 5 | **`CAPTURE_START`** is originated to `BUS.engine`, carrying a minted token — checked over **every** message rather than the first, because the COUNT is the machine's (see below) | the address it went to, the token's length |
 | 6 | …and its shape is the frozen one — `{sourceToken, source:{title,url}}`, no `deck` for the default deck and **no `tabId`** | the observed key sets |
-| 7 | **`DECK_PREPARE`** is originated to `BUS.engine`, with `deck` omitted for the default deck | the observed keys |
+| 7 | **`DECK_PREPARE`** is originated to `BUS.engine`, with `deck` omitted for the default deck — over **every** message | the count, and the observed keys |
+
+**THE COUNT IS THE MACHINE'S, AND ASSERTING IT WAS A MEASURED FLAKE.** This suite
+sends both `SW_*` envelopes itself (see "Two messages are driven by the deck's
+envelope"), and on a machine that HAS the 109 MiB weights the deck sends its own
+as well — `maybePrepare()` fires from the first `STATE`. Measured on 2026-08-26:
+two consecutive runs on one tree, one `DECK_PREPARE` and then two, differing only
+in whether the deck's own landed inside the window. Assertions 5, 6 and 7 now
+check EVERY message instead of the first, which is strictly stronger on what they
+are named for — the address, the frozen shape, the omitted `deck` — and gives up
+only a number that was in none of their names.
 | 8 | the deck follows the player: play and pause on the page move `__embed.videoPlaying` | both transitions, and where the playhead got to |
 | 9 | …and the report the deck reads carries the transport state and **nothing about the media** — no `src`, `currentSrc`, `buffered` or `srcObject` | the report count and every field name in the last one |
 | 10 | a seek the **user** made arrives at the deck as **exactly one** content jump | `__embed.jumps` before and after |
@@ -1069,7 +1079,7 @@ empty.
 | 15 | …and the player is handed back the way it was found: unmuted, rate 1 | what the element reads after the disarm |
 | 16 | the deck painted **one fader per stem** — six `[data-stem]` strips, six `role="slider"` faders, each a stem the unit declares | the painted order and `STEMS` |
 | 17 | the `AudioContext` the engine opened for the capture is at **44100**, not the platform default | `STATE.boot.sampleRate`, over how many snapshots |
-| 18 | the whole run stayed on the box: every request either session made was local | the request count, any off-box URL, the schemes seen |
+| 18 | the whole run stayed on the box: every request either session made was local, **bar the one host P1′ names** — the update check, excluded from `src/main/update.js`'s own constant and counted on the line. The claim ABOUT that host is `p1`'s (§9); this is the cruder complement, and an update check is not wandering | the request count, any off-box URL, the count to the update host, the schemes seen |
 
 **Assertions 4–7 and 14 are the ones `assertHost` structurally cannot make.**
 `VENDORING.md`: *"`assertHost` cannot check for a message nobody sent."* A Host

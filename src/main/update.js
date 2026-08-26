@@ -20,8 +20,10 @@
  * THE HOST IS SPELLED ONCE, HERE, AND NOWHERE ELSE
  * ---------------------------------------------------------------------------
  * `src/main/sessions.js` imports `UPDATE_HOST` to decide what its policy lets
- * through, and `tools/suites/p1.mjs` imports it to decide what it is allowed to
- * observe. Neither re-types it. That is deliberate and it is the difference
+ * through, `tools/suites/p1.mjs` imports it to decide what it is allowed to
+ * observe, and `tools/suites/smoke.mjs` imports it to keep this ONE host — and
+ * only this one — out of the off-box ledger it keeps over both sessions. None of
+ * the three re-types it. That is deliberate and it is the difference
  * between a gate and a tautology in ONE direction only: re-pointing this
  * constant moves the policy and the assertion WITH it, so the gate keeps
  * measuring "one host" rather than "this host" — and `tools/suites/p1.mjs`
