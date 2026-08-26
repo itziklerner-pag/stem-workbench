@@ -180,8 +180,10 @@ vendor/upstream.sha256       what the 50 copied files were at the tag
 tools/vendor-unit.sh         vendors it, and `--check`s it. One command
 tools/verify.mjs             the gate. `node tools/verify.mjs`
 tools/suites/                the host suites (two built, four specified)
-tools/gate/probe.mjs         what `--gate` reads out of a real launch. It never
-                             asserts; the suite does
+tools/gate/probe.mjs         what `--gate` reads out of a real launch — a flag
+                             read only when `!app.isPackaged`, so a shipped
+                             binary has no such door. It never asserts; the
+                             suite does
 tools/fixture/player.html    the local source page every automated suite uses
 spike/                       the throwaway Electron app + every recorded run
 spike/harness/               the external speaker meter it is measured with

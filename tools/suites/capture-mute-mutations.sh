@@ -443,6 +443,20 @@ mutate_case 12 "point the lock witness at a lock file nobody holds" \
 "\`stem-workbench-sink-\${SINK}.lock\`" \
 "\`stem-workbench-sink-\${SINK}-nobody-holds-this.lock\`"
 
+# THE GUARD MUST BE OUT OF A USER'S REACH, NOT MERELY PRESENT. Case 7 deletes the
+# guard; this one leaves both seams reading `if (GATE)` exactly as they are and
+# removes only `app.isPackaged` from the definition of GATE. The scan still counts
+# 2/2 guarded mentions of tools/ and every other assertion is untouched — the only
+# thing that can notice is the half of assertion 9 that EVALUATES the definition
+# with `isPackaged` true and false. A substring test for `app.isPackaged` would
+# also have passed the variant that reads it and ignores it.
+mutate_case 13 "drop the packaged-build guard — a shipped binary would honour --gate" \
+  "src/main/main.js" \
+  "the capture-side instrument is not shipped" \
+  -- src/main/main.js \
+"const GATE = app.isPackaged ? '' : val('gate', '');" \
+"const GATE = val('gate', '');"
+
 # ==========================================================================
 echo
 if [ "${#ONLY[@]}" -eq 0 ]; then

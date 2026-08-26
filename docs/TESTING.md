@@ -1349,8 +1349,35 @@ if (GATE) ROOTS.push({ prefix: '/gate/', dir: path.join(APP_ROOT, 'tools', 'fixt
 ```
 
 `--gate=DIR` is the same flag that decides whether `tools/gate/<probe>.mjs` is
-imported at all, a packaged build never passes it, and `tools/` is not packaged.
-**That line is a seam, and assertion 9 is what asserts it shut.**
+imported at all, and `tools/` is not packaged. **That line is a seam, and
+assertion 9 is what asserts it shut.**
+
+**A guard is not the same claim as "out of reach", and the first version of this
+only had the guard.** `GATE` was `val('gate', '')` — a command line and nothing
+else — so a *shipped binary* still took both branches for anyone who passed
+`--gate=/tmp/x --gate-probe=whatever`. The probe's name is user-supplied;
+`path.basename()` stops traversal, so the module must already be on disk, but
+*"a shipped app that executes a module named on its command line"* is a sentence
+that should not be writable about a product whose whole claim is one named host
+and no remote code. And once packaging lands, `tools/` is not in the bundle, so
+that branch would fail confusingly rather than honestly.
+
+So the flag is read **only in a development build**, and the conjunction is taken
+once, at the definition, rather than repeated at each seam — which also covers
+any third seam somebody adds later:
+
+```js
+const GATE = app.isPackaged ? '' : val('gate', '');
+```
+
+**Assertion 9 does not match that line as text.** `/app\.isPackaged/.test(line)`
+would pass on a line that reads it and ignores it. The scan lifts the real
+statement out of the real file and **evaluates** it twice — `isPackaged: true`,
+requiring `''`; then `false`, requiring the flag's value back. The second half is
+not ceremony: `const GATE = ''` would shut the seam by breaking the gate, and the
+assertion says so rather than passing. **Mutation case 13** deletes
+`app.isPackaged` from the definition and this is the only thing that goes red;
+the guard-counting half stays green at 2/2, which is precisely the point.
 
 ### The assertions
 
@@ -1405,6 +1432,15 @@ imported at all, a packaged build never passes it, and `tools/` is not packaged.
    shape (`if (GATE) ROOTS.push(`), the second by sitting inside the `if (GATE) {`
    block. Neither `rms-worklet` nor any gate environment variable appears anywhere
    in `src/**`.
+
+   **And the guard is out of a user's reach, not merely present.** The `const
+   GATE` statement is lifted out of `src/main/main.js` and **evaluated** — not
+   substring-matched — with `app.isPackaged` true and then false, requiring `''`
+   (the flag ignored) and then the flag's value. A packaged build therefore
+   cannot be talked into either seam by a command line. A definition that names
+   anything other than `app` and `val`, or that does not terminate within six
+   lines, is a **red naming the throw** rather than a silent pass: a statement
+   this scan cannot read is one nobody is checking.
 
    The scan matches a quoted bare segment (`'tools'`, which is how `path.join`
    spells a path) and the three test directories by name — **not** the word
@@ -1515,6 +1551,7 @@ device at bit-exact `0.0`. The "red" column is what actually failed.
 | 10 | shorten the window to 1 s | `tools/gate/capture-mute.mjs` | 3, 6 (and 7, 8 — the samples fall outside a 1 s window) |
 | 11 | an unrelated process plays a 700 Hz tone into the measured sink | *(no edit)* | 8, 5 |
 | 12 | point the lock witness at a lock file nobody holds | `tools/suites/capture-mute.mjs` | **8 only** |
+| 13 | delete `app.isPackaged` from the definition of `GATE` — the guard stays, its reach does not | `src/main/main.js` | **9 only** — and 9's guard-counting half stays green at 2/2 |
 
 **Case 1 is the case this whole gate was rewritten for.** With the mute gone the
 source plays for `PRE_CAPTURE_MS` before the capture opens, the whole-lifetime
@@ -1560,7 +1597,7 @@ the per-sample `flock -n` and `sinkLock.alive()` — read false.
 **Coverage is mechanical, not claimed by hand.** `tools/suites/coverage.py` runs
 after a FULL battery and compares every assertion name in the baseline log against
 every name that ever appeared on a `FAIL` line, exiting non-zero if any has never
-been seen red. Current state: **12 of 12 mutations caught, 15 of 15 assertions
+been seen red. Current state: **13 of 13 mutations caught, 15 of 15 assertions
 watched red.** A subset run cannot make that claim and does not try.
 
 ---

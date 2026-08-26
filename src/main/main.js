@@ -90,7 +90,29 @@ const val = (k, d) => {
   return hit === undefined ? d : hit.slice(k.length + 3);
 };
 const SOURCE_URL = val('source-url', 'https://www.youtube.com/');
-const GATE = val('gate', '');
+/**
+ * THE GATE FLAG IS UNREACHABLE IN A SHIPPED BINARY, not merely unpassed by one.
+ *
+ * `--gate=DIR` opens the two seams below: the `app://` root that serves
+ * `tools/fixture/`, and the dynamic `import()` of `tools/gate/<name>.mjs` where
+ * the NAME is `--gate-probe`. `path.basename()` stops traversal there, so the
+ * module has to be on disk already — but *"a shipped app that executes a module
+ * named on its command line"* is a sentence nobody should be able to write about
+ * a product whose whole claim is one named host and no remote code (P1-prime,
+ * M1). And once packaging lands, `tools/` is not in the bundle, so the branch
+ * would fail confusingly rather than honestly.
+ *
+ * So the guard is a CONJUNCTION and it is taken ONCE, here: the flag is read
+ * only when `!app.isPackaged`. Both seams below stay `if (GATE)` and both are
+ * dead in a packaged build — as is any third one somebody adds later, which is
+ * why this sits at the definition rather than being repeated at each site.
+ *
+ * `capture-mute`'s assertion 9 does not match this line as TEXT. It lifts it out
+ * of this file and EVALUATES it twice — `app.isPackaged` true, then false — and
+ * requires `''` and then the flag's value. Deleting `app.isPackaged` from it is
+ * mutation case 13.
+ */
+const GATE = app.isPackaged ? '' : val('gate', '');
 const GATE_PROBE = val('gate-probe', 'probe');
 const USER_DATA = val('user-data', '');
 
@@ -153,10 +175,13 @@ const ROOTS = [
  *
  * SO: `/gate/` is added ONLY when `--gate=DIR` is on the command line, which is
  * the same flag that decides whether `tools/gate/<probe>.mjs` is imported at
- * all. A packaged build never passes it, `tools/` is not packaged, and
+ * all — and that flag is READ ONLY WHEN `!app.isPackaged` (see `const GATE`
+ * above), so a shipped binary cannot be talked into this line by anyone holding
+ * a command line. `tools/` is not packaged either, and
  * `tools/suites/capture-mute.mjs`'s assertion 9 scans this file — comments
- * stripped — for exactly two mentions of `tools`, and fails if either one is
- * outside an `if (GATE)`.
+ * stripped — for exactly two mentions of `tools`, fails if either one is
+ * outside an `if (GATE)`, and separately evaluates the `const GATE` line to
+ * prove the packaged case is dead.
  *
  * IF THE GUARD IS EVER REMOVED, the product serves its own test fixtures on its
  * own origin. That is why the assertion exists and why it names this line.
@@ -462,7 +487,10 @@ app.whenReady().then(async () => {
 
   if (GATE) {
     // Imported ONLY here. The product's module graph does not contain its own
-    // gate, and `tools/` is not packaged. WHICH probe is `--gate-probe`: one
+    // gate, `tools/` is not packaged, and GATE is '' in a packaged build, so the
+    // user-supplied NAME below is unreachable in a shipped binary — the point of
+    // the `app.isPackaged` conjunction at `const GATE`. `path.basename()` stops
+    // traversal on top of that. WHICH probe is `--gate-probe`: one
     // module per QUESTION, because a probe that both measured the window and
     // armed a capture would have failures nobody could tell apart.
     const file = path.join(APP_ROOT, 'tools', 'gate', `${path.basename(GATE_PROBE)}.mjs`);

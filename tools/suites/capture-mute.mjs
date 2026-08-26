@@ -114,8 +114,12 @@
  *  12   this file: point the lock witness at a lock nobody holds -> exclusivity,
  *       ALONE. "Kill the holder" was tried and CANNOT work: an flock lock lives on
  *       the open file description and every descendant inherits it.
+ *  13   src/main/main.js: delete `app.isPackaged` from the definition of GATE
+ *       -> the seam scan, ALONE — and its OTHER half stays green at 2/2 guarded
+ *       mentions, because the guard is still there. It is only out of a user's
+ *       reach while that conjunction holds.
  *
- * `tools/suites/coverage.py` over the whole battery: 12 of 12 mutations caught,
+ * `tools/suites/coverage.py` over the whole battery: 13 of 13 mutations caught,
  * 15 of 15 assertions watched red.
  */
 import fs from 'node:fs';
@@ -261,10 +265,13 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
 // ==========================================================================
 {
   const scan = scanForGateSeam();
-  ok('the capture-side instrument is not shipped: no product source names the gate hook or the meter  [entry point: src/main/main.js `if (GATE)`]',
+  ok('the capture-side instrument is not shipped: no product source names the gate hook or the meter, and the flag that opens the seam is dead in a packaged build  [entry point: src/main/main.js `const GATE` + `if (GATE)`]',
     scan.clean,
     `${scan.files} src file(s) scanned with comments stripped, ${scan.guarded}/2 mentions of tools/ `
     + `under an \`if (GATE)\` in src/main/main.js, electron-builder config ${scan.builder}`
+    + (scan.gate.ok
+      ? `; \`${scan.gate.one}\` EVALUATED, not matched: app.isPackaged=true -> '' (--gate ignored), =false -> the flag`
+      : '')
     + (scan.clean ? '' : ` — LEAKED: ${scan.bad.join('; ')}`));
 }
 
@@ -782,6 +789,64 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
  */
 function reachesIntoTools(line) { return /['"`]tools['"`]|tools\/(gate|fixture|suites)\b/.test(line); }
 
+/**
+ * THE OTHER HALF OF ASSERTION 9: THE GUARD IS OUT OF A USER'S REACH, not merely
+ * present.
+ *
+ * The scan above proves both seams sit under an `if (GATE)`. That is a guard,
+ * and a guard is not the same claim as "no one can trip it". `GATE` is
+ * `--gate=DIR` — a command line — and the second seam imports a module whose
+ * NAME is also a command line (`--gate-probe`; `path.basename()` stops
+ * traversal, so the file must already exist, but *"a shipped app that executes a
+ * module named on its command line"* is still the sentence to make unwritable).
+ * So `src/main/main.js` conjoins `!app.isPackaged` at the definition, and this
+ * is what holds it there.
+ *
+ * IT IS NOT A SUBSTRING MATCH. `/app\.isPackaged/.test(line)` would pass on a
+ * line that merely mentions it — including one that reads it and ignores it.
+ * This lifts the real `const GATE = …;` statement out of the real file and
+ * EVALUATES it twice, in a `new Function` whose only free names are `app` and
+ * `val`: once with `isPackaged: true`, requiring `''`, and once with `false`,
+ * requiring the flag's value back. The second half matters as much as the first
+ * — a guard written as `const GATE = ''` would shut the seam by breaking the
+ * gate, and this says so instead of passing.
+ *
+ * The cost of evaluating rather than matching is that a definition referring to
+ * anything other than `app` and `val` throws — and a throw is a red naming the
+ * message, not a silent pass. Same for one that does not terminate within six
+ * lines. Both are the right failure: this file has to be able to read that
+ * statement, and a statement it cannot read is one nobody is checking.
+ */
+function evalGateDefinition(mainCode) {
+  const lines = mainCode.split('\n');
+  const at = lines.findIndex((l) => /^\s*const GATE\s*=/.test(l));
+  if (at < 0) return { ok: false, why: 'src/main/main.js has no `const GATE =` statement' };
+  const parts = [];
+  for (let i = at; i < Math.min(at + 6, lines.length); i++) {
+    parts.push(lines[i]);
+    if (/;\s*$/.test(lines[i])) break;
+  }
+  const src = parts.join('\n');
+  const one = src.trim().replace(/\s+/g, ' ');
+  if (!/;\s*$/.test(parts[parts.length - 1])) {
+    return { ok: false, why: `\`const GATE\` does not terminate within 6 lines: \`${one.slice(0, 90)}\`` };
+  }
+  const FLAG = '/tmp/stem-workbench-not-a-real-gate-dir';
+  const run = (isPackaged) => new Function('app', 'val', `${src}\nreturn GATE;`)(
+    { isPackaged }, (k, d) => (k === 'gate' ? FLAG : d),
+  );
+  let packaged, dev;
+  try { packaged = run(true); dev = run(false); }
+  catch (err) { return { ok: false, why: `evaluating \`${one.slice(0, 60)}\` threw: ${err.message}` }; }
+  if (packaged) {
+    return { ok: false, why: `a PACKAGED build would still honour --gate: \`${one}\` -> ${JSON.stringify(packaged)}` };
+  }
+  if (dev !== FLAG) {
+    return { ok: false, why: `a DEVELOPMENT build no longer honours --gate: \`${one}\` -> ${JSON.stringify(dev)}` };
+  }
+  return { ok: true, one };
+}
+
 function scanForGateSeam() {
   const files = [];
   (function walk(dir) {
@@ -796,9 +861,11 @@ function scanForGateSeam() {
   const MAIN = path.join('src', 'main', 'main.js');
   const bad = [];
   let guarded = 0;
+  let mainCode = null;
   for (const f of files) {
     const rel = path.relative(ROOT, f);
     const code = strip(fs.readFileSync(f, 'utf8'));
+    if (rel === MAIN) mainCode = code;
     if (/STEM_WORKBENCH_GATE/.test(code)) bad.push(`${rel} names a gate environment variable`);
     if (/rms-worklet/.test(code)) bad.push(`${rel} names the meter (rms-worklet)`);
     const lines = code.split('\n');
@@ -814,6 +881,11 @@ function scanForGateSeam() {
     }
   }
 
+  const gate = mainCode === null
+    ? { ok: false, why: `${MAIN} was not scanned at all` }
+    : evalGateDefinition(mainCode);
+  if (!gate.ok) bad.push(`the gate flag is not development-only: ${gate.why}`);
+
   const pkg = readJson(path.join(ROOT, 'package.json')) || {};
   let builder = 'ABSENT — none is written yet (docs/TESTING.md §11)';
   if (pkg.build) {
@@ -821,5 +893,5 @@ function scanForGateSeam() {
     builder = /tools/.test(blob) ? 'PACKAGES tools/' : 'present, does not package tools/';
     if (/tools/.test(blob)) bad.push('package.json "build" packages tools/');
   }
-  return { clean: bad.length === 0 && guarded === 2, bad, files: files.length, guarded, builder };
+  return { clean: bad.length === 0 && guarded === 2 && gate.ok, bad, files: files.length, guarded, builder, gate };
 }
