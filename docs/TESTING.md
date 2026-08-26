@@ -33,15 +33,50 @@ expensive. Ours runs the vendored gate as one *step* (`vendor-unit`) instead.
 ### `group('host')` in the vendored `test.js`
 
 `VENDORING.md` offers three things to do about the 122 conformance assertions in
-that group. **We take option 3: point them at our files.** Those assertions are
-a conformance report on the Electron Host in the unit's own words — `assetUrl`'s
-trailing slash, `send()`'s `undefined` return, `storageGet`'s absent-vs-unreadable
-split — and that is what they are for.
+that group. This repository intended **option 3 — point them at our files** —
+and what it actually does is worth stating precisely, because half of option 3
+turned out not to be available and a plan that is not the practice is worse than
+either.
 
-Option 1 (run `--unit` *before* swapping the holes) is the intermediate green
-recorded on the way, and it is the green in `VENDORING.md` §7: `GREEN (partial —
-the vendored unit's suites only; 12 of 23 steps)`, 12 of 12 PASS, 1156
-assertions. Record it in the vendoring commit; it says the copy arrived intact.
+**Option 1 is the intermediate green, and it was recorded.** `--unit` run
+*before* the holes were swapped: `GREEN (partial — the vendored unit's suites
+only; 12 of 23 steps)`, 12 of 12 PASS, **1156 assertions**, in the vendoring
+commit. It says the copy arrived intact and it is what `vendor/.pin` pins.
+
+**Option 3 is not available as written, and the reason is in the group itself.**
+`group('host')` installs a CHROME platform — `globalThis.chrome`, the Cache API
+keyed on the extension's own huggingface pin, `getUserMedia` with
+`chromeMediaSource` constraints — and then drives the hole modules over it. Ours
+reach for an Electron preload bridge, an `app://` origin and a bundled file, so
+those assertions do not become claims about our Host by being pointed at our
+files: they become claims about a platform that is not there. Repointing them
+means rewriting them, and a mechanical rewrite of the unit's largest suite is
+not a thing to do inside a vendored copy that `vendor-intact` gates byte for
+byte.
+
+**So we take option 2 and then re-make the claims on our own platform.** The
+reds are read as the conformance report `VENDORING.md` says they are, and every
+rule behind them is asserted again against the shipped hole modules over a stub
+of OUR platform:
+
+| | where the unit's claim is re-made |
+|---|---|
+| the ENGINE half | `engine-host` (§5b) — over one real launch, plus the module driven directly inside the engine renderer |
+| the DECK half | `deck-seam` — the seven rules `shared/host.js` declares, over a stubbed preload bridge, in ~0.4 s |
+
+**Measured, so the report is a number and not an impression.** With our
+`offscreen/host.js` in place, the engine half of `group('host')` is **23 PASS /
+14 FAIL**, and every one of the fourteen is an assertion whose *stub* is Chrome:
+`chrome.runtime.sendMessage`'s envelope and its swallowed rejection, the
+`chrome.runtime.onMessage` listener, `getUserMedia`'s proprietary constraints,
+and the six model duties keyed on the Cache API and the huggingface pin. Every
+assertion in that group whose subject is the CONTRACT rather than the platform is
+green: `send()` returns undefined, `assetUrl` is synchronous and keeps a trailing
+slash, `captureStream` rejects rather than resolving null, `onTeardown` registers
+the engine's own callback unwrapped, `modelCached` answers `false` when it cannot
+look, `createBackend` returns a fresh three-duty backend per call with the hooks
+forwarded and the resolver un-overridable, and `assertHost` accepts the module
+and refuses every short one.
 
 ---
 
@@ -461,23 +496,46 @@ Host.
 | 11–14 | `assetUrl`: inside the unit bundle, **trailing slash intact**, fetchable with a readable `.ok`, and an escape refused (M1) | the URLs, the `HEAD` status |
 | 15–17 | `modelBytes`: 114,559,139 bytes owning their whole buffer, a **fresh buffer per call**, phase `'cache'` announced at 0 bytes | offsets, lengths, the phase |
 | 18 | `modelCached` + `clearModel` as **one decision** — a no-op paired with `fromCache: false` | all four values |
-| 19–20 | the engine answers `STATUS`, and its page is cross-origin isolated | `boot.sab`, `boot.coi` |
-| 21 | **wasm really got shared memory**: `onReady({threads}) >= 2` | the thread count |
+| 19–20 | the engine answers `STATUS` (its model status leaves `'unknown'`), and its page is cross-origin isolated | the transition, `boot.sab`/`boot.coi` |
+| 21 | `createBackend` **forwarded the unit's hooks** — `onReady({threads, adapter})` arrived at all | the thread count and adapter |
 | 22–23 | `DECK_PREPARE` builds the ORT session and the **unit's** SHA-256 over our bytes passes | `ms`, `ep`, `model.status` |
 | 24 | a forged token buys nothing, and `captureStream` **rejects** rather than resolving null | the refusal's own sentence |
-| 25–26 | the capture is stereo/44100/AGC-EC-NS off, and names the **source view's frame** | all five fields, the `deviceId` |
-| 27–28 | `CAPTURE_START` arms a real capture and **the audio reaches the ring** | the frame count |
-| 29 | `CAPTURE_STOP` stops it and revokes every live claim | the claim registry, after |
-| 30 | the `AudioContext` is at 44100 | `boot.sampleRate` |
-| 31 | `onTeardown` registers the caller's own function on `pagehide` and it runs **synchronously** | whether it had run when `dispatchEvent` returned |
-| 32–35 | the three originated messages, by name, with their frozen key sets, all delivered | the key lists and the counts |
+| 25–27 | the stream the Host hands back is stereo/44100/AGC-EC-NS off, carries **one audio track and no video track**, and **carries sound** — a peak of 0.5000, the fixture's own amplitude, while the view is muted | all five fields, the track counts, the peak |
+| 28–30 | the grant named the **source view's frame**; `CAPTURE_START` arms a real capture; the ring is fed at the context's rate with nothing dropped | the `deviceId`, the frame count |
+| 31 | `CAPTURE_STOP` stops it and revokes a claim that was **minted and never spent** | the registry before and after |
+| 32 | the `AudioContext` is at 44100 | `boot.sampleRate` |
+| 33 | `onTeardown` registers the caller's own function on `pagehide` and it runs **synchronously** | whether it had run when `dispatchEvent` returned |
+| 34–37 | the three originated messages, by name, with their frozen key sets — payload keys included — all delivered | the key lists and the counts |
 
-**Three of those are counts, and each replaces a claim a stopwatch cannot make.**
-The wasm **thread count** is what says threaded wasm really got a growable
-`SharedArrayBuffer` — "the model loaded quickly" is green on one thread. The
-**frame count** is what says audio really reached the ring — "the capture
-opened" is green over silence. The **byte count** is what says the whole file
-arrived.
+**Two of those are counts and one is a level, and each replaces a claim that
+cannot be made another way.** The **byte count** (114,559,139, exactly
+`MODEL.bytes`) says the whole file arrived. The **frame count** says the ring is
+being fed at the context's rate. And the **peak** says the capture carries
+audio — which the frame count cannot: stopping the audio track inside
+`captureStream` leaves the engine counting 73,728 frames of silence, measured,
+and that mutation is in the battery.
+
+### Two things measurement corrected in the design
+
+Both were written here as expectations and are now facts, because a mutation
+made them testable.
+
+**The thread count does not prove shared memory** (`docs/HOST-DESIGN.md` §2.4
+assertion 4, §10 A5). Delete COOP and COEP from every `app://` response and the
+engine reports `sab=false coi=false` — **and ORT still reports `threads: 4`**,
+because `workers/inference.worker.js:45-49` *pins* `ort.env.wasm.numThreads` and
+`onReady` echoes the pin rather than measuring the runtime. The isolation claim
+is carried by `boot.sab` and `boot.coi`, which that mutation does turn red. The
+thread count still earns its place: it is the only evidence that
+`createBackend` forwarded the unit's hooks, and dropping the `...hooks` spread
+leaves it `null`.
+
+**A frame count cannot tell audio from silence.** `STATE.capture.frames` counts
+what the capture worklet was pulled for, and a `MediaStreamAudioSourceNode` over
+an ended track still pulls silence. The first version of this suite asserted
+"the audio really reaches the engine's ring" over that number and was green with
+the track stopped — and green again with the fixture *paused*, which is how it
+loads. The level assertion is what closes both.
 
 ### Deliberately not asserted here
 
@@ -503,8 +561,29 @@ learn to ignore.
 
 ### Watched red
 
-`tools/suites/engine-host-mutations.sh`. The table is in the suite's own header,
-with what actually went red rather than what was expected to.
+`tools/suites/engine-host-mutations.sh` — 29 named cases, each declaring the
+assertion **names** it must turn red, with `tools/suites/coverage.py` over the
+whole battery refusing any assertion that has never been seen on a `FAIL` line.
+The table is in the suite's own header, with what actually went red rather than
+what was expected to. `tools/verify.mjs`'s `engine-host` step names which cases
+falsify which claims.
+
+**Four of the assertions here exist in their present form because the battery
+falsified their first draft rather than the code.** They are worth reading as a
+list of the ways a windowed suite lies:
+
+| the draft | what the mutation showed | what it asserts now |
+|---|---|---|
+| the capture is stereo/44100/unprocessed | the probe called `getDisplayMedia` with its **own copy** of the constraints, so breaking them inside `host.js` left it green (case 8) | it drives the shipping `captureStream` and reads the settings off what **it** hands back, including its refusal |
+| `CAPTURE_STOP` revokes every live claim | every token in the run had already been consumed by a grant, so `live === 0` held whether or not anything revoked it — an estimator saturated before the claim range began (case 15) | the probe mints one claim it never spends, and the assertion checks that setup happened |
+| the audio really reaches the ring | a **stopped** track still clocks buffers into the ring, so the frame count was green over silence (case 22) | a peak measured off the stream, near the fixture's own 0.5 |
+| `CAPTURE_START` carries exactly `{sourceToken, source}` | one assertion read `start.source` unguarded and **crashed the process** instead of reporting red, taking the whole suite with it (case 25) | guarded, so a missing message is a red and not a stack trace |
+
+The battery itself gained a pre-flight from the same run: **an expected name that
+matches no assertion in the green baseline aborts the case.** Four misses in the
+first full battery were a reworded assertion or a backtick the shell had eaten
+before `grep -F` ever saw it — a misspelled question that MISSES exactly like a
+hole in the suite.
 
 ---
 

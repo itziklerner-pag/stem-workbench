@@ -276,6 +276,19 @@ launch:
    that proves threaded wasm really got shared memory, rather than a timing claim
    about it being fast.
 
+> **Assertion 4 is wrong and was corrected by measurement `[measured]`.** It does
+> not prove what this paragraph says it proves. Run the mutation below — COOP and
+> COEP deleted — and the engine reports `sab=false coi=false` **while ORT still
+> reports `threads: 4`**, because `workers/inference.worker.js:45-49` *pins*
+> `ort.env.wasm.numThreads` and `onReady` echoes the pin rather than measuring
+> the runtime. Assertions 1 and 2 carry the isolation claim on their own and do
+> go red. The thread count keeps its place in `tools/suites/engine-host.mjs` for
+> a different reason that IS true: `onReady` arrives outside any call the unit
+> made, so it is the only evidence that `createBackend` forwarded the unit's
+> hooks — dropping the `...hooks` spread leaves it `null` and nothing else in the
+> tree notices. See `docs/TESTING.md` §5b, "Two things measurement corrected in
+> the design", and finding F5 in §11.
+
 **The mutation, already watched red:** delete the COOP and COEP lines from the
 protocol handler. Measured result — `crossOriginIsolated: false` and
 `SharedArrayBuffer is not defined`, in the document *and* in the module worker.
@@ -1046,7 +1059,7 @@ count carries a claim wherever a stopwatch would.
 | A2 | the unit arrived intact | `node tools/verify.mjs --unit` **before** the holes are swapped: 12/12 PASS, 1156 assertions | drop `engine/pitchbank.js` from the copy |
 | A3 | our Host conforms | `group('host')` in `test.js`, repointed at our two hole files | remove the trailing slash from `assetUrl('vendor/ort/')` |
 | A4 | the engine is isolated | `boot.sab === true` **and** `boot.coi === true` | delete COOP+COEP from the handler — **already watched red**: `SharedArrayBuffer is not defined` |
-| A5 | wasm really got threads | `onReady({threads}) → threads >= 2` (or `boot.ep === 'webgpu'`) | same as A4; ORT falls to 1 thread |
+| A5 | ~~wasm really got threads~~ **`createBackend` forwarded the unit's hooks** | `onReady({threads}) → threads >= 2` | **not** A4 — measured: `threads` stays 4 with COOP/COEP gone, because ORT pins the number. Drop the `...hooks` spread in `createBackend` and it is `null`. See §2.4 |
 | A6 | the hidden engine is not throttled | count `STATE` heartbeats received by the deck over 20 s: `>= 150` (10 Hz, 25 % slack) | delete `backgroundThrottling: false` |
 | A7 | the capture is usable | on arm: exactly one live audio track, `channelCount 2`, `sampleRate 44100`, three processing flags `false` | call `getDisplayMedia({audio: true})` — the Limitation-6 run, which a floor-only gate calls PASS |
 | A8 | the view is silent for its whole life | the permanent capture-mute gate, variant (b), **assertions 1–8** of `spike-capture-mute.md` § *The permanent gate* — never the original four | remove `setAudioMuted(true)`: 1.90 s at peak 0.499893 leaks |
@@ -1154,6 +1167,20 @@ the unit's own harness creates.
 Suggested fix: wrap each duty drive in `group('host')` so a throwing duty is a
 red naming that duty, and say in `VENDORING.md` that a hole is imported under
 plain Node by the harness.
+
+**F5 — `onReady({threads})` is a pin echoed, not a measurement, and this
+document read it as one.** `workers/inference.worker.js:45-49` sets
+`ort.env.wasm.numThreads` explicitly — deliberately, to keep ORT off its own
+`!crossOriginIsolated -> 1` branch — and `onReady` reports the number that was
+set rather than the number of threads the runtime obtained. Measured on Electron
+44 / Chromium 152: with COOP and COEP removed from every response,
+`crossOriginIsolated === false`, `SharedArrayBuffer` is unavailable in the
+document, and `onReady` still says `threads: 4`. Anything downstream that reads
+that field as evidence of shared memory — this document's §2.4 assertion 4 and
+§10 A5 did — is reading a constant. Suggested fix upstream: report what the
+worker can actually observe (`typeof SharedArrayBuffer === 'function'` inside the
+worker, or `crossOriginIsolated`) alongside the pin, so a Host has a field whose
+value can be false. Reported, not patched — the unit is vendored, not forked.
 
 **F3 — `armShortcut`'s vocabulary is documented in prose and gated nowhere.** A
 Host answering `'CommandOrControl+Shift+9'` renders "CommandOrControl" on the key

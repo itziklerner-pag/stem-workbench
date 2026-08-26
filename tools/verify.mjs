@@ -282,6 +282,47 @@ export const STEPS = [
      * `bash tools/vendor-unit.sh --model`. A skip is named in the verdict; a red
      * for a file that was never meant to be committed would be a red people
      * learn to ignore.
+     *
+     * WHAT FALSIFIES IT — `tools/suites/engine-host-mutations.sh`, 29 named
+     * cases, each declaring the assertion names it must turn red, with
+     * `tools/suites/coverage.py` over the whole battery refusing an assertion
+     * that has never been seen on a FAIL line. Reading the battery is how you
+     * find out which of this step's claims are load-bearing:
+     *
+     *   the nine duties     cases 1-11, 20-22 and 29 edit the shipped hole module
+     *                       `vendor/…/offscreen/host.js` one duty at a time —
+     *                       delete a duty, tidy assetUrl's trailing slash away,
+     *                       drop the M1 containment guard, hand modelBytes a
+     *                       VIEW instead of the buffer, memoise it, mislabel its
+     *                       phase, skip the capture claim, defer the teardown
+     *                       callback, drop createBackend's hooks, guard
+     *                       onMessage on the wrong address, leave the video
+     *                       track on the stream the engine is handed.
+     *   the platform        cases 12, 23, 24 and 26 edit `src/main/` — COOP and
+     *                       COEP off every `app://` response, the `/model/` root
+     *                       off the protocol handler, the grant pointed at the
+     *                       wrong frame, the engine never put on its address.
+     *   the three messages  cases 13, 14, 15 and 25 edit
+     *                       `src/main/engine-messages.js` — a `tabId` put back
+     *                       on CAPTURE_START.source, `deck` sent for the default
+     *                       deck, CAPTURE_STOP without revoking, nothing
+     *                       originated at all.
+     *   the capture claim   cases 16-19 and 28 edit `src/main/claims.js` — spend
+     *                       twice, spend a token nobody minted, ignore the
+     *                       deadline, leave the claim pending, keep the live
+     *                       claims through a revoke.
+     *   THE INSTRUMENT      case 27 points the probe's report somewhere nobody
+     *                       looks. Everything else in this suite reads a file
+     *                       the probe wrote, so a suite that cannot tell a
+     *                       missing report from a passing run reports green on
+     *                       an app that never launched — the VOID case, one
+     *                       level in.
+     *
+     * FOUR OF THIS STEP'S ASSERTIONS EXIST BECAUSE THE BATTERY FALSIFIED THEIR
+     * FIRST DRAFT rather than the code: the capture-settings check measured the
+     * probe's own copy of the constraints (case 8), the revoke check ran over an
+     * empty claim registry (15), the frame count was green over silence (22),
+     * and one assertion crashed the process instead of reporting red (25).
      */
   },
   {

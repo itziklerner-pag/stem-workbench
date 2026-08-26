@@ -191,6 +191,26 @@ answers `armShortcut()` with a real menu chord, so the deck prints the chord
 beside the toolbar sentence and the half the user can act on is the half that is
 true (`docs/HOST-DESIGN.md` §8.3).
 
+**Capture claim**:
+What a **`sourceToken`** IS in this product: a one-shot, expiring permission to
+open exactly one capture, minted by `main` in the **arm** path and spent by the
+**engine** before it asks the platform for anything. `shared/host.js` says the
+token is opaque to the **unit** — the Host mints it and the engine only carries
+it back — and this is what fills that hole. It exists because the extension gets
+the property for free and this Host does not: there
+`chrome.tabCapture.getMediaStreamId` returns something `getUserMedia` consumes
+directly, so the Host *cannot* capture anything the grant does not name, while
+`getDisplayMedia` carries no token at all and the grant is a decision `main`
+makes at request time. The claim is that correlation, and the correlation is the
+security property: **the engine cannot capture anything `main` did not arm.**
+A claim is refused when it was never minted, when it has already been spent,
+when it is older than its ten seconds, or when the gesture it belonged to has
+ended — `CAPTURE_STOP` revokes every live claim for that last reason.
+_Avoid_: token (alone — say *capture claim* or `sourceToken`), stream id, grant
+(the **grant** is what `setDisplayMediaRequestHandler` answers with; the claim is
+what permits it to answer at all), permission (that is Chromium's own layer, and
+it is a separate, earlier refusal)
+
 **The view**:
 The `WebContentsView` that loads youtube.com. It is where the **Live source**
 plays, it is muted, and it is the thing the capture handler is pointed at.
