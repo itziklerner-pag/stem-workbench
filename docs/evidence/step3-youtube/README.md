@@ -22,6 +22,7 @@ the transcript, line for line.
 | [`window.png`](window.png) | **the whole application**, off the X display: our 44 px bar, `youtube.com` playing, the deck across the bottom with its six strips |
 | [`deck.png`](deck.png) | the deck view alone, `capturePage()` |
 | [`source.png`](source.png) | the source view alone, `capturePage()` |
+| [`npm-start.png`](npm-start.png) | a separate, plain `npm start` — no gate flag at all — 40 s after launch (§6) |
 | [`report.json`](report.json) | everything the probe read out of the running app — the seam trace, the capture, the model, the meters, the separator |
 | [`engine.log`](engine.log) | the engine's own log, in its own words, from boot to teardown |
 | [`meters-sample.json`](meters-sample.json) | the `METERS` series the deck received, decimated 16:1 |
@@ -197,7 +198,36 @@ The two halves prove different things and neither stands in for the other: the
 report rows prove the **assertions** can fail and name the right thing; the
 product rows prove the **probe measures the product**.
 
-## 6. What a reader should not take from this
+## 6. `npm start` on its own, with no gate flag at all
+
+[`npm-start.png`](npm-start.png) is a second, much smaller run: `npm start`, no
+`--gate`, no `--source-url`, nothing — the product's own entry point, left alone
+for 40 s and photographed off the X display. It is here because every other
+picture in this directory came out of a launch the gate had a flag in, and "the
+app starts by itself" is a claim worth one photograph.
+
+It shows the window, our bar reading `source www.youtube.com · deck vendored ·
+engine coi=true sab=true`, youtube.com's own home page, and the deck painted with
+its six strips and a **Not armed** badge. It also shows the two rough edges a
+first user meets, both of them honest failures rather than hidden ones:
+
+1. **The deck still speaks the extension's language.** *"Click the Stem Splitter
+   Live toolbar icon on this tab to arm it, or press Ctrl+Shift+A"* — there is no
+   toolbar icon and there are no tabs. `docs/VENDORING.md` names this as the one
+   English sentence a second Host has to patch, and the accelerator half of it is
+   already ours.
+2. **Autoplay-next could not be turned off, and the deck says so.** *"Couldn't
+   turn off YouTube's autoplay — their control didn't respond. The next video may
+   still start."* The Host found YouTube's toggle and clicked it, and the control
+   did not change state — `src/main/autonav.js` calls that `stuck` and raises an
+   advisory rather than pretending. The selector was measured against the site on
+   2026-08-15; on 2026-08-26 the element is there and does not respond. That is
+   exactly the class of YouTube-side drift this manual step exists to catch
+   (`docs/TESTING.md` §7), and it is a **product gap, not a test failure**: the
+   `transport` suite drives a local fixture whose toggle does respond, so it is
+   green, correctly, about a different page.
+
+## 7. What a reader should not take from this
 
 - **It is one run, on one machine, on one video.** `docs/TESTING.md` §7 forbids
   this suite a level *band* for exactly that reason; every level claim in it is

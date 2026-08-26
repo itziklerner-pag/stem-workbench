@@ -231,6 +231,13 @@ a careless level check calls a pass.
   tab to arm it, or press Ctrl+Shift+A"*. There is no toolbar icon and there are
   no tabs. `docs/VENDORING.md` names this as the one string a second Host must
   patch; the accelerator half is already ours.
+- **Turning YouTube's autoplay-next off does not take.** The Host finds the
+  toggle and clicks it and the control does not change, so the next video may
+  still start; the deck raises *"Couldn't turn off YouTube's autoplay — their
+  control didn't respond"* rather than failing quietly. The selector was measured
+  against the site on 2026-08-15 and the page has moved since. It is a YouTube-side
+  drift, which is the class of thing the manual `youtube` step exists to catch —
+  the `transport` suite is green about a local fixture whose toggle does respond.
 - **`vendor-unit` is RED, on purpose.** The vendored `test.js` is both the
   unit's largest suite and a conformance suite over the two hole modules, and
   with a non-Chrome Host in them it crashes at `:5833` instead of failing. The
