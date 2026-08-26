@@ -22,12 +22,48 @@
 #   tools/suites/shell-mutations.sh 4 7 11     # only these cases
 #
 # Each case costs one real Electron launch (~12 s). The whole run is ~4 minutes.
+#
+# IT RESTORES ON SIGINT, SIGTERM AND SIGHUP, and that is not tidiness. This
+# battery was killed mid-case once and left `contextIsolation: false` standing in
+# `src/main/main.js` — case 28's edit, on a SHIPPED file, with nothing reporting
+# it. The happy path and the anchor-not-found path already restore; a signal did
+# not. `$OUT/<n>.paths` records the exact relative paths a case is about to
+# touch, so the trap restores BY PATH and never guesses one back from a
+# basename; the file is removed the moment the case has restored and verified,
+# which is what keeps the trap from undoing an already-good tree.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/shell-mutations"
 rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
+
+restore_all() {
+  local paths n f
+  for paths in "$OUT"/*.paths; do
+    [ -e "$paths" ] || continue
+    n="$(basename "$paths" .paths)"
+    while read -r f; do
+      [ -z "$f" ] && continue
+      [ -f "$(bak_of "$n" "$f")" ] && cp "$(bak_of "$n" "$f")" "$ROOT/$f"
+    done < "$paths"
+  done
+}
+on_signal() {
+  echo
+  echo "INTERRUPTED — restoring every file this battery had mutated, from $OUT."
+  restore_all
+  git -C "$ROOT" status --short -- src tools || true
+  exit 130
+}
+trap on_signal INT TERM HUP
+
+# The backup file for (case, path). THE WHOLE PATH GOES IN THE NAME, not the
+# basename: `vendor/.../ui/host.js` and `vendor/.../offscreen/host.js` are both
+# `host.js`, and a basename-keyed backup silently overwrote one with the other —
+# measured, on the first real run of case B, which then restored the OFFSCREEN
+# hole module over the DECK's and left the vendored tree broken for the next run.
+bak_of() { printf '%s/%s.%s.bak' "$OUT" "$1" "$(printf '%s' "$2" | tr '/' '_')"; }
 
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
@@ -67,12 +103,14 @@ mutate_case() {
 
   local IFS=','; local -a flist=($files); unset IFS
   local f
-  for f in "${flist[@]}"; do cp "$ROOT/$f" "$OUT/$n.$(basename "$f").bak"; done
+  printf '%s\n' "${flist[@]}" > "$OUT/$n.paths"
+  for f in "${flist[@]}"; do cp "$ROOT/$f" "$(bak_of "$n" "$f")"; done
 
   while [ "$#" -ge 3 ]; do
     if ! edit "$ROOT/$1" "$2" "$3"; then
       echo "${C_R}MUTATION $n DID NOT APPLY${C_X} — the anchor text in $1 has moved. Fix this script."
-      for f in "${flist[@]}"; do cp "$OUT/$n.$(basename "$f").bak" "$ROOT/$f"; done
+      for f in "${flist[@]}"; do cp "$(bak_of "$n" "$f")" "$ROOT/$f"; done
+      rm -f "$OUT/$n.paths"
       missed=$((missed + 1)); return 0
     fi
     shift 3
@@ -81,12 +119,13 @@ mutate_case() {
   local log="$OUT/$n.log"
   run_suite "$log"; local code=$?
 
-  for f in "${flist[@]}"; do cp "$OUT/$n.$(basename "$f").bak" "$ROOT/$f"; done
+  for f in "${flist[@]}"; do cp "$(bak_of "$n" "$f")" "$ROOT/$f"; done
   for f in "${flist[@]}"; do
-    if ! cmp -s "$ROOT/$f" "$OUT/$n.$(basename "$f").bak"; then
+    if ! cmp -s "$ROOT/$f" "$(bak_of "$n" "$f")"; then
       echo "${C_R}RESTORE FAILED for $f${C_X}"; missed=$((missed + 1)); return 0
     fi
   done
+  rm -f "$OUT/$n.paths"        # restored AND verified — nothing left for the trap
 
   local ok=1
   local IFS='|'; local -a wants=($expect); unset IFS
@@ -204,8 +243,8 @@ mutate_case 10 "delete the protocol-version guard" \
   "src/main/bus.js" \
   "...and a message whose protocol version is not 1 is dropped as malformed" \
   -- src/main/bus.js \
-"    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') return void drop('malformed');" \
-"    if (!msg || typeof msg.to !== 'string') return void drop('malformed');"
+"    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') { drop('malformed'); return void observe(msg, 'malformed'); }" \
+"    if (!msg || typeof msg.to !== 'string') { drop('malformed'); return void observe(msg, 'malformed'); }"
 
 mutate_case 11 "let any renderer ask for a display capture" \
   "src/main/capture.js" \
@@ -263,9 +302,9 @@ mutate_case 16 "note the refusal in main and never tell the chrome bar" \
 
 # --------------------------------------------------------------------------
 # Cases 17-28 exist because of a COVERAGE AUDIT, not because of a hunch: the
-# first sixteen left eleven of the suite's 34 assertions with no mutation of
-# their own, and an assertion nothing has ever broken is an assumption wearing
-# an `ok`. Each of these turns one of those eleven red.
+# first sixteen left eleven of the suite's assertions (34 of them at the time)
+# with no mutation of their own, and an assertion nothing has ever broken is an
+# assumption wearing an `ok`. Each of these turns one of those eleven red.
 # --------------------------------------------------------------------------
 
 mutate_case 17 "allow only the exact hosts, dropping the *.youtube.com suffix" \
@@ -307,9 +346,11 @@ mutate_case 22 "expose a bridge to the page inside the source view" \
   "src/preload/youtube.cjs" \
   "the source view's page sees no bridge of ours" \
   -- src/preload/youtube.cjs \
-"// Deliberately empty. See above." \
-"const { contextBridge } = require('electron');
-contextBridge.exposeInMainWorld('__wbYouTube', { hello: () => 'leaked' });"
+"watchVideo();
+up({ t: 'hello' });" \
+"watchVideo();
+up({ t: 'hello' });
+require('electron').contextBridge.exposeInMainWorld('__wbYouTube', { hello: () => 'leaked' });"
 
 mutate_case 23 "put the source view on OUR session instead of persist:youtube" \
   "src/main/main.js" \
@@ -329,8 +370,8 @@ mutate_case 25 "count a no-listener drop as a malformed one" \
   "src/main/bus.js" \
   "...and a message to an address nobody listens on is dropped and counted" \
   -- src/main/bus.js \
-"    if (!targets || !targets.size) return void drop('no-listener');" \
-"    if (!targets || !targets.size) return void drop('malformed');"
+"    if (!targets || !targets.size) { drop('no-listener'); return void observe(msg, 'no-listener'); }" \
+"    if (!targets || !targets.size) { drop('malformed'); return void observe(msg, 'no-listener'); }"
 
 mutate_case 26 "let the source view have every permission it asks for" \
   "src/main/youtube.js" \
@@ -346,9 +387,19 @@ mutate_case 27 "point the deck slot at the wrong page" \
 "  const deckUrl = deckVendored() ? appUrl(DECK_ENTRY) : appUrl('deck-placeholder.html');" \
 "  const deckUrl = appUrl('chrome.html');"
 
+# WHAT THIS CASE TURNS RED CHANGED WHEN THE UNIT LANDED, AND THE ROW FOLLOWED
+# THE MEASUREMENT RATHER THAN THE OTHER WAY ROUND. It used to name "no renderer
+# can see require" and seven more. It cannot any more: with `contextIsolation`
+# off, `contextBridge` THROWS in all three of our preloads ("contextBridge API
+# can only be used when contextIsolation is enabled"), the vendored `engine.js`
+# and `embed.js` then die on `Failed to fetch dynamically imported module:
+# node:url`, both render processes go, and the gate never writes a report. So
+# the honest red is the LAUNCH — measured, in out/shell-mutations/28.log — and
+# every assertion after it is unreachable under this mutation because there is
+# no running app to ask. Case 32 is what covers the `require` assertion now.
 mutate_case 28 "turn OFF contextIsolation and the sandbox, and node integration ON" \
   "src/main/main.js" \
-  "...and no renderer can see \`require\`, \`process\` or \`module\`" \
+  "the app launches from its real entry point and writes a gate report" \
   -- src/main/main.js \
 "const OUR_WEB_PREFERENCES = {
   contextIsolation: true,
@@ -360,9 +411,84 @@ mutate_case 28 "turn OFF contextIsolation and the sandbox, and node integration 
   nodeIntegration: true,"
 
 # ==========================================================================
+# 29-31  THE PROBE'S OWN EYES ON THE DECK SLOT
+#
+# All three were added when the deck slot stopped being our placeholder and
+# started being the vendored `ui/embed.html`. The probe had been reading
+# `window.__wbProbe()` and `window.__wbBusLog()` — two globals that only
+# `src/renderer/deck-placeholder.js` defines — so it was reporting on a page
+# that had stopped existing: `coi=undefined sab=undefined`, and `0 of 1 arrived`
+# about a bus that was working, while `deck-host` and `deck-seam` stayed green
+# throughout. These three are what stops that happening again in silence.
+# ==========================================================================
+mutate_case 29 "expose no inbox from the deck's preload — the deck has nowhere to receive" \
+  "src/preload/deck.cjs" \
+  "INSTRUMENT CHECK: the gate's bus recorder installed on the deck|a DETACHED send() from the engine reaches the deck's address|...and the envelope arrives exactly as sent" \
+  -- src/preload/deck.cjs \
+"  /** @returns an unsubscribe function. The address guard is the hole module's. */
+  onMessage: onBus," \
+"  /** @returns an unsubscribe function. The address guard is the hole module's. */"
+
+# THE INSTRUMENT CHECK AND THE CLAIM ARE TWO ASSERTIONS, and this is the case
+# that proves it: the recorder installs perfectly and reads the WRONG LIST — the
+# placeholder's, which is the exact failure that stood for a whole wave. The
+# instrument check stays green here, on purpose. If it went red too it would be
+# a second copy of the row below rather than a separate claim.
+mutate_case 30 "the probe reads the placeholder's old bus log instead of its own recorder" \
+  "tools/gate/probe.mjs" \
+  "a DETACHED send() from the engine reaches the deck's address|...and the envelope arrives exactly as sent" \
+  -- tools/gate/probe.mjs \
+"    deckReceived: await evalIn(deckWc, 'window.__wbGateBus')," \
+"    deckReceived: await evalIn(deckWc, 'window.__wbBusLog()'),"
+
+# AND THE ISOLATION HALF OF THE SAME MISTAKE. `window.__wbProbe` is the
+# placeholder's; asking the vendored deck page for it is how this assertion came
+# to report `coi=undefined` about a page that is isolated.
+mutate_case 31 "the probe asks the deck page for the placeholder's isolation global" \
+  "tools/gate/probe.mjs" \
+  "...and the deck slot is isolated too" \
+  -- tools/gate/probe.mjs \
+"    deck: await evalIn(deckWc, \"import(location.origin + '/isolation.js').then((m) => m.probeIsolation())\")," \
+"    deck: await evalIn(deckWc, 'window.__wbProbe()'),"
+
+# ==========================================================================
+# 32  THE SOURCE VIEW'S OWN ISOLATION, WHICH IS THE ONE THAT FACES A HOSTILE PAGE
+#
+# THE ASSERTION THIS COVERS HAD NO LIVE MUTATION LEFT once case 28 stopped being
+# able to start the app, and `tools/suites/coverage.py` said so. Two candidates
+# were measured before this one:
+#
+#   · `sandbox: false, nodeIntegration: true` with `contextIsolation` left ON in
+#     OUR_WEB_PREFERENCES. The app starts, but "no renderer can see require"
+#     stays GREEN — with context isolation on, node's globals go into the
+#     preload's isolated world and never into the page's. Only the prefs row
+#     goes red, which case 12 already covers.
+#   · case 28's own edit. The app does not start at all; see above.
+#
+# So the mutation is on the SOURCE view's webPreferences, which are its own in
+# `src/main/youtube.js` and not `OUR_WEB_PREFERENCES`. Its preload holds no
+# `contextBridge` call, so it survives isolation being off — the app stays up,
+# the page gets `require`, and the assertion goes red at 3/4. That view is also
+# the only one that ever loads a page we did not write, so this is the direction
+# the claim actually matters in.
+# ==========================================================================
+mutate_case 32 "turn OFF the SOURCE view's own isolation, sandbox and node guard" \
+  "src/main/youtube.js" \
+  "every renderer runs with contextIsolation on, sandbox on and nodeIntegration off|...and no renderer can see \`require\`, \`process\` or \`module\`" \
+  -- src/main/youtube.js \
+"      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webviewTag: false," \
+"      contextIsolation: false,
+      sandbox: false,
+      nodeIntegration: true,
+      webviewTag: false,"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
-# "28 mutations were caught" is not the claim worth making. The claim is that
+# "32 mutations were caught" is not the claim worth making. The claim is that
 # NO ASSERTION IN THE SUITE HAS GONE UNBROKEN — an assertion no mutation has
 # ever turned red is an assumption wearing an `ok`, and it is invisible from
 # inside a green run. This compares every assertion name in the baseline against

@@ -13,12 +13,12 @@
  *
  * WHAT IT DOES NOT GATE, stated so the absence is on the record rather than
  * merely true:
- *   · THE UNIT. `vendor/stem-splitter-live/` is not on this tree. Nothing here
- *     proves the vendored engine or deck loads, runs, or produces audio. The
- *     deck-slot assertion below reads the placeholder branch today and the
- *     vendored branch the day the copy lands — same assertion, both ways.
- *   · THE 32 DUTIES. There is no Host yet; `assertHost` has nothing to check.
- *     That is `group('host')` in the vendored `test.js`, next wave.
+ *   · THE UNIT. The copy IS on this tree now and the deck slot loads its real
+ *     `ui/embed.html` — the deck-slot assertion below reads that branch, and
+ *     still reads the placeholder branch when nothing is vendored. What it does
+ *     NOT prove is that the vendored engine or deck RUNS, or produces audio.
+ *   · THE 32 DUTIES. `deck-seam` and `conformance` are where `assertHost` and
+ *     the vendored `group('host')` are answered. Nothing here checks a duty.
  *   · THE PERMANENT CAPTURE-MUTE GATE. This suite proves the view is MUTED and
  *     that a capture opens; it does NOT witness the audio device. A muted view
  *     and a silent speaker are two claims and `capture-mute` (docs/TESTING.md
@@ -38,7 +38,8 @@
  * Reproduce all of them with `tools/suites/shell-mutations.sh`. Each row is the
  * mutation, the file it was applied to, and the assertions that went red.
  *
- * Run on 2026-08-26 against Electron 44.0.0 / Chromium 152.0.7977.54 on Linux.
+ * Run on 2026-08-26 against Electron 44.0.0 / Chromium 152.0.7977.54 on Linux,
+ * with the unit vendored and the deck slot loading its real `ui/embed.html`.
  * The right column is what ACTUALLY went red, not what was expected to.
  *
  *   1  assets.js ISOLATION_HEADERS: drop COOP + COEP        -> isolation x4, headers, the bar
@@ -64,17 +65,30 @@
  *  21  main.js: show the engine window                      -> the engine is hidden
  *  22  youtube.cjs: exposeInMainWorld                       -> the page sees no bridge
  *  23  main.js: source view on OUR session                  -> alone on persist:youtube
- *  24  main.js: never register BUS.deck                     -> detached send arrives (+3)
+ *  24  main.js: never register BUS.deck                     -> detached send arrives (+2)
  *  25  bus.js: no-listener counted as malformed             -> no-listener dropped (+1)
  *  26  youtube.js: grant the view every permission          -> the page may not capture
- *  27  main.js: deck slot points at the wrong page          -> the deck slot loads (+3)
- *  28  main.js: contextIsolation/sandbox off, node on       -> no renderer sees require (+7)
+ *  27  main.js: deck slot points at the wrong page          -> the deck slot loads
+ *  28  main.js: contextIsolation/sandbox off, node on       -> the app launches, and nothing after it
+ *  29  deck.cjs: no `onMessage` on the deck's bridge        -> the recorder installed (+2)
+ *  30  probe.mjs: read the placeholder's __wbBusLog()       -> detached send arrives (+1)
+ *  31  probe.mjs: ask the deck for __wbProbe()              -> the deck slot is isolated
+ *  32  youtube.js: the SOURCE view's isolation off          -> renderers locked down (+1)
  *
  * CASES 17-28 CAME FROM A COVERAGE AUDIT, not from a hunch: the first sixteen
- * left ELEVEN of these 34 assertions with no mutation of their own, which is
- * invisible from inside a green run. `tools/suites/coverage.py` makes it
+ * left ELEVEN of the assertions (34 of them then) with no mutation of their own,
+ * which is invisible from inside a green run. `tools/suites/coverage.py` makes it
  * mechanical — after a full battery it names any assertion that has never
- * appeared on a FAIL line, and exits non-zero. 28 of 28 caught, 34 of 34 red.
+ * appeared on a FAIL line, and exits non-zero.
+ *
+ * CASES 29-32 CAME FROM THAT SAME INSTRUMENT SAYING SO AGAIN, after the deck slot
+ * started loading the vendored `ui/embed.html`. 29-31 are the deck probes below;
+ * 32 exists because case 28 stopped being able to START THE APP: with
+ * `contextIsolation` off, `contextBridge` throws in all three of our preloads and
+ * the vendored engine and deck then die, so every assertion after the launch is
+ * unreachable under it. That left `...and no renderer can see require` with no
+ * live mutation, coverage.py named it, and 32 turns it red on a RUNNING app.
+ * 32 of 32 caught, 35 of 35 red.
  *
  * MUTATION 15 IS THE LIMITATION-6 RUN, and it is why that assertion lists every
  * field rather than checking that a track exists. Measured under it:
@@ -91,6 +105,17 @@
  * the one that mutation was written to turn red. A suite that crashes has not
  * reported a red; it has stopped looking. Hence `A()` and `O()` below, on every
  * read of the report.
+ *
+ * CASES 29-31 ARE THE SAME MISTAKE ARRIVING FOR REAL, and not through a
+ * mutation. `window.__wbProbe` and `window.__wbBusLog` are
+ * `src/renderer/deck-placeholder.js`'s globals, and that file stopped being the
+ * page in the deck slot the day the unit was vendored. Three assertions here —
+ * the deck's isolation and both bus rows — then reported `coi=undefined` and
+ * `0 of 1 arrived` about a scheme and a bus that were both working, while
+ * `deck-host` and `deck-seam` stayed green throughout. `tools/gate/probe.mjs`
+ * now imports `src/renderer/isolation.js` INTO whatever page is in the slot and
+ * records the deck's inbox through `__wbDeck.onMessage`, so it needs nothing
+ * from the page; 29-31 are what stop that going stale in silence again.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -114,6 +139,8 @@ const DECK_ENTRY = 'vendor/stem-splitter-live/extension/ui/embed.html';
  */
 const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
   || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+/** Printed by the shell `flock` runs, the instant it has the lock. See the launch. */
+const LOCK_MARK = '__WB_LOCKED__';
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;
@@ -228,11 +255,33 @@ fs.mkdirSync(OUT, { recursive: true });
 const userData = path.join(OUT, 'userdata');
 const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
 
+/**
+ * THE QUEUE AND THE MEASUREMENT ARE TWO DIFFERENT WAITS, AND ONE STOPWATCH
+ * CANNOT TIME BOTH.
+ *
+ * `flock LOCK -c '<electron>'` under a single timeout puts a COLLEAGUE'S suite
+ * inside this suite's stopwatch. Measured on this box while a sibling agent held
+ * the mutex for a long real-YouTube run: `exit null, no out/shell/report.json —
+ * TIMEOUT after 120000 ms`, seven assertions in, about an app that was never
+ * launched. That red costs an investigation to find out it is not a bug, and it
+ * is AGENTS.md's "a gate whose verdict changes on code that did not change is
+ * measuring the machine" from the other end.
+ *
+ * So the shell echoes `__WB_LOCKED__` the instant `flock` hands it the lock and
+ * `exec`s the launch. The QUEUE gets its own, generous bound and its own
+ * sentence; the LAUNCH's 120 s starts only once that marker arrives, because
+ * that is the only part of this that is a measurement.
+ *
+ * `detached: true` + a process-GROUP kill, because `child.kill()` here kills
+ * `flock` and leaves `xvfb-run`, `Xvfb` and the whole Electron tree running —
+ * orphans that hold the mutex nobody is waiting on any more. Measured: two stray
+ * Electron trees and a nineteen-minute hold, cleared by hand.
+ */
 const launch = await run(
   'flock', [LOCK, '-c',
-    `xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
+    `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
     + `--gate=${sh(OUT)} --source-url=${sh(fixture)} --user-data=${sh(userData)}`],
-  { cwd: ROOT, timeoutMs: 120000 });
+  { cwd: ROOT, timeoutMs: 120000, queueMs: 900000, startOn: LOCK_MARK });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
 const reportPath = path.join(OUT, 'report.json');
@@ -318,6 +367,17 @@ ok('...and the live handler refuses a percent-encoded traversal and a missing fi
   + `cross-origin app:// fetch -> ${JSON.stringify(O(R.appScheme).otherHostFetch)}`);
 
 // ----------------------------------------------------------------- 2.3 bus
+// THE INSTRUMENT FIRST, AND IT IS A SEPARATE CLAIM FROM THE ONE BELOW.
+// Everything after this reads a list the gate's recorder collected on the deck.
+// A recorder that never installed makes a WORKING bus report `0 of 1 arrived` —
+// which is exactly what the old `window.__wbBusLog()` did for a whole wave,
+// while `deck-host` and `deck-seam` were green. Two claims, two assertions: this
+// one says the eye was open, the next says what it saw.
+ok('INSTRUMENT CHECK: the gate\'s bus recorder installed on the deck, through the deck\'s own bridge  '
+  + '[entry point: __wbDeck.onMessage in src/preload/deck.cjs]',
+  O(O(R.bus).recorder).installed === true,
+  JSON.stringify(O(R.bus).recorder));
+
 const pings = A(O(R.bus).deckReceived).filter((m) => m && m.type === 'GATE_PING');
 ok('a DETACHED send() from the engine reaches the deck\'s address  [entry point: createBus() in src/main/bus.js]',
   pings.length === 1,
@@ -428,15 +488,63 @@ function hasBin(name) {
   }
   return false;
 }
-function run(bin, args, { cwd, timeoutMs }) {
+/**
+ * `startOn` splits one wait into two: until that marker appears on the child's
+ * output the clock that is running is `queueMs` and the message names the MUTEX;
+ * from the marker on it is `timeoutMs` and the message names the LAUNCH. Callers
+ * that pass neither get the old single stopwatch.
+ *
+ * The kill is a process-GROUP kill for the reason at the launch site above — AND
+ * `detached: true` IS WHY THE SIGNAL HANDLERS BELOW ARE NOT OPTIONAL. A detached
+ * child outlives its parent, so a `timeout`, a Ctrl-C or a killed harness would
+ * leave a `flock` still QUEUED for the shared mutex, which then takes it and
+ * launches Electron with nobody watching. Measured: one such orphan, sitting on
+ * the queue for seven minutes after the suite that spawned it was gone.
+ */
+function run(bin, args, { cwd, timeoutMs, queueMs = 0, startOn = null }) {
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
     let out = '';
-    const grab = (c) => { out += c.toString(); };
+    let waiting = startOn;
+    let timer = null;
+    const stop = () => {
+      // The group, not the process: `flock` is the child and the launch is its
+      // grandchild through `sh`. Killing the one leaves the other running.
+      try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
+    };
+    const arm = (ms, why) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { out += `\n[suite] ${why}\n`; stop(); }, ms);
+    };
+    arm(waiting ? queueMs : timeoutMs, waiting
+      ? `NEVER TOOK THE SHARED BROWSER MUTEX after ${queueMs} ms — killing. Somebody else is holding ${LOCK}`
+      : `TIMEOUT after ${timeoutMs} ms — killing`);
+    const grab = (c) => {
+      out += c.toString();
+      if (waiting && out.includes(waiting)) {
+        waiting = null;
+        arm(timeoutMs, `TIMEOUT after ${timeoutMs} ms — killing`);
+      }
+    };
     child.stdout.on('data', grab);
     child.stderr.on('data', grab);
-    const timer = setTimeout(() => { out += `\n[suite] TIMEOUT after ${timeoutMs} ms — killing\n`; child.kill('SIGKILL'); }, timeoutMs);
-    child.on('error', (e) => { clearTimeout(timer); resolve({ code: 127, out: `${out}\nspawn error: ${e.message}` }); });
-    child.on('close', (code) => { clearTimeout(timer); resolve({ code, out }); });
+
+    // WE DIE, IT DIES. `exit` covers a normal end and an uncaught throw; the two
+    // signals cover `timeout`, Ctrl-C and a harness being torn down. Removed on
+    // close so a long plan does not accumulate handlers.
+    const onExit = () => stop();
+    const onSignal = () => { stop(); process.exit(130); };
+    process.on('exit', onExit);
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
+    const finish = (res) => {
+      clearTimeout(timer);
+      process.off('exit', onExit);
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+      resolve(res);
+    };
+    child.on('error', (e) => finish({ code: 127, out: `${out}\nspawn error: ${e.message}` }));
+    child.on('close', (code) => finish({ code, out }));
   });
 }

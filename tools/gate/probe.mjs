@@ -13,9 +13,15 @@
  * `package.json` `main`, the real protocol handler, the real windows. A second
  * main process that imported the same modules would be a second app, and the
  * two would agree right up until the day the real one changed. So the launch is
- * real and this file only OBSERVES it: it adds no capability, changes no
- * webPreferences, and installs no handler. Everything it reports is read back
- * out of the running app.
+ * real and this file only OBSERVES it: it adds no capability and changes no
+ * webPreferences. Everything it reports is read back out of the running app.
+ *
+ * ONE HANDLER IS INSTALLED AND IT IS NAMED: a bus recorder, registered on the
+ * deck through `window.__wbDeck.onMessage` — the same public bridge member the
+ * deck itself uses. It is there because the page in that slot is now the
+ * vendored `ui/embed.html`, whose source we do not own and must not edit (rule
+ * V1), so an arrival on the deck's address cannot be witnessed any other way.
+ * See the `bus` section.
  *
  * The judgement is entirely in the suite, which is a separate process that can
  * be run against a report from a mutated build and watched going red.
@@ -144,9 +150,40 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   };
 
   // -------------------------------------------------------------- isolation
+  /**
+   * ONE INSTRUMENT, BOTH PAGES — AND THE DECK'S HALF IS NO LONGER ASKED OF THE
+   * PAGE.
+   *
+   * `window.__wbProbe()` is defined by `src/renderer/deck-placeholder.js`, and
+   * that file stopped being the document in the deck slot the day the unit was
+   * vendored: `boot()` loads the real `ui/embed.html` there now, and that page
+   * imports nothing of ours and never will. The probe went on asking for the
+   * placeholder's global, got `{THREW: …}`, and the suite reported
+   * `coi=undefined sab=undefined` about a page that is in fact isolated. A
+   * measurement that lost its carrier, not a product regression.
+   *
+   * WHY THE MODULE AND NOT A COPY INLINED HERE. The claim is about the SCHEME —
+   * a handler that put COOP/COEP on one response and not another is green on a
+   * single-page check — so the two pages have to be measured BY THE SAME
+   * INSTRUMENT or the comparison means nothing. `src/renderer/isolation.js` is
+   * that instrument and its own header says why it is a module. A hand-rolled
+   * second copy in this file would be two instruments reporting one number.
+   *
+   * IT NEEDS NOTHING FROM THE PAGE. `executeJavaScript` is exempt from the
+   * document's CSP, and what it pulls is same-origin `app://workbench/
+   * isolation.js`, which this origin's `script-src 'self'` admits — so it runs
+   * on the placeholder, on the vendored deck, and on whatever is in that slot
+   * next. `location.origin` rather than a relative specifier: an injected script
+   * has no URL of its own to resolve one against.
+   *
+   * The engine keeps reading `window.__wbProbe()` deliberately. That is
+   * `src/renderer/engine-boot.js` running the SAME module at boot, and it is the
+   * value `src/main/main.js` puts in the chrome bar — so this line also witnesses
+   * that the engine page really ran it, which an injected import would not.
+   */
   R.isolation = {
     engine: await evalIn(engineWc, 'window.__wbProbe()'),
-    deck: await evalIn(deckWc, 'window.__wbProbe()'),
+    deck: await evalIn(deckWc, "import(location.origin + '/isolation.js').then((m) => m.probeIsolation())"),
   };
 
   // ------------------------------------------------------- the app:// handler
@@ -171,6 +208,37 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   R.protocolStats = { ...state.protocol.stats };
 
   // ------------------------------------------------------------------- bus
+  /**
+   * THE RECORDER IS INSTALLED THROUGH THE DECK'S OWN BRIDGE, AND BEFORE THE
+   * SENDS BELOW.
+   *
+   * It used to be `window.__wbBusLog()` — the placeholder's other global, gone
+   * for the same reason as `__wbProbe` — so two assertions about
+   * `src/main/bus.js` reported `0 of 1 arrived` about a bus that was working,
+   * while `deck-host` and `deck-seam` stayed green throughout. That is what a
+   * stale probe looks like from the outside, and it is why the suite now asserts
+   * that this recorder installed at all before it reads what it collected.
+   *
+   * `window.__wbDeck.onMessage` is `src/preload/deck.cjs`'s own fan-out over a
+   * `Set`, so this listener is ADDITIONAL to the deck's rather than in place of
+   * it, and it observes the real deck's real inbox whatever page is in the slot.
+   *
+   * THIS IS THE ONE HANDLER THIS FILE INSTALLS, and the header's "installs no
+   * handler" is written to admit it: it is registered through the same public
+   * bridge member the deck itself uses, adds no capability that was not already
+   * exposed to that renderer, and is the only way to witness an arrival on a
+   * page whose source we do not own.
+   */
+  const busRecorder = await evalIn(deckWc, `(() => {
+    if (!window.__wbDeck || typeof window.__wbDeck.onMessage !== 'function') {
+      return { installed: false,
+               why: 'window.__wbDeck.onMessage is absent — src/preload/deck.cjs did not run, or exposes no inbox' };
+    }
+    window.__wbGateBus = [];
+    window.__wbDeck.onMessage((m) => { window.__wbGateBus.push(m); });
+    return { installed: true };
+  })()`);
+
   const nonce = `gate-${Date.now()}`;
   // DETACHED on purpose: `shared/host.js` names "a duty implemented as a method
   // that needs its `this`" as THE Electron mistake, and the bridge is where it
@@ -181,7 +249,8 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   await evalIn(engineWc, `(() => { window.__wbEngine.send({ v: 1, to: 'nobody-listens-here', from: 'off' }); return 'sent'; })()`);
   await wait(250);
   R.bus = {
-    deckReceived: await evalIn(deckWc, 'window.__wbBusLog()'),
+    deckReceived: await evalIn(deckWc, 'window.__wbGateBus'),
+    recorder: busRecorder,
     expectedPing: { v: 1, to: 'ui', from: 'off', type: 'GATE_PING', nonce },
     stats: JSON.parse(JSON.stringify(state.bus.stats)),
     addresses: state.bus.addresses(),
