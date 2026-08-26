@@ -63,6 +63,7 @@ node tools/verify.mjs --list         # the steps table
 | step | file | flags | what it gates |
 |---|---|---|---|
 | `void-canary` | `tools/suites/void-canary.mjs` | — | the runner's own VOID rule, and the steps table against this document |
+| `vendor-intact` | `tools/vendor-unit.sh --check` | — | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | the unit's 12 suites over the exact tag we pinned |
 | `shell` | `tools/suites/shell.mjs` | window | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
 | `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
@@ -752,13 +753,37 @@ everything.
 
 ---
 
-## 10. `vendor-unit` and `vendor/.pin`
+## 10. `vendor-intact`, `vendor-unit` and `vendor/.pin`
 
-`vendor/.pin` is JSON beside the vendored tree:
+Two steps, and the order between them is deliberate: **`vendor-intact` asks
+whether the copy is still the copy, `vendor-unit` asks whether it works.** Twelve
+green suites over a tree somebody edited is a fork reporting that it still runs,
+so the cheap question goes first.
+
+`vendor/.pin` is JSON beside the vendored tree, written by
+`tools/vendor-unit.sh`:
 
 ```json
-{ "tag": "v0.2.0", "steps": 12, "assertions": 1156 }
+{
+  "tag": "v0.2.0",
+  "steps": 12,
+  "assertions": 1156,
+  "archive": { "url": "https://github.com/…/v0.2.0.tar.gz", "sha256": "f22ef12b…" },
+  "ours": []
+}
 ```
+
+`archive.sha256` is **provenance, not a gate** — GitHub builds those tarballs on
+demand and has changed their gzip framing before, and 50 content hashes over the
+same bytes carry the claim without that failure mode. A mismatch prints a note
+and the run continues into the checks that can actually tell.
+
+`ours` is the manifest of files inside `vendor/` that are **not** vendored — the
+two holes and `offscreen/host-pin.js`. It is `[]` today, because this Host has
+not written them yet, and the commit that writes the first one adds its path
+here in the same commit. `tools/vendor-unit.sh` backs those files up before it
+wipes the tree and restores them after the copy, so a pin bump does not silently
+replace this Host with the extension's reference implementation.
 
 The step runs `node tools/verify.mjs --unit --no-reap` **inside**
 `vendor/stem-splitter-live` and then asserts three things about that run:
@@ -785,6 +810,43 @@ named, and downgrading the run to `GREEN (partial)`. **The moment `vendor/.pin`
 exists**, the repository is claiming to have vendored a tag and a missing tree is
 a hard `FAIL`. That is what stops "skip because it is not there" from becoming
 permanent: it expires by itself, on the commit that creates the pin.
+
+### `vendor-intact` — rule V1, in 0.1 s and offline
+
+`bash tools/vendor-unit.sh --check`. Five assertions, no network:
+
+| # | claim |
+|---|---|
+| 1 | `vendor/.pin`, `vendor/upstream.sha256` and the tree are all there |
+| 2 | the **35** unit files are byte-identical to the pinned tag — *nobody edited the unit* |
+| 3 | so are the other **15** copied paths — the reference Host and the harness, which `unit.sha256` has never covered |
+| 4 | every path `ours` claims is a hole and **not** a unit file, and is not still gated by `upstream.sha256` |
+| 5 | no file was **added to or removed from** `vendor/` behind the sums file |
+
+`vendor/upstream.sha256` is this repository's own record because nothing upstream
+hashes those fifteen paths. It is written once, in the vendoring commit, where
+all 50 files are in the same diff, and gated on every run after that.
+
+Assertion 5 is a set comparison and not a checksum, and that is the point:
+`shasum -c` answers only about the files in its list, so it cannot see a file
+somebody **added** — which is the shape a local fix takes when its author knows
+they must not edit an existing file.
+
+Assertion 4 is `CONTRIBUTING.md` rule V1 in executable form. Declaring a unit
+file `ours` would make a fork legal-looking from the inside, and it is the one
+edit to `.pin` that no other check would notice.
+
+**Watched red** — each mutation applied to a green tree, then reverted:
+
+| assertion | mutation |
+|---|---|
+| 1 | `mv vendor/.pin` aside |
+| 2 | `echo '// x' >> vendor/stem-splitter-live/extension/shared/config.js` |
+| 3 | the same append to `test.js`, which is copied and is **not** in `unit.sha256` — 2 stays green, 3 goes red |
+| 4 | `.ours = ["extension/shared/wav.js"]` |
+| 5 | `touch vendor/stem-splitter-live/extension/shared/oops.js` |
+
+---
 
 The row parser and the verdict regex were read off a **real** run — `node
 tools/verify.mjs --unit --no-reap` in `stem-splitter-live` at `v0.2.0`

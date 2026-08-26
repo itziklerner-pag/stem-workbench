@@ -2,8 +2,10 @@
 
 **Pre-alpha. There is nothing to install.** There is now an application, and it
 starts: a window, youtube.com inside it, a cross-origin-isolated origin for the
-engine and the deck, and the capture grant. **It does not split anything yet** —
-the vendored unit is not in this tree and the Host's 32 duties are not written.
+engine and the deck, and the capture grant. The engine and the deck are now
+**vendored into the tree** at `stem-splitter-live` `v0.2.0`, and their own 12
+suites — 1156 assertions — run green here. **It does not split anything yet**:
+the Host's 32 duties are not written, so nothing joins the two halves.
 `npm start` shows you a shell.
 
 ---
@@ -61,7 +63,8 @@ that decides what this product may become. The code itself is
 | step 1 — the capture/mute spike | **done on Linux; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware** |
 | step 2 — the Host seam in `stem-splitter-live` | not started; **authorised** on the Linux evidence, by decision |
 | step 3 — desktop host v0 | **the shell runs on Linux** (`npm start`): the window, the three views, `app://` with `crossOriginIsolated === true`, the muted source view, the capture grant. 34 assertions, every one watched red by mutation |
-| step 3, the rest | the vendored unit, the 32 duties, the arm gesture, the model — **not started** |
+| step 3, the vendored unit | **landed** — 50 files at `v0.2.0`, byte-verified twice, `12 of 12 PASS, 1156 assertions` from the unit's own gate, plus ONNX Runtime at its pin |
+| step 3, the rest | the 32 duties, the arm gesture, the model — **not started** |
 
 ### What actually runs today
 
@@ -82,9 +85,14 @@ refused. `getDisplayMedia` from the engine returns one stereo 44 100 Hz track
 naming that view's frame — and the same call from the deck, or from a page
 inside the view, is refused.
 
-What is **not** there: the deck (the vendored copy has not landed, so the slot
-shows a placeholder that says so), the engine (same), the 32 Host duties, the arm
-gesture, the model, and any audio at all.
+What is **not** there: the 32 Host duties, the arm gesture, the model, and any
+audio at all. The deck slot now loads the **real** vendored `ui/embed.html`
+rather than the placeholder — which is how it should be, and which currently
+costs three of `shell`'s 34 assertions: its two deck-view probes live in
+`src/renderer/deck-placeholder.js`, and that file is no longer the page in that
+slot. **`shell` is RED for that reason** — a measurement that lost its carrier,
+not a product regression. The probes belong in `src/preload/deck.cjs`, which is
+exempt from the deck's `script-src 'self'` and works for both pages.
 
 **On a Linux development tree** Chromium's setuid sandbox helper ships without
 its permissions, and Electron refuses to start rather than run unsandboxed:
@@ -156,6 +164,10 @@ src/main/                    the main process: the window, app://, the bus, the
 src/preload/                 four preloads: engine, deck, chrome — and youtube,
                              which exposes nothing on `window`, by design
 src/renderer/                our own pages: the chrome bar, the engine's page
+vendor/stem-splitter-live/   the vendored unit at v0.2.0 — 50 files, NEVER edited
+vendor/.pin                  the pin: tag, expected counts, `ours`
+vendor/upstream.sha256       what the 50 copied files were at the tag
+tools/vendor-unit.sh         vendors it, and `--check`s it. One command
 tools/verify.mjs             the gate. `node tools/verify.mjs`
 tools/suites/                the host suites (two built, four specified)
 tools/gate/probe.mjs         what `--gate` reads out of a real launch. It never
@@ -177,7 +189,8 @@ tools/suites/shell-mutations.sh      # watch all 34 of its assertions go red
 ```
 
 The engine and the deck are gated by **their own** suites, which travel with the
-vendored copy (`node tools/verify.mjs --unit` inside `vendor/`); this repository
+vendored copy (`node tools/verify.mjs --unit --no-reap` inside `vendor/`, and
+step `vendor-unit` here); this repository
 adds host-specific suites only. A step that exits 0 having asserted nothing is a
 **hard failure**, and the runner never prints an unqualified `GREEN` over a
 partial plan. See [`docs/TESTING.md`](docs/TESTING.md).

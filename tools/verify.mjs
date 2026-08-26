@@ -174,6 +174,24 @@ export const STEPS = [
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
   {
+    id: 'vendor-intact',
+    title: 'bash tools/vendor-unit.sh --check — nothing under vendor/ was edited, added or removed behind the pin',
+    cmd: ['bash', 'tools/vendor-unit.sh', '--check'],
+    /**
+     * BEFORE `vendor-unit`, ON PURPOSE. That step runs the unit's own suites,
+     * and they are perfectly capable of passing over a tree somebody has
+     * edited — most of the 50 copied files are not what any one of them
+     * asserts about, and `unit.sha256` is not consulted by any of them. So the
+     * cheap question goes first, because its answer changes how the next
+     * step's green is read: 12 green suites over an edited copy is a fork
+     * reporting that it still works.
+     *
+     * Offline and ~0.1 s: it hashes what is on disk against `vendor/.pin`,
+     * `vendor/upstream.sha256` and the vendored `extension/unit.sha256`. The
+     * network belongs to `tools/vendor-unit.sh` with no flag, which re-vendors.
+     */
+  },
+  {
     id: 'vendor-unit',
     title: "node tools/verify.mjs --unit, IN the vendored copy — the unit's own 12 suites over the exact code we pinned",
     cwd: 'vendor/stem-splitter-live',

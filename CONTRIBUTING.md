@@ -92,13 +92,15 @@ covers.
 **The check that says whether the rule held:**
 
 ```bash
-cd vendor/stem-splitter-live
-shasum -a 256 -c extension/unit.sha256    # or: sha256sum -c
+bash tools/vendor-unit.sh --check      # step `vendor-intact`; offline, ~0.1 s
 ```
 
-35 lines of `: OK` and exit 0. **Any `FAILED` line means somebody edited the
-unit** — or the copy is corrupt, and those two are worth telling apart before
-anything else happens. This belongs in CI.
+35 unit files byte-identical to the tag, plus the 15 other copied paths that
+`unit.sha256` has never covered, plus a set comparison that sees a file somebody
+**added** — which no checksum list can. **Any red means somebody edited the
+copy** — or it is corrupt, and those two are worth telling apart before anything
+else happens. It is a step on the default plan; `docs/TESTING.md` §10 has the
+five assertions and the mutation that was watched red for each.
 
 **The two exceptions, and they are not edits:**
 
@@ -172,12 +174,22 @@ starts it too, **with the sandbox off**, which is the wrong trade for an app
 whose whole job is to put somebody else's website in a window. `npm install`
 replaces the file, so the two lines are needed again after one.
 
-**Vendoring is not yet possible.** There is no vendor script and no `vendor/`
-tree. What follows is the procedure that script will automate, written down
-before it is written in bash.
+**Vendoring is one command**, and re-vendoring is the same one:
 
-Vendoring the unit is the upstream procedure in
-[`docs/VENDORING.md`](https://github.com/itziklerner-pag/stem-splitter-live/blob/main/docs/VENDORING.md),
+```bash
+bash tools/vendor-unit.sh              # re-vendor the pinned tag, fetch ORT, run the unit's gate
+bash tools/vendor-unit.sh --model      # ...and seed models/htdemucs_6s.onnx (109 MB, dev only)
+bash tools/vendor-unit.sh --check      # offline: is vendor/ still what the pin says it is?
+```
+
+`vendor/.pin` is the pin — tag, expected step and assertion counts, the archive's
+digest, and the `ours` manifest. Bumping the tag means passing `--tag` with
+`--steps` and `--assertions` from that tag's own `VENDORING.md` §7; the script
+refuses `--tag` alone, because deriving those numbers from the run it is about
+to make would be the gate checking its own homework.
+
+The procedure the script automates is the upstream one in
+[`docs/VENDORING.md`](https://github.com/itziklerner-pag/stem-splitter-live/blob/v0.2.0/docs/VENDORING.md),
 and its shape is fixed: fetch **the tag's** archive (never a branch — a copy
 taken off `main` is a copy whose verification step is theatre), verify it
 against `extension/unit.sha256`, derive the copy list from `extension/unit.json`
@@ -215,11 +227,16 @@ Before the holes are swapped, running it directly is worth doing once and
 recording:
 
 ```bash
-cd vendor/stem-splitter-live && node tools/verify.mjs --unit
+cd vendor/stem-splitter-live && node tools/verify.mjs --unit --no-reap
 # GREEN (partial — the vendored unit's suites only; 12 of 23 steps)
-# 12 of 12 PASS, 1156 assertions, ~74 s, Node 22+.
+# 12 of 12 PASS, 1156 assertions, ~71 s, Node 22+.
 # No npm install, no browser, no GPU, no weights.
 ```
+
+**`--no-reap` is not optional on a shared machine.** Upstream's `VENDORING.md`
+§7 prints that command without it, and without it the runner opens by `pkill`ing
+every Playwright Chromium on the box — a colleague's, and our own `shell` step
+if they overlap. `--unit` launches no browser and has nothing to gain from it.
 
 That green is a real result: it says the copy arrived intact and runs. Put it in
 the vendoring commit.

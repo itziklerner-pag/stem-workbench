@@ -1070,14 +1070,15 @@ stem-workbench/
       extension/offscreen/host-pin.js ← OURS (required by tools/verify.mjs at module scope)
       extension/vendor/ort/           ← fetched by tools/fetch-vendor.sh, never copied
   models/            htdemucs_6s.onnx   ← dev only, not in git
-  tools/             vendor.sh verify.mjs smoke.mjs
+  tools/             vendor-unit.sh verify.mjs suites/
   docs/              HOST-DESIGN.md  spike-capture-mute.md  KNOWN-DEFECTS.md
 ```
 
 **Our three files live at the hole paths inside `vendor/`, and that is correct.**
 The holes are not unit files and are not in `unit.sha256`, so replacing them leaves
 A1 green — which is precisely the check that tells us nobody edited the unit. A
-`tools/vendor.sh` manifest names the three files that are ours, so "did someone
+`tools/vendor-unit.sh` manifest (`vendor/.pin`'s `ours`) names the three files
+that are ours, so "did someone
 edit the unit" and "did someone edit our Host" stay two separately answerable
 questions.
 
