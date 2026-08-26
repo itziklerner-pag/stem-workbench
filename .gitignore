@@ -16,3 +16,10 @@ spike/results/*.links.err
 spike/results/*.electron.log
 spike/results/.*.ready*
 spike/mutations/
+
+# ONNX Runtime, under the vendored copy: ~27 MB at onnxruntime-web@1.27.0,
+# fetched by the unit's own tools/fetch-vendor.sh and verified against two
+# SHA-256s recorded inside that script. Out of git for the reason upstream keeps
+# it out of git — it is not this project's code, and the script is the pin. Run
+# the script; do not copy anyone's drop.
+vendor/stem-splitter-live/extension/vendor/ort/

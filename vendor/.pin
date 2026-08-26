@@ -1,0 +1,10 @@
+{
+  "tag": "v0.2.0",
+  "steps": 12,
+  "assertions": 1156,
+  "archive": {
+    "url": "https://github.com/itziklerner-pag/stem-splitter-live/archive/refs/tags/v0.2.0.tar.gz",
+    "sha256": "f22ef12bf29f1c46061def6905095361712ec83cb693a232da2f9bc2cbc3962b"
+  },
+  "ours": []
+}
