@@ -31,38 +31,82 @@
  *     `ep` is `wasm` here and `boot.ep === 'webgpu'` has never been observed.
  *
  * ---------------------------------------------------------------------------
- * WATCHED RED BY MUTATION — every assertion, with the edit that broke it
+ * WATCHED RED BY MUTATION — every assertion, and the edit that broke it
  * ---------------------------------------------------------------------------
- * Reproduce with `tools/suites/engine-host-mutations.sh`. Run on 2026-08-26,
- * Electron 44.0.0 / Chromium 152.0.7977.54 / Linux 6.17, `xvfb-run`. The right
- * column is what ACTUALLY went red, not what was expected to.
+ * `tools/suites/engine-host-mutations.sh` is 29 named cases, each declaring the
+ * assertion NAMES it must turn red: a non-zero exit proves *something* went red,
+ * not that the intended thing did. `tools/suites/coverage.py` then refuses a
+ * battery in which any assertion has never appeared on a FAIL line.
  *
- *   1  host.js: delete `export const captureStream`      -> boots, duties, and every
- *                                                           launch assertion after it
- *   2  host.js assetUrl: `.replace(/\/+$/, '')`           -> trailing slash
- *   3  host.js assetUrl: drop the containment guard       -> M1 refusal
- *   4  host.js modelBytes: return `bytes.subarray(0)`     -> whole buffer, and DECK_PREPARE
- *   5  host.js modelBytes: memoise the Uint8Array         -> a fresh buffer per call
- *   6  host.js modelBytes: announce 'download'            -> the phase
- *   7  host.js modelBytes: `fromCache: true`              -> the clearModel pair
- *   8  host.js captureStream: drop the three constraints  -> the five settings
- *   9  host.js captureStream: skip `claimCapture`         -> a forged token is refused
- *  10  host.js onTeardown: wrap fn in `() => fn()`        -> the engine's own callback
- *  11  host.js createBackend: `new WorkerBackend({assetUrl})` -> the thread count
- *  12  assets.js: drop COOP + COEP                        -> isolation, the thread count
- *  13  engine-messages.js: send `source.tabId`            -> the CAPTURE_START shape
- *  14  engine-messages.js: always send `deck`             -> the omitted default deck
- *  15  engine-messages.js: captureStop without revokeAll  -> claims revoked on stop
- *  16  claims.js spend(): do not delete the entry         -> a claim is one shot
- *  17  claims.js spend(): ignore `expiresAt`              -> a claim expires
- *  18  main.js: no `/model/` root                         -> modelCached, the model, DECK_PREPARE
+ * Run on 2026-08-26, Electron 44.0.0 / Chromium 152.0.7977.54 / Linux 6.17,
+ * `xvfb-run`. Baseline 37 passed, 0 failed. **coverage: all 37 assertions in
+ * this suite have been watched red.** The right-hand number is how many
+ * assertions the case turned red IN TOTAL, because a mutation with a wide blast
+ * radius is information and hiding it would make this table read narrower than
+ * the truth — case 1 is wide on purpose: a Host that cannot boot cannot answer
+ * anything, and that IS the claim.
  *
- * THE ASSERTIONS THAT ARE COUNTS, and why each is a count rather than a clock:
- * the wasm THREAD count (4) is what says threaded wasm really got a growable
- * SharedArrayBuffer — a "the model loaded quickly" claim would be green on one
- * thread; the FRAME count (>= 44100) is what says audio really reached the ring,
- * where "the capture opened" is green over silence; and the byte count
- * (114,559,139, exactly `MODEL.bytes`) is what says the whole file arrived.
+ *   #   the edit                                                          reds
+ *   1   host.js: delete `export const captureStream`                        15
+ *   2   host.js assetUrl: `.replace(/\/+$/, '')` — what path.join() does     3
+ *   3   host.js assetUrl: drop the M1 containment guard                      1
+ *   4   host.js modelBytes: hand over a VIEW, not the whole buffer           3
+ *   5   host.js modelBytes: memoise the bytes                                1
+ *   6   host.js modelBytes: announce 'download'                              1
+ *   7   host.js modelBytes: `fromCache: true` beside the no-op clearModel    2
+ *   8   host.js captureStream: ask for `audio: true` (Limitation 6)          7
+ *   9   host.js captureStream: skip the claim                                8
+ *  10   host.js onTeardown: defer the callback by a microtask                1
+ *  11   host.js createBackend: drop the unit's hooks                         1
+ *  12   assets.js: drop COOP + COEP from every response                      4
+ *  13   engine-messages: put a `tabId` back on `source`                      2
+ *  14   engine-messages: always send `deck`, even for the default            5
+ *  15   engine-messages: CAPTURE_STOP without revoking the claims            1
+ *  16   claims.spend(): do not consume the entry                             2
+ *  17   claims.spend(): ignore the deadline                                  4
+ *  18   claims.takePending(): leave the claim pending                        6
+ *  19   claims.revokeAll(): keep the live claims                             3
+ *  20   host.js: resolve assets one directory above the unit                 7
+ *  21   host.js onMessage: guard on the wrong address                        6
+ *  22   host.js captureStream: stop the audio track on the way out           1
+ *  23   main.js: no `/model/` root on the protocol handler                   7
+ *  24   main.js: grant the CHROME view's frame, not the source's             2
+ *  25   engine-messages: originate nothing at all                           10
+ *  26   main.js: never put the engine on its address                        11
+ *  27   the probe writes its report somewhere nobody looks                   1
+ *  28   claims.spend(): accept a token that was never minted                 5
+ *  29   host.js captureStream: leave the video track on the stream           1
+ *
+ * FOUR OF THESE FOUND THE SUITE RATHER THAN THE CODE, which is the whole reason
+ * AGENTS.md asks for a battery instead of a green:
+ *
+ *   · case 8 — THE FIVE SETTINGS WERE MEASURED OFF THE PROBE'S OWN CONSTRAINTS.
+ *     It called `getDisplayMedia` with a COPY of the Host's constraint object, so
+ *     breaking them inside `host.js` left it green. It drives
+ *     `host.captureStream` now, refusal included.
+ *   · case 22 — A FRAME COUNT CANNOT TELL AUDIO FROM SILENCE. Stopping the audio
+ *     track left the engine counting 73,728 frames. So did leaving the fixture
+ *     PAUSED, which is how it loads. Hence the LEVEL assertion, measured off the
+ *     stream the Host hands back.
+ *   · case 15 — "CAPTURE_STOP REVOKES EVERY CLAIM" WAS GREEN OVER AN EMPTY
+ *     REGISTRY. Every token the run spends is consumed by a grant. The probe now
+ *     mints one it never spends and tries to spend it after the stop, by name.
+ *   · case 25 — A SUITE THAT CANNOT LOOK MUST FAIL, NOT CRASH. `O(start.source)`
+ *     read `.source` off `start` before the guard ran, and the suite died with 29
+ *     assertions still to go.
+ *
+ * AND ONE FOUND THE DESIGN. Case 12 deletes COOP and COEP: the engine reports
+ * `sab=false coi=false` and ORT still reports `threads: 4`, because
+ * `workers/inference.worker.js:45-49` PINS `ort.env.wasm.numThreads` and
+ * `onReady` echoes the pin. `docs/HOST-DESIGN.md` §2.4 assertion 4 and §10 A5
+ * read that number as proof of shared memory; it is not, and both are corrected
+ * in place. The count keeps its place here for the claim it does carry.
+ *
+ * THE COUNTS AND THE LEVEL, and why none of them is a stopwatch: the BYTE count
+ * (114,559,139, exactly `MODEL.bytes`) says the whole file arrived; the FRAME
+ * count says the ring is fed at the context's rate; and the PEAK (0.5000, the
+ * fixture's own amplitude, while the view is muted) says the capture carries
+ * audio, which the frame count provably cannot.
  */
 import fs from 'node:fs';
 import os from 'node:os';
