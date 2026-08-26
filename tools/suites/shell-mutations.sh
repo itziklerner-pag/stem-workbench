@@ -84,7 +84,6 @@ PY
 }
 
 run_suite() {   # -> writes $1, returns the suite's exit code
-  STEM_WORKBENCH_BROWSER_LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-}" \
     node tools/suites/shell.mjs >"$1" 2>&1
 }
 

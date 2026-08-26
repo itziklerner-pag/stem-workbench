@@ -53,7 +53,11 @@ OUT="$ROOT/out/p1-mutations"
 
 # ---------------------------------------------------------------- the mutex
 # Re-exec once, holding the lock, so every launch below is inside one hold.
-LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-${TMPDIR:-/tmp}/stem-workbench-browser-$(id -u).lock}"
+# THE PATH IS ASKED FOR, NOT RE-DERIVED. `tools/lib/locks.mjs` is the one place
+# in `tools/` allowed to name a lock; a bash copy of the formula is the second
+# literal that let two lines of work queue on two different files and then race
+# each other on `xvfb-run -a`. `void-canary` goes red if this comes back.
+LOCK="$(node "$ROOT/tools/lib/locks.mjs" browser)"
 if [ "${STEM_WORKBENCH_LOCK_HELD:-}" != "1" ]; then
   echo "taking the shared browser mutex ($LOCK) for the whole battery..."
   exec env STEM_WORKBENCH_LOCK_HELD=1 flock "$LOCK" "$0" "$@"
@@ -110,7 +114,6 @@ PY
 }
 
 run_suite() {   # -> writes $1, returns the suite's exit code
-  STEM_WORKBENCH_BROWSER_LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-}" \
     node tools/suites/p1.mjs >"$1" 2>&1
 }
 

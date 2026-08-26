@@ -109,7 +109,6 @@
  * audio, which the frame count provably cannot.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -118,15 +117,18 @@ import { createCaptureClaims } from '../../src/main/claims.js';
 import { createEngineMessages } from '../../src/main/engine-messages.js';
 import { ENGINE_HOST_DUTIES, BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js';
 import { MODEL, SR } from '../../vendor/stem-splitter-live/extension/shared/config.js';
+import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 
 const ID = 'engine-host';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'out', ID);
 const MODEL_FILE = path.join(ROOT, 'models', 'htdemucs_6s.onnx');
 
-/** The shared browser mutex — sibling agents run browsers on this machine. */
-const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+/** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
+const LOCK = BROWSER_LOCK;
+// One line, and only when this run has stepped out of the shared queue — a run
+// holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
+announceLock();
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;

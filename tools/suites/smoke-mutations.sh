@@ -60,7 +60,11 @@ C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m
 caught=0; missed=0; ran=0
 
 # ------------------------------------------------- the mutex, for the whole run
-LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-${TMPDIR:-/tmp}/stem-workbench-browser-$(id -u).lock}"
+# THE PATH IS ASKED FOR, NOT RE-DERIVED. `tools/lib/locks.mjs` is the one place
+# in `tools/` allowed to name a lock; a bash copy of the formula is the second
+# literal that let two lines of work queue on two different files and then race
+# each other on `xvfb-run -a`. `void-canary` goes red if this comes back.
+LOCK="$(node "$ROOT/tools/lib/locks.mjs" browser)"
 exec 9>"$LOCK"
 echo "${C_D}waiting for the shared browser mutex ($LOCK)…${C_X}"
 if ! flock 9; then echo "${C_R}could not take $LOCK${C_X}"; exit 2; fi
@@ -109,7 +113,6 @@ PY
 }
 
 run_suite() {   # -> writes $1, returns the suite's exit code
-  STEM_WORKBENCH_BROWSER_LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-}" \
     node tools/suites/smoke.mjs >"$1" 2>&1
 }
 

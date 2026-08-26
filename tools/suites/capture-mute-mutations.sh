@@ -71,8 +71,12 @@ C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m
 # which is not hypothetical: it cost a run on this machine, with a battery holding
 # the browser mutex outermost and a leftover suite holding the sink lock and
 # waiting for the browser mutex. Both had to be killed.
-BROWSER_LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-${TMPDIR:-/tmp}/stem-workbench-browser-$(id -u).lock}"
-SINK_LOCK="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/stem-workbench-sink-$SINK.lock"
+# THE PATH IS ASKED FOR, NOT RE-DERIVED. `tools/lib/locks.mjs` is the one place
+# in `tools/` allowed to name a lock; a bash copy of the formula is the second
+# literal that let two lines of work queue on two different files and then race
+# each other on `xvfb-run -a`. `void-canary` goes red if this comes back.
+BROWSER_LOCK="$(node "$ROOT/tools/lib/locks.mjs" browser)"
+SINK_LOCK="$(node "$ROOT/tools/lib/locks.mjs" sink "$SINK")"
 if [ "${CAPTURE_MUTE_BATTERY_LOCKED:-0}" != 1 ]; then
   export CAPTURE_MUTE_BATTERY_LOCKED=1
   echo "capture-mute-mutations: taking the sink lock then the shared browser mutex for the whole battery…"
@@ -436,12 +440,18 @@ mutate_case 11 "an unrelated process writes a 700 Hz tone into the measured sink
   "...and nothing outside that tree wrote to the sink while we measured" \
   --
 
+# THE ANCHOR MOVED AND IT NO LONGER QUOTES A LOCK NAME. The sink path is not
+# spelled in this suite any more — `tools/lib/locks.mjs` is the one place in
+# `tools/` allowed to name a lock, and `void-canary` refuses a second literal,
+# INCLUDING one quoted here as a mutation anchor. So the same mutation is made
+# one level up: ask the canonical module for a lock belonging to a sink that does
+# not exist. Take and witness both move together, exactly as before.
 mutate_case 12 "point the lock witness at a lock file nobody holds" \
   "tools/suites/capture-mute.mjs" \
   "...and nothing outside that tree wrote to the sink while we measured" \
   -- tools/suites/capture-mute.mjs \
-"\`stem-workbench-sink-\${SINK}.lock\`" \
-"\`stem-workbench-sink-\${SINK}-nobody-holds-this.lock\`"
+"const SINK_LOCK = sinkLockPath(SINK);" \
+"const SINK_LOCK = sinkLockPath(SINK + '-nobody-holds-this');"
 
 # THE GUARD MUST BE OUT OF A USER'S REACH, NOT MERELY PRESENT. Case 7 deletes the
 # guard; this one leaves both seams reading `if (GATE)` exactly as they are and

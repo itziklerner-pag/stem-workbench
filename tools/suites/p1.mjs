@@ -94,7 +94,6 @@
  * assertion the case was written for.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -102,6 +101,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { UPDATE_HOST, UPDATE_URL } from '../../src/main/update.js';
 import { mayRequest, violations, SESSION_OWNERS, NETWORK_SCHEMES } from '../../src/main/p1.js';
 import { startP1Host } from '../p1-host.mjs';
+import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 
 const ID = 'p1';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -115,8 +115,11 @@ const OUT = path.join(ROOT, 'out', ID);
 const BAD_HOST = 'telemetry.invalid';
 const BAD_URL = `https://${BAD_HOST}/both-sessions`;
 
-const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+/** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
+const LOCK = BROWSER_LOCK;
+// One line, and only when this run has stepped out of the shared queue — a run
+// holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
+announceLock();
 
 /**
  * SET BY `tools/suites/p1-mutations.sh`, WHICH HOLDS THE LOCK FOR ITS WHOLE RUN.

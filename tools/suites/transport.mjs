@@ -61,7 +61,6 @@
  * something went red, not that the intended thing did.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,6 +68,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { filterDrive, DRIVE_FIELDS, speedReasonFor } from '../../src/main/drive.js';
 import { autonavPlan, resolveSuppress, PREFS_KEY, AUTONAV_TOGGLE_SEL } from '../../src/main/autonav.js';
 import { SPEED_JS, SPEED_MIN, SPEED_MAX, SPEED_KEY_LOCK, resolveSpeed, speedPlan } from '../../src/main/speed.js';
+import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 
 /**
  * `--static` RUNS SECTIONS 1-4 AND STOPS. Twenty-one of these assertions are
@@ -88,8 +88,11 @@ const OUT = path.join(ROOT, 'out', ID);
 const PRELOAD = path.join(ROOT, 'src', 'preload', 'youtube.cjs');
 const VENDOR = path.join(ROOT, 'vendor', 'stem-splitter-live', 'extension');
 
-const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+/** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
+const LOCK = BROWSER_LOCK;
+// One line, and only when this run has stepped out of the shared queue — a run
+// holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
+announceLock();
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;

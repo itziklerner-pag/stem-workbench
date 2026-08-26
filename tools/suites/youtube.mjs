@@ -110,13 +110,13 @@
  *                 halves are needed and neither is presented as the other.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { STEMS, MODEL } from '../../vendor/stem-splitter-live/extension/shared/config.js';
 import { BUS } from '../../vendor/stem-splitter-live/extension/shared/host.js';
+import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 
 const ID = 'youtube';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -146,8 +146,11 @@ const RMS_FLOOR = 0.01;
 const SUM_RESIDUAL_MAX = 0.5;
 const SUM_TOLERANCE = 1.5;
 
-const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+/** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
+const LOCK = BROWSER_LOCK;
+// One line, and only when this run has stepped out of the shared queue — a run
+// holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
+announceLock();
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;

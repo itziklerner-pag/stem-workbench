@@ -32,9 +32,15 @@
  * re-declared. A second copy of that list is a list that drifts silently.
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { STEPS, classify, verdict } from '../verify.mjs';
+import { LOCK_MARKERS, sinkLock, strayLockPaths } from '../lib/locks.mjs';
+
+/** Any name at all; the two formulas must agree on all of them, so one is enough. */
+const SINK_PROBE = 'stem_workbench_gate';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const ID = 'void-canary';
@@ -124,6 +130,68 @@ for (const s of STEPS) {
     ok(`step '${s.id}' names a suite that exists`, there, path.relative(ROOT, file));
   }
 }
+
+// ------------------------------------------------- 2b. ONE lock, one place
+/**
+ * THE SECOND LOCK PATH IS THE BUG THIS GATES.
+ *
+ * Every windowed suite and every mutation battery on this box takes a shared
+ * mutex before it launches anything, because `xvfb-run -a` picks a display by
+ * scanning for a free number and that is a race two launches can both win. The
+ * path used to be copy-pasted into eleven files. Nothing drifted in the SOURCE —
+ * what drifted was the RUNS: two lines of work pointed the override at different
+ * files, each believed it held "the" mutex, and they raced each other for hours.
+ * One wedged run then sat on a mutex nobody else could take for fifty-two
+ * minutes, and from the outside that is indistinguishable from progress.
+ *
+ * `tools/lib/locks.mjs` is now the only file under `tools/` allowed to name a
+ * lock. THE SCAN LIVES THERE RATHER THAN HERE, and that is not tidiness: the
+ * first version of it lived in this file and failed on ITSELF, because a scanner
+ * that spells the marker in order to search for it has just added the twelfth
+ * copy. Exempting the scanner would have put a hole in the rule that exists
+ * because of a hole.
+ */
+const planted = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-canary-'));
+fs.writeFileSync(path.join(planted, 'innocent.mjs'), 'export const x = 1;\n');
+fs.writeFileSync(path.join(planted, 'guilty.mjs'),
+  `const LOCK = '/tmp/${LOCK_MARKERS[0]}-1000.lock';\nexport default LOCK;\n`);
+const control = strayLockPaths(planted, 'nothing-is-exempt-here', planted);
+fs.rmSync(planted, { recursive: true, force: true });
+// A CONTROL THAT CAN LOSE: two files, one of them carrying a lock path, and the
+// scan must name exactly the guilty one. A scan that returned [] for everything
+// would pass the row below over a tree full of copies.
+ok('INSTRUMENT CHECK: the lock scan finds a planted second lock path, and does not accuse the innocent file  '
+  + '[entry point: strayLockPaths() in tools/lib/locks.mjs]',
+  control.length === 1 && control[0].startsWith('guilty.mjs'),
+  `${control.length} hit(s): ${control.join(' · ') || '(none — the scan cannot see a lock path at all)'}`);
+
+const strays = strayLockPaths(path.join(ROOT, 'tools'), path.join('tools', 'lib', 'locks.mjs'), ROOT);
+ok('...and NO file under tools/ except that module names a lock path — one mutex, one definition, '
+  + 'or agents queue on different files and race on `xvfb-run -a`',
+  strays.length === 0,
+  strays.length ? `A SECOND LOCK PATH: ${strays.join(' · ')}` : `scanned tools/**: only tools/lib/locks.mjs names one`);
+
+/**
+ * AND THE SHELL HALF AGREES, EXACTLY. `spike/harness/bin/env.sh` computes the
+ * sink lock in bash for the harness scripts, and `capture-mute.mjs` has always
+ * claimed "both must agree" without ever checking it. An unasserted claim of
+ * agreement between two formulas is what this repository keeps finding out about
+ * the expensive way, so the two are RUN and compared rather than read.
+ */
+const envSh = path.join(ROOT, 'spike', 'harness', 'bin', 'env.sh');
+let shellSink = null;
+if (fs.existsSync(envSh)) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-envsh-'));
+  const r = spawnSync('bash', ['-c',
+    `SINK_NAME='${SINK_PROBE}' OUT_DIR='${tmp}' . '${envSh}' >/dev/null 2>&1; printf %s "$SINK_LOCK"`],
+  { encoding: 'utf8', timeout: 20000 });
+  shellSink = (r.stdout || '').trim() || null;
+  fs.rmSync(tmp, { recursive: true, force: true });
+}
+ok('...and the shell half computes the SAME sink lock as the module — two formulas, run and compared, not read  '
+  + '[entry point: SINK_LOCK in spike/harness/bin/env.sh vs sinkLock() in tools/lib/locks.mjs]',
+  shellSink !== null && shellSink === sinkLock(SINK_PROBE),
+  shellSink === null ? 'spike/harness/bin/env.sh did not answer' : `bash ${shellSink} · node ${sinkLock(SINK_PROBE)}`);
 
 // ---------------------------------------- 3. the VOID rule, against the real classifier
 /**

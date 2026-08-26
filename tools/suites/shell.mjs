@@ -118,13 +118,13 @@
  * from the page; 29-31 are what stop that going stale in silence again.
  */
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { isAllowedNavigation, NAV_ALLOW } from '../../src/main/navigation.js';
 import { resolveAppPath } from '../../src/main/assets.js';
+import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 
 const ID = 'shell';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -134,11 +134,14 @@ const DECK_ENTRY = 'vendor/stem-splitter-live/extension/ui/embed.html';
 /**
  * The shared browser mutex. Sibling agents run browsers on this machine and
  * `xvfb-run -a` picks a display number by scanning for a free one, which is a
- * race two launches can both win. `STEM_WORKBENCH_BROWSER_LOCK` names the lock
- * to take; the default is per-user and per-machine.
+ * race two launches can both win. THE PATH IS NOT SPELLED HERE — it is
+ * `tools/lib/locks.mjs`, the one place in `tools/` allowed to name a lock, and
+ * `void-canary` goes red if a second file names one.
  */
-const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+const LOCK = BROWSER_LOCK;
+// One line, and only when this run has stepped out of the shared queue — a run
+// holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
+announceLock();
 /** Printed by the shell `flock` runs, the instant it has the lock. See the launch. */
 const LOCK_MARK = '__WB_LOCKED__';
 

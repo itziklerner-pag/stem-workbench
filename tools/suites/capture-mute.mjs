@@ -128,6 +128,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { BROWSER_LOCK, BROWSER_LOCK_HELD_BY_CALLER, announceLock, sinkLock as sinkLockPath } from '../lib/locks.mjs';
+
 const ID = 'capture-mute';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'out', ID);
@@ -144,17 +146,37 @@ const SINK = 'stem_workbench_gate';
 const SINK_RATE = 48000;
 const SINK_CHANNELS = 2;
 
-/** `spike/harness/bin/env.sh` computes exactly this path. Both must agree. */
-const SINK_LOCK = path.join(process.env.XDG_RUNTIME_DIR || os.tmpdir(), `stem-workbench-sink-${SINK}.lock`);
+/**
+ * BOTH PATHS COME FROM `tools/lib/locks.mjs` AND ARE NOT SPELLED HERE. That file
+ * is the one place in `tools/` allowed to name a lock and `void-canary` goes red
+ * if a second file names one — including this one, which used to carry two.
+ * `spike/harness/bin/env.sh` computes the sink path in shell; the two must agree
+ * exactly, and `void-canary` asserts that by running both.
+ *
+ * The browser mutex is held across BOTH launches, so the recorder is never left
+ * running through somebody else's wait.
+ */
+/**
+ * 900 s, and TUNABLE FOR ONE REASON: the contention path above is a branch, and
+ * a branch nobody has watched is a branch you are assuming works. Waiting a
+ * quarter of an hour to exercise it is not a test anyone runs, so
+ * `tools/suites/locks-mutations.sh` sets this to a few seconds, takes the lock
+ * from outside, and requires a SKIP. Same shape and same reason as
+ * `CAPTURE_MUTE_WATCHDOG_MS` above. Nothing on any plan sets it.
+ */
+const LOCK_WAIT_S = Number(process.env.CAPTURE_MUTE_LOCK_WAIT_S || 900);
 
 /**
- * The shared browser mutex — sibling agents run browsers on this machine and
- * `xvfb-run -a` picks a display by scanning for a free number, which is a race
- * two launches can both win. Held across BOTH launches, so the recorder is never
- * left running through somebody else's wait.
+ * IT IS DECLARED HERE AND NOT BESIDE `holdLock()`. The first acquisition is a
+ * TOP-LEVEL `await` in section 2, which runs before the helper section is
+ * evaluated, so a `const` down there is a temporal dead zone and the suite dies
+ * with `Cannot access 'LOCK_WAIT_S' before initialization` the moment anything
+ * makes it wait. Caught by `locks-mutations.sh` case 4 on its first run — which
+ * is the entire argument for having watched the contention branch at all.
  */
-const BROWSER_LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
-  || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
+const SINK_LOCK = sinkLockPath(SINK);
+// One line, and only when this run has stepped out of the shared queue.
+announceLock();
 
 /**
  * THE CAPTURED-LEVEL BAND. `tools/fixture/player.html` generates a 440 Hz stereo
@@ -286,9 +308,53 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
  * suite held the sink lock and waited for the browser mutex sat there until both
  * were killed. Any wrapper that pre-takes these must take them in THIS order.
  */
+/**
+ * ---------------------------------------------------------------------------
+ * CONTENTION IS NOT A FAILED ASSERTION. IT IS A SKIP.
+ * ---------------------------------------------------------------------------
+ * These two acquisitions used to end in `ok(…, false)` when `flock -w 900`
+ * timed out: *"the run takes the shared browser mutex — <path> was held for
+ * 900 s"*. That verdict is not a fact about this product. It is a fact about
+ * what ELSE was running on the box, and it went red on a tree nobody had
+ * touched — which is precisely what `AGENTS.md` forbids: *"a gate whose verdict
+ * changes on code that did not change is measuring the machine."*
+ *
+ * It was also an assertion that could only ever be FALSE. Nothing ever called
+ * either of those two `ok()`s with a true condition, so they were error reports
+ * wearing an assertion's clothes, and they inflated no count on a green run.
+ *
+ * A GATE THAT CANNOT GET THE RESOURCES TO MEASURE HAS NOT MEASURED; IT HAS NOT
+ * FAILED. So contention takes the same honest exit this file already uses when
+ * `pw-cli` is missing: `SKIPPED`, which `tools/verify.mjs` prints under "WHAT
+ * DID NOT RUN" and which makes an unqualified GREEN impossible. The positive
+ * claim is not lost — assertion 8 still requires the sink lock to have been
+ * HELD THROUGHOUT, measured by a non-blocking `flock` that must be refused.
+ *
+ * AND THE THIRD CASE IS STILL HARD. `flock` missing from the box is tooling,
+ * like `pw-cli`, and skips. Anything else — `flock` present and exiting for a
+ * reason that is not the timeout — is a broken harness and exits non-zero
+ * naming what happened, because silently skipping on an unknown failure is the
+ * green-on-nothing this suite exists to refuse.
+ */
+const lockSkip = (label, r) => {
+  if (r.why === 'contention') {
+    skip(`${label} was held by another run for the whole ${r.waitS} s wait (${r.file}). `
+      + 'Nothing on this box could have measured anything while somebody else held it — this is '
+      + 'contention, not a defect, and a gate that cannot get the resources to measure has not measured.');
+  }
+  if (r.why === 'missing') {
+    skip(`\`flock\` is not on PATH, so ${label} cannot be taken (${r.file}). Same class as a missing pw-cli.`);
+  }
+  console.log(`FAIL  taking ${label} failed for a reason that is neither contention nor a missing flock  `
+    + `${r.why}: ${r.detail} (${r.file})`);
+  fail++;
+  done();
+};
+
 const SINK_HELD_BY_CALLER = process.env.STEM_WORKBENCH_SINK_LOCK_HELD === '1';
 const sinkLock = SINK_HELD_BY_CALLER
   ? {
+    ok: true,
     release() {},
     /**
      * NOT A CONSTANT `true`. Assertion 8's "held throughout" half is a real
@@ -301,7 +367,7 @@ const sinkLock = SINK_HELD_BY_CALLER
     label: 'the PipeWire sink lock (held by the caller)',
   }
   : await holdLock(SINK_LOCK, 'the PipeWire sink lock');
-if (!sinkLock) { ok('the run takes an exclusive lock on the measured sink', false, `another run has held ${SINK} for 900 s`); done(); }
+if (!sinkLock.ok) lockSkip('the PipeWire sink lock', sinkLock);
 /**
  * ...UNLESS THE CALLER ALREADY HOLDS IT. `flock` is not reentrant across
  * processes, so a battery that wraps its WHOLE run in the shared mutex — which is
@@ -311,11 +377,11 @@ if (!sinkLock) { ok('the run takes an exclusive lock on the measured sink', fals
  * assertion attached on purpose: a suite cannot verify a lock it did not take, so
  * it reports which of the two happened rather than claiming the stronger thing.
  */
-const HELD_BY_CALLER = process.env.STEM_WORKBENCH_BROWSER_LOCK_HELD === '1';
+const HELD_BY_CALLER = BROWSER_LOCK_HELD_BY_CALLER;
 const browserLock = HELD_BY_CALLER
-  ? { release() {}, alive: () => true, label: 'the shared browser mutex (held by the caller)' }
+  ? { ok: true, release() {}, alive: () => true, label: 'the shared browser mutex (held by the caller)' }
   : await holdLock(BROWSER_LOCK, 'the shared browser mutex');
-if (!browserLock) { sinkLock.release(); ok('the run takes the shared browser mutex', false, `${BROWSER_LOCK} was held for 900 s`); done(); }
+if (!browserLock.ok) { sinkLock.release(); lockSkip('the shared browser mutex', browserLock); }
 
 armWatchdog();
 cleanup = () => {
@@ -553,25 +619,57 @@ function hasBin(name) {
  * the lock for as long as the command it wraps runs, and closing that stdin ends
  * it. `alive()` is what assertion 8's "for its whole life" half reads.
  */
+/**
+ * IT REPORTS WHY IT COULD NOT TAKE THE LOCK, AND THAT IS THE WHOLE POINT OF THE
+ * RETURN SHAPE. It used to answer `null` for every failure, so the one caller
+ * had nothing to tell contention from a missing `flock` from a broken one and
+ * called all three a failed assertion. Three different things:
+ *
+ *   contention  `flock -w 900` exits 1 having waited the whole window. Somebody
+ *               else holds it. A fact about the box -> SKIP.
+ *   missing     `flock` is not on PATH (spawn ENOENT). Tooling -> SKIP.
+ *   error       anything else, including any other exit code. A broken harness
+ *               -> hard, because skipping on an unknown failure is the
+ *               green-on-nothing this file exists to refuse.
+ */
 function holdLock(file, label) {
   return new Promise((resolve) => {
-    const child = spawn('flock', ['-w', '900', file, '-c', 'echo HELD; cat > /dev/null'],
+    const child = spawn('flock', ['-w', String(LOCK_WAIT_S), file, '-c', 'echo HELD; cat > /dev/null'],
       { stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
+    let err = '';
     let settled = false;
     const finish = (v) => { if (!settled) { settled = true; resolve(v); } };
     child.stdout.on('data', (c) => {
       out += c.toString();
       if (out.includes('HELD')) {
         finish({
+          ok: true,
           release() { try { child.stdin.end(); child.kill('SIGTERM'); } catch { /* gone */ } },
           alive: () => child.exitCode === null && child.signalCode === null,
           label,
         });
       }
     });
-    child.on('close', () => finish(null));
-    child.on('error', () => finish(null));
+    child.stderr.on('data', (c) => { err += c.toString(); });
+    // `flock -w` exits 1 on the timeout and only on the timeout; any other code
+    // is flock itself failing, which is not contention and must not read as it.
+    child.on('close', (code) => finish({
+      ok: false,
+      why: code === 1 ? 'contention' : 'error',
+      detail: `flock exited ${code}${err.trim() ? ` — ${err.trim().slice(0, 160)}` : ''}`,
+      file,
+      waitS: LOCK_WAIT_S,
+      label,
+    }));
+    child.on('error', (e) => finish({
+      ok: false,
+      why: e && e.code === 'ENOENT' ? 'missing' : 'error',
+      detail: String((e && e.message) || e),
+      file,
+      waitS: LOCK_WAIT_S,
+      label,
+    }));
   });
 }
 

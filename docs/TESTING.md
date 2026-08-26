@@ -281,20 +281,47 @@ working concurrently. Three rules, and they compose:
 
 ```bash
 # 1. the browser/Electron mutex — sibling agents share this machine.
-#    The suite takes it ITSELF, around the electron spawn; the name comes from
-#    $STEM_WORKBENCH_BROWSER_LOCK, defaulting to a per-user file in $TMPDIR.
-#    On a shared box, point it at the box's lock:
-export STEM_WORKBENCH_BROWSER_LOCK="$SCRATCH/browser.lock"
+#    The suite takes it ITSELF, around the electron spawn. There is ONE path and
+#    it is NOT set here: tools/lib/locks.mjs owns it, every suite and battery
+#    imports it, and `void-canary` goes red if a second file under tools/ names
+#    a lock. Just run the suite.
 node tools/suites/shell.mjs
 
 # which spawns, internally:
-#   flock "$STEM_WORKBENCH_BROWSER_LOCK" -c '
+#   flock "<the canonical lock>" -c '
 #     xvfb-run -a -s "-screen 0 1280x1024x24" node_modules/.bin/electron . --gate=…'
+
+# ask the module if you need the path for a wrapper:
+node tools/lib/locks.mjs browser
+node tools/lib/locks.mjs sink stem_workbench_gate
 ```
 
 `xvfb-run -a` picks a display number by scanning for a free one, which is a race
 two concurrent launches can both win. That, and not politeness, is why the mutex
 is around the spawn.
+
+> **DO NOT POINT `STEM_WORKBENCH_BROWSER_LOCK` AT A PRIVATE FILE ON A SHARED
+> BOX.** This paragraph used to say to, and that instruction is what the outage
+> was: two lines of work took the advice differently, one queueing on a
+> scratchpad lock and one on the default, each believing it held "the" mutex —
+> and then they raced each other on `xvfb-run -a` for hours. A private lock does
+> not make you safe from the display race, it exempts you from the only thing
+> that was protecting you from it.
+>
+> The override still exists, for a run that deliberately stands outside the
+> queue, and it comes with an obligation: use a FIXED display (`-screen`/`:NN`),
+> never `-a`. Every suite prints one `[lock]` line naming both paths when the
+> two differ, so a divergent run says so in its own log instead of being worked
+> out afterwards from process listings.
+
+**Contention is a SKIP, never a failed assertion.** A suite that waits out its
+whole window for a lock somebody else holds has not measured; it has not failed.
+`capture-mute` used to report `FAIL  the run takes the shared browser mutex —
+<path> was held for 900 s`, which is a verdict about what else was running on
+the box rather than about this product, and it went red on a tree nobody had
+touched. It now takes the same `SKIPPED` exit it takes for a missing `pw-cli`.
+A missing `flock` skips for the same reason; anything else — `flock` present and
+failing for a reason that is not the timeout — is a broken harness and is hard.
 
 ```bash
 # 3. and for `sink` suites, the PipeWire sink lock, ON TOP, taken FIRST
