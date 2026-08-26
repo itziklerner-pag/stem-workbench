@@ -34,6 +34,7 @@
     "spike:mutations": "spike/bin/mutations.sh"
   },
   "devDependencies": {
-    "electron": "^44.0.0"
+    "electron": "^44.0.0",
+    "playwright-core": "^1.62.1"
   }
 }

@@ -359,7 +359,26 @@ export const STEPS = [
     title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
     cmd: ['node', 'tools/suites/smoke.mjs'],
     window: true,
-    todo: 'specified in docs/TESTING.md §6; not built',
+    /**
+     * THE ONLY STEP THAT STANDS OUTSIDE THE APP. Every other windowed suite
+     * here drives the product from inside its own main process — `--gate=DIR`
+     * imports a probe, hands it the live handles, and the suite judges the JSON
+     * it wrote. That is what makes them cheap and exact, and it is also why not
+     * one of them can press a menu item or read the deck's painted surface. This
+     * one drives `electron .` over CDP through Playwright's `_electron` API, so
+     * the arm gesture it exercises is the application menu's own item and the
+     * answer it reads is the deck's DOM.
+     *
+     * IT TAKES ITS OWN LOCKS, like every windowed step, but differently: it does
+     * not spawn `electron` (Playwright does), so it re-execs ITSELF once under
+     * `flock` + `xvfb-run -a` and the inner run does the work. `--quick` drops
+     * it with every other windowed step.
+     *
+     * WHAT FALSIFIES IT — `tools/suites/smoke-mutations.sh`, 19 named cases,
+     * each declaring the assertion names it must turn red, with
+     * `tools/suites/coverage.py` over the whole battery refusing an assertion
+     * that has never been seen on a FAIL line.
+     */
   },
   {
     id: 'capture-mute',

@@ -121,12 +121,13 @@ green from the outside.
 `sink` additionally needs PipeWire and an exclusive null sink; `--quick` drops it.
 `manual` is never on any default plan at all.
 
-**`todo`.** Four of the six steps above are specified and **not built**. They are
-in the steps table anyway, marked `todo`. A suite that is not in the table is
-indistinguishable from a suite nobody thought of — that is the standing rule at
-the top of the extension's runner, and it cost that repository three separate
-incidents. A `todo` step never runs, is printed under **WHAT DID NOT RUN** every
-time, and makes an unqualified `GREEN` impossible until it is built.
+**`todo`.** Three of the twelve steps above — `p1`, `capture-mute` and `youtube`
+— are specified and **not built**. They are in the steps table anyway, marked
+`todo`. A suite that is not in the table is indistinguishable from a suite
+nobody thought of — that is the standing rule at the top of the extension's
+runner, and it cost that repository three separate incidents. A `todo` step
+never runs, is printed under **WHAT DID NOT RUN** every time, and makes an
+unqualified `GREEN` impossible until it is built.
 
 ### The VOID rule
 
@@ -910,15 +911,58 @@ launch half cannot test late binding at all.
 
 ## 6. `smoke` — Playwright-for-Electron against a local fake player
 
-**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Cost target:** < 60 s.
+**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Measured:** 18
+assertions, ~40 s. **Falsified by:** `tools/suites/smoke-mutations.sh`, 19 cases.
 
 Playwright drives Electron through its `_electron` API:
 
 ```js
-import { _electron as electron } from 'playwright';
-const app = await electron.launch({ args: ['.'], env: { ...process.env, STEM_WORKBENCH_GATE: '1' } });
-const win = await app.firstWindow();
+import { _electron as electron } from 'playwright-core';
+const app = await electron.launch({ executablePath: …, cwd: ROOT, args: ['.', `--source-url=${FIXTURE}`, …] });
 ```
+
+**`playwright-core`, not `playwright`**, and that is a dependency decision rather
+than a spelling. `_electron` is the only thing this suite uses and it drives the
+Electron binary the repository already has; the `playwright` wrapper's whole
+added value is a postinstall that downloads Chromium, Firefox and WebKit — ~500
+MB this repository would never open, on every CI run, to reach an API that is in
+the core package.
+
+### It is the only suite that stands OUTSIDE the app
+
+Every other windowed step here drives the product from inside its own main
+process: `--gate=DIR` makes `src/main/main.js` import a probe, hands it the live
+handles, and the suite judges the JSON that probe wrote. That is what makes them
+exact — and it is also why not one of them can click a menu item or read the
+deck's painted surface.
+
+| | it drives | it cannot |
+|---|---|---|
+| `shell` | the window, isolation, the grant | see the deck's DOM at all |
+| `engine-host` | the nine engine duties, a real capture | press play |
+| `deck-host` | the deck half, by calling `host.arm()` | tell a Host whose MENU was never installed from one whose menu works |
+| `transport` | the source preload, from main | say whether the deck received any of it |
+| **`smoke`** | **the application menu's `Arm this Source`, the player's own play button, and the deck's painted surface** | measure audio |
+
+### Running it — the mutex goes around the SUITE, not around a spawn
+
+The other windowed suites spawn `electron` themselves and wrap that one call in
+`flock` + `xvfb-run`. This one does not spawn it — Playwright does — so the suite
+**re-execs itself once**, under the lock and under Xvfb, and the inner run does
+the work:
+
+```bash
+export STEM_WORKBENCH_BROWSER_LOCK="$SCRATCH/browser.lock"
+node tools/suites/smoke.mjs
+#   -> flock "$LOCK" -c "xvfb-run -a -s '-screen 0 1280x1024x24' node tools/suites/smoke.mjs"
+#      with STEM_WORKBENCH_SMOKE_INNER=1
+```
+
+The wrapper relays the inner run's output verbatim and exits with its code. If
+the inner run produced **no summary line** the wrapper prints a `FAIL` of its own
+rather than exiting 0 — an outer process that swallowed a dead launch would be
+the VOID case one level up, and the runner would name the convention instead of
+the launch.
 
 ### The fake player, and why there is one
 
@@ -929,38 +973,135 @@ pointed at a local page instead of the real one.
 `tools/fixture/player.html` is a `<video>` the preload drives. **It generates its
 own media in-page** — a few lines of JS write a RIFF header and a 440 Hz stereo
 sine into a `Blob`, and `URL.createObjectURL()` becomes `video.src`. No binary in
-git (`.gitignore` excludes `*.wav`, so the spike's `tone.wav` is not committed
-either), no `ffmpeg` at test time, and the level is **analytic**: a stereo sine of
-amplitude 0.5 has RMS `0.5/√2 = 0.353553`. `capture-mute` needs that number, so
-the fixture is shared between the two suites and lives in one file.
+git (`.gitignore` excludes `*.wav`), no `ffmpeg` at test time, and the level is
+**analytic**: a stereo sine of amplitude 0.5 has RMS `0.5/√2 = 0.353553`.
+`capture-mute` needs that number, so the fixture is shared between the two suites
+and lives in one file.
 
-The suite installs a request handler that **fails any request to a non-local
-origin**, so an accidental `youtube.com` load is a red rather than a slow test.
+**Sixty seconds, and the length is load-bearing — do not trim it.** The
+extension's smoke shipped a 0.5 s `loop`ing clip; every wrap fired `seeking`,
+`content.js` reports `seeking` as a content JUMP, and it cost a real assertion
+(`tools/embed-smoke.mjs` carries the write-up). The same defect is reachable here
+and lands on **assertion 10**, which says a user's seek arrives as *exactly one*
+jump: a wrap inside that window would make it two on a correct build and one on a
+broken one. The playhead never gets past ~23 s and the whole suite is ~40 s, so
+no wrap can happen. The fixture's own header carries the other half of the
+reason: 60.0 s at 440 Hz is 26 400 whole cycles, so `capture-mute` can wrap
+without a click.
+
+### The guard, and how it is proved to be looking
+
+The suite installs `onBeforeRequest` on **both** of the app's sessions and
+cancels anything whose scheme is not `file:`, `app:`, `blob:`, `data:`,
+`devtools:`, `chrome:` or `about:` — so an accidental `youtube.com` load is a red
+rather than a slow test, a rate limit or a CAPTCHA.
+
+"No off-box request was recorded" is also what a handler nobody installed
+reports, and that estimator saturates before the claim begins. So before the
+ledger is read, the guard is made to refuse two navigations it MUST see — one per
+session, to `https://smoke-guard-{ours,source}.invalid/probe`. `.invalid` is
+reserved by RFC 2606 and resolves nowhere, so the proof cannot itself reach a
+host.
+
+**It replaces the transport's own `onBeforeRequest`** on `persist:youtube` for
+the life of the run (a session has one handler slot). That witness is read by
+`tools/gate/transport.mjs` and by nothing in this suite, so nothing is lost — but
+an assertion added here that reached for `transport.requests()` would find it
+empty.
 
 ### What it asserts
 
-| # | assertion | detail must carry |
+| # | assertion | detail carries |
 |---|---|---|
-| 1 | the app opens exactly one `BrowserWindow`, and the YouTube `WebContentsView` is attached to it | the window count, the view's id |
-| 2 | `assertHost` accepted the Host — the app got past boot | the duty count it checked |
-| 3–6 | **the four messages the Host must ORIGINATE** were really sent: `CAPTURE_START {sourceToken, source:{title,url}}`, `CAPTURE_STOP`, `DECK_PREPARE` to `BUS.engine`; `SESSION {session:{armed,title,url,armedAt}}` to `BUS.deck` | the observed payload keys |
-| 7 | the transport WRITES land on the page: `playbackRate`, `currentTime`, `muted` | the value set and the value read back off `<video>` |
-| 8 | the transport READS come back: `paused`, `currentTime`, `duration` | the three values |
-| 9 | **L1** — the shipped preload never reads `src`, `currentSrc`, `buffered`, `srcObject`, and never calls `captureStream()` | the file scanned, comments stripped, the byte count |
-| 10 | the deck renders six stem faders in `STEMS` order | the six labels, in order |
-| 11 | the app opens its `AudioContext` at **44100**, not the platform default | `ctx.sampleRate` |
+| 1 | the app launches and opens **one visible window with its three views attached**, beside the **hidden engine `BrowserWindow`**, and all four renderers are reachable as Playwright pages | the child `webContents` ids, the source view's id, the Electron/Chromium versions |
+| 2 | the network guard is live on **both** sessions — it saw two deliberate off-box navigations and refused them | which probes were recorded, how many came back `ERR_BLOCKED_BY_CLIENT` |
+| 3 | `assertHost` accepted **both** halves of the Host: the deck reached module scope (`window.__embed`) and the engine answered `STATUS` with a `STATE` | the members `ui/host.js` exports, the two duty counts |
+| 4 | **`SESSION`** — clicking `Arm this Source` in the application menu originates it to `BUS.deck` with `{armed,title,url,armedAt}`, and the deck stops painting its not-armed hint | the menu label and accelerator, the session keys, the hint before and after |
+| 5 | **`CAPTURE_START`** is originated to `BUS.engine`, carrying a minted token | the address it went to, the token's length |
+| 6 | …and its shape is the frozen one — `{sourceToken, source:{title,url}}`, no `deck` for the default deck and **no `tabId`** | the observed key sets |
+| 7 | **`DECK_PREPARE`** is originated to `BUS.engine`, with `deck` omitted for the default deck | the observed keys |
+| 8 | the deck follows the player: play and pause on the page move `__embed.videoPlaying` | both transitions, and where the playhead got to |
+| 9 | …and the report the deck reads carries the transport state and **nothing about the media** — no `src`, `currentSrc`, `buffered` or `srcObject` | the report count and every field name in the last one |
+| 10 | a seek the **user** made arrives at the deck as **exactly one** content jump | `__embed.jumps` before and after |
+| 11 | the page's own speed menu reaches the deck: the Host's speed **report** arrives with `applied` 1.5 / `state` `ok` / `want` `null`, the deck's readout follows the element, and nothing writes the rate back | `__embed.speed` before and after, the last report's four fields, the element's rate |
+| 12 | the deck reaches the player: `transport.drive` lands `muted`, `playbackRate` and `currentTime` on the real `<video>` | the values sent and the values read back off the element |
+| 13 | …and **nothing else did**: `volume` and an `evil` field rode in the same patch and never reached it | `video.volume`, `video.evil` |
+| 14 | **`CAPTURE_STOP`** — clicking `Disarm` originates it, with `deck` omitted | the menu label, the observed keys |
+| 15 | …and the player is handed back the way it was found: unmuted, rate 1 | what the element reads after the disarm |
+| 16 | the deck painted **one fader per stem** — six `[data-stem]` strips, six `role="slider"` faders, each a stem the unit declares | the painted order and `STEMS` |
+| 17 | the `AudioContext` the engine opened for the capture is at **44100**, not the platform default | `STATE.boot.sampleRate`, over how many snapshots |
+| 18 | the whole run stayed on the box: every request either session made was local | the request count, any off-box URL, the schemes seen |
 
-**Assertions 3–6 are the ones `assertHost` structurally cannot make.**
+**Assertions 4–7 and 14 are the ones `assertHost` structurally cannot make.**
 `VENDORING.md`: *"`assertHost` cannot check for a message nobody sent."* A Host
-can implement all 32 duties and originate none of these; the deck then sits there
-with a dead surface and every existing gate is green. Assert them individually,
-by name, so a red says which message went missing.
+can implement all 32 duties and originate none of them; the deck then sits there
+with a dead surface and every other gate in this repository stays green. They are
+asserted individually, by name, so a red says which message went missing.
 
-**Assertion 11 is not cosmetic.** The spike measured it: a *default* host
+**Assertion 17 is not cosmetic.** The spike measured it: a *default* host
 `AudioContext` opens at 48000 and inserts a resampler in the renderer, while the
 captured track is 44100. `CONTRIBUTING.md`'s settled decision — one context at
 44100, no JS resampling on the live path — survives into the desktop host **only
-if the host opens the context explicitly.**
+if the context is opened explicitly**. It is read off `STATE.boot`, which
+`engine.js` fills in `ensureContext()` and not at boot, so it is only answerable
+after a capture has been armed.
+
+### What it does not re-assert, and where that claim lives
+
+`transport.mjs` (63 assertions) and `deck-host.mjs` (27) were built first and go
+deeper on the two halves. A second copy of one of their claims is a claim that
+drifts.
+
+| not here | it lives in | what this suite adds instead |
+|---|---|---|
+| **L1's static scan** of `src/preload/youtube.cjs` | `transport.mjs` — *"…and none of the names L1 forbids appears in it at all"*, **plus** *"…and the scanner is looking at code rather than at nothing"*, plus the complete member-write set and the enumerated property allow-list | assertion 9: the other end of the same rule — no media field on the feed the **deck** reads |
+| the preload's five transport values, the event→speed-reason mapping, the ad edge, the key filter, the SPA navigation cases, the autoplay-next state machine | `transport.mjs` | only what the deck ends up **showing**: `__embed.videoPlaying`, `.jumps`, `.speed` |
+| the fourteen `DeckHost` members, the two storage lifetimes, the arm chord, the height clamp, `page.close()` | `deck-host.mjs` and `deck-seam.mjs` | the arm gesture as a **menu click**, and the deck's painted faders |
+
+**Two overlaps are kept on purpose**, and both are cited where they are asserted.
+Assertions **12** and **15** (`drive`, `release`) also appear in
+`deck-host.mjs`:271/:280 and in `transport.mjs` — kept because here they are the
+end of a gesture chain that began at the application menu, in an app launched
+with **no `--gate` flag**, so the product's module graph contains no
+`tools/gate/*` at all. Assertion **13** is the only assertion anywhere that
+crosses **all three** drive filters at once; each layer alone is gated
+elsewhere, and mutation 16 measured what that costs (below).
+
+### Three things measurement corrected in the specification
+
+This section originally listed eleven assertions. Three of them described a
+product that is not the one that got built, and they are recorded here rather
+than quietly rewritten.
+
+1. **"exactly one `BrowserWindow`"** — the app has a `BaseWindow` with three
+   `WebContentsView`s *and* a hidden `BrowserWindow` for the engine
+   (HOST-DESIGN.md §1.3). Assertion 1 names both, and the source view is proved
+   attached by its `webContents` id appearing in the window's child list.
+2. **"six stem faders in `STEMS` order"** — the deck paints them in its own
+   `STEM_ORDER` (`vocals, drums, bass, other, guitar, piano`), which is not
+   `STEMS` (`drums, bass, other, vocals, guitar, piano`). Assertion 16 therefore
+   asserts *one fader per stem the unit declares* and reports the painted order
+   in the detail. **Display order is the deck's decision and `vendor-unit` gates
+   it**; a Host-side suite asserting it would be a second copy of a list.
+3. **"the transport READS come back: `paused`, `currentTime`, `duration`"** — the
+   preload's `sendState()` sends `playing`, not `paused`. Assertion 9 asserts the
+   fields that exist, and adds the half worth more: that no media field is on
+   that feed.
+
+### Two messages are driven by the deck's envelope, not by the deck's decision
+
+`CAPTURE_START` and `DECK_PREPARE` reach this Host as `SW_CAPTURE_START`
+(`ui/embed.js`:693) and `SW_DECK_PREPARE` (:1053), and the deck sends them only
+after `modelInTheWay()` / `maybePrepare()` clear — both of which require the
+109 MiB weights to already be on disk. Gating the always-on step on a file that
+is not in git would make it a `SKIP` on a clean checkout, and a `SKIP` is not
+green.
+
+So the suite sends those two envelopes itself, verbatim, through the deck page's
+own `host.send` — and what is asserted is what the **Host** did with them. *When*
+the deck decides to send them is the unit's decision and is gated by
+`vendor-unit`. `SESSION` and `CAPTURE_STOP` need no such help: they come from the
+menu items, clicked.
 
 ### Deliberately not asserted here
 
@@ -971,14 +1112,97 @@ proves the vendored engine produces audio inside this app.* `vendor-unit` proves
 the engine is correct; `smoke` proves the Host wires it. The seam between those
 two claims is not gated until `smoke-live` is written.
 
+**The first few milliseconds of boot**, for the network guard. It is installed
+from outside over CDP, as soon as `electron.launch()` resolves — during `boot()`,
+but not provably before its first `loadURL`. `p1` (§9) is the suite that owns the
+network claim from process start; this one owns "the run did not wander off the
+box".
+
+**The audio device.** This suite proves a capture opens and that the context is
+at 44100. It does not witness the speakers. `capture-mute` (§8) is the one that
+measures silence and **this suite cannot replace it**.
+
+**Any single drive filter on its own** — see the note on mutation 16 below.
+
 ### Watched red
 
-| assertion | mutation |
-|---|---|
-| 3–6 | delete the `CAPTURE_START` send in the Host's arm path |
-| 7 | make the transport's `playbackRate` setter a no-op |
-| 9 | add `const _ = el.currentSrc;` to the preload |
-| 11 | drop the `{ sampleRate: 44100 }` argument to `new AudioContext` |
+`tools/suites/smoke-mutations.sh`, 19 cases, each declaring the assertion names
+it must turn red, with `tools/suites/coverage.py` over the whole battery refusing
+an assertion that has never been seen on a FAIL line.
+
+Three things about running it, and each is something a previous wave paid for:
+
+- **A scratch git worktree.** It edits `src/`, `vendor/` and the suite itself,
+  and a sibling working in the same tree would see the edits.
+  `git worktree add --detach "$WT" HEAD`, then symlink `node_modules` and
+  `models` into it.
+- **The mutex is taken ONCE, on fd 9, for the whole battery** — not once per
+  case. Three agents share this box; nineteen separate acquisitions interleave
+  with a sibling's own battery and turn 13 minutes into an hour. The suite is
+  told with `STEM_WORKBENCH_BROWSER_LOCK_HELD=1` so it does not deadlock trying
+  to take a lock its own parent holds.
+- **Backups go under `out/smoke-mutations/`**, this battery's own directory, and
+  a `trap` on INT/TERM/HUP restores the case in flight and exits 130. A battery
+  killed between the edit and the restore leaves a mutation standing on a
+  shipped file.
+
+| # | mutation | file | assertion |
+|---|---|---|---|
+| 1 | never `addChildView` the source view | `src/main/main.js` | 1 |
+| 2 | guard only our session, leave `persist:youtube` unwatched | `tools/suites/smoke.mjs` | 2 |
+| 3 | open one hidden window on an off-box URL after boot | `src/main/main.js` | 18 |
+| 4 | delete the `armShortcut` duty from the deck's Host | `vendor/…/ui/host.js` | 3 |
+| 5 | stop exporting `clearModel` from the engine's Host | `vendor/…/offscreen/host.js` | 3 |
+| 6 | `sendSession()` originates nothing | `src/main/deck-host.js` | 4 |
+| 7 | `captureStart()` mints the token and originates nothing | `src/main/engine-messages.js` | 5 |
+| 8 | put a `tabId` back on `CAPTURE_START.source` | `src/main/engine-messages.js` | 6 |
+| 9 | `deckPrepare()` originates nothing | `src/main/engine-messages.js` | 7 |
+| 10 | `captureStop()` originates nothing | `src/main/engine-messages.js` | 14 |
+| 11 | do not relay the player's state | `src/main/deck-host.js` | 8 |
+| 12 | relay it with a media URL added | `src/main/deck-host.js` | 9 |
+| 13 | do not relay the content jump | `src/main/deck-host.js` | 10 |
+| 14 | do not relay the speed report | `src/main/deck-host.js` | 11 |
+| 15 | `transport.drive()` becomes a no-op | `src/main/transport.js` | 12 |
+| 16 | open **all three** drive filters at once | `vendor/…/ui/host.js`, `src/main/drive.js`, `src/preload/youtube.cjs` | 13 |
+| 17 | disarm stops handing the player back | `src/main/deck-host.js` | 15 |
+| 18 | drop a stem from the deck's strip order | `vendor/…/ui/embed.js` | 16 |
+| 19 | open the `AudioContext` at the platform default | `vendor/…/offscreen/engine.js` | 17 |
+
+There is **no case for L1's static scan**, and that is not an omission: the scan
+is `transport.mjs`'s and is falsified by that suite's battery. Case 12 is what
+turns this suite's L1 claim red.
+
+**Two cases found a defect in an assertion rather than in the app**, which is
+what a battery is for, and the two were fixed in opposite directions.
+
+**14** left assertion 11 **green** on its first run. That assertion read only
+`__embed.speed` — and `onElementRate()` in `ui/embed.js` is *one entry point for
+a fact that arrives on two messages*, the video state's `playbackRate` (`:852`)
+and the speed report's `applied` (`:1629`), so the deck's readout follows the
+element whether or not the Host's verdict ever arrives. An estimator that
+saturates before the claim begins. Widening the mutation to silence both feeds
+would have hidden that: a mutation that has to break two things to be seen is a
+mutation telling you the assertion is about neither. So the **assertion** was
+fixed instead — it now reads the `{t:'speed'}` report off the deck's own inbound
+channel — and the one-file mutation turns it red. (The *yield* case proper — a
+claim held **and** somebody else moving the rate, `speed.js`:280 — is
+`transport.mjs`'s and is not repeated here. With no claim held the plan is
+`{act:'idle', state:'ok', want:null}`, which is what assertion 11's `want ===
+null` conjunct records.)
+
+**16** left assertion 13 **green** when only `filterDrive()` was opened — the
+obvious single-file mutation, and the one this section originally specified —
+because `driveVideo()` in the preload reads three *named* fields off the command
+and never the command itself. Here widening the **mutation** is the right answer,
+because the claim really is about the three filters composing: the write set is
+closed in three places and this suite can only see it fail when all three open.
+The layer-by-layer claims belong to `deck-seam` and `transport`, and that is now
+written down rather than assumed.
+
+**Four cases edit `vendor/`, and that is not a licence to patch it.** ADR 0001:
+the unit is vendored, not forked. Each mutation is applied, measured and restored
+inside one case, and the battery re-compares the restored bytes — so "restored"
+is a checked fact rather than an intention.
 
 ---
 
