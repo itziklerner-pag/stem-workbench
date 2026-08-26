@@ -1,0 +1,187 @@
+{
+  "tag": "local-c-run2",
+  "page": "local",
+  "variant": "c",
+  "knobs": {
+    "echo": true,
+    "mute": true,
+    "capture": true,
+    "silent": false
+  },
+  "nav": "none",
+  "seconds": 4,
+  "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/spike/fixture/player.html",
+  "probeOk": true,
+  "error": null,
+  "versions": {
+    "electron": "44.0.0",
+    "chrome": "152.0.7977.54",
+    "node": "24.18.1",
+    "v8": "15.2.124.13-electron.0",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "6.17.0-41-generic",
+    "osType": "Linux"
+  },
+  "env": {
+    "display": ":99",
+    "pulseSink": "harness_sink"
+  },
+  "handlerAnsweredWith": {
+    "video": "view.mainFrame",
+    "audio": "view.mainFrame",
+    "enableLocalEcho": true
+  },
+  "thresholds": {
+    "captureFloor": 0.01,
+    "silenceCeiling": 0.0005
+  },
+  "player": {
+    "ok": true,
+    "element": "AUDIO",
+    "paused": false,
+    "currentTime": 0.352118,
+    "duration": 60,
+    "muted": false,
+    "volume": 1,
+    "readyState": 4,
+    "ended": false
+  },
+  "playerAfterWindow1": {
+    "element": "AUDIO",
+    "paused": false,
+    "currentTime": 5.898941,
+    "duration": 60,
+    "muted": false,
+    "volume": 1,
+    "readyState": 4,
+    "ended": false
+  },
+  "navigation": null,
+  "viewAfterLoad": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": false,
+    "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/spike/fixture/player.html"
+  },
+  "viewBeforeWindow1": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": true,
+    "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/spike/fixture/player.html"
+  },
+  "viewAfterWindow1": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": true,
+    "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/spike/fixture/player.html"
+  },
+  "viewBeforeWindow2": null,
+  "viewAfterWindow2": null,
+  "trackAtEnd": {
+    "readyState": "live",
+    "enabled": true,
+    "muted": false,
+    "label": "Tab audio",
+    "id": "e9e1258b-3391-46a1-80e2-14a628862cef"
+  },
+  "captureStart": {
+    "ok": true,
+    "contextSampleRate": 48000,
+    "contextState": "running",
+    "monitorGain": 0,
+    "audioConstraints": {
+      "echoCancellation": false,
+      "noiseSuppression": false,
+      "autoGainControl": false
+    },
+    "trackSettings": {
+      "autoGainControl": false,
+      "channelCount": 2,
+      "deviceId": "web-contents-media-stream://5:1",
+      "echoCancellation": false,
+      "latency": 0.01,
+      "noiseSuppression": false,
+      "restrictOwnAudio": false,
+      "sampleRate": 44100,
+      "sampleSize": 16,
+      "voiceIsolation": false
+    },
+    "captureSampleRate": 44100,
+    "captureChannelCount": 2,
+    "audioTracks": 1,
+    "videoTracksStopped": 1,
+    "track": {
+      "readyState": "live",
+      "enabled": true,
+      "muted": false,
+      "label": "Tab audio",
+      "id": "e9e1258b-3391-46a1-80e2-14a628862cef"
+    }
+  },
+  "captureSampleRate": 44100,
+  "captureChannelCount": 2,
+  "contextSampleRate": 48000,
+  "monitorGain": 0,
+  "windows": [
+    {
+      "n": 1,
+      "capturedOk": true,
+      "capturedReason": null,
+      "capturedRms": 0.351027357,
+      "capturedPeak": 0.499964356,
+      "capturedSeconds": 4,
+      "capturedQuanta": 1500,
+      "capturedChannels": 2,
+      "capturedSeries": [
+        0.371902,
+        0.372826,
+        0.361094,
+        0.343771,
+        0.332336,
+        0.335129,
+        0.350055,
+        0.366553,
+        0.374103,
+        0.368258,
+        0.352453,
+        0.336607,
+        0.331812,
+        0.341633,
+        0.358867,
+        0.371902,
+        0.372829,
+        0.361098,
+        0.343771,
+        0.332335,
+        0.335129,
+        0.350054,
+        0.366549,
+        0.374102,
+        0.368258,
+        0.352454,
+        0.336606,
+        0.331812,
+        0.341632,
+        0.358864,
+        0.371904,
+        0.37283,
+        0.361104,
+        0.343773,
+        0.33234,
+        0.335127,
+        0.350052
+      ],
+      "trackAtWindow": {
+        "readyState": "live",
+        "enabled": true,
+        "muted": false,
+        "label": "Tab audio",
+        "id": "e9e1258b-3391-46a1-80e2-14a628862cef"
+      },
+      "monitorGainAtWindow": 0,
+      "speakerRms": 0.0,
+      "speakerPeak": 0.0,
+      "speakerSeconds": 3.989,
+      "verdict": "PASS",
+      "why": "captured 0.351027 >= floor 0.0100; speaker 0.000000000 <= ceiling 0.0005"
+    }
+  ]
+}

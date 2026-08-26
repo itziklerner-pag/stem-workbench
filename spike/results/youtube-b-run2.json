@@ -1,0 +1,187 @@
+{
+  "tag": "youtube-b-run2",
+  "page": "youtube",
+  "variant": "b",
+  "knobs": {
+    "echo": false,
+    "mute": true,
+    "capture": true,
+    "silent": false
+  },
+  "nav": "none",
+  "seconds": 4,
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "probeOk": true,
+  "error": null,
+  "versions": {
+    "electron": "44.0.0",
+    "chrome": "152.0.7977.54",
+    "node": "24.18.1",
+    "v8": "15.2.124.13-electron.0",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "6.17.0-41-generic",
+    "osType": "Linux"
+  },
+  "env": {
+    "display": ":99",
+    "pulseSink": "harness_sink"
+  },
+  "handlerAnsweredWith": {
+    "video": "view.mainFrame",
+    "audio": "view.mainFrame",
+    "enableLocalEcho": "(unset \u2014 default false)"
+  },
+  "thresholds": {
+    "captureFloor": 0.01,
+    "silenceCeiling": 0.0005
+  },
+  "player": {
+    "ok": true,
+    "element": "VIDEO",
+    "paused": false,
+    "currentTime": 0.769418,
+    "duration": 213.061,
+    "muted": false,
+    "volume": 0.8933054837332952,
+    "readyState": 4,
+    "ended": false
+  },
+  "playerAfterWindow1": {
+    "element": "VIDEO",
+    "paused": false,
+    "currentTime": 6.319253,
+    "duration": 213.061,
+    "muted": false,
+    "volume": 0.8933054837332952,
+    "readyState": 4,
+    "ended": false
+  },
+  "navigation": null,
+  "viewAfterLoad": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": false,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewBeforeWindow1": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": true,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewAfterWindow1": {
+    "isAudioMuted": true,
+    "isCurrentlyAudible": true,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewBeforeWindow2": null,
+  "viewAfterWindow2": null,
+  "trackAtEnd": {
+    "readyState": "live",
+    "enabled": true,
+    "muted": false,
+    "label": "Tab audio",
+    "id": "d5fbbbd4-8dc2-4811-8636-47a63ac4b89a"
+  },
+  "captureStart": {
+    "ok": true,
+    "contextSampleRate": 48000,
+    "contextState": "running",
+    "monitorGain": 0,
+    "audioConstraints": {
+      "echoCancellation": false,
+      "noiseSuppression": false,
+      "autoGainControl": false
+    },
+    "trackSettings": {
+      "autoGainControl": false,
+      "channelCount": 2,
+      "deviceId": "web-contents-media-stream://6:4?local_echo=false",
+      "echoCancellation": false,
+      "latency": 0.01,
+      "noiseSuppression": false,
+      "restrictOwnAudio": false,
+      "sampleRate": 44100,
+      "sampleSize": 16,
+      "voiceIsolation": false
+    },
+    "captureSampleRate": 44100,
+    "captureChannelCount": 2,
+    "audioTracks": 1,
+    "videoTracksStopped": 1,
+    "track": {
+      "readyState": "live",
+      "enabled": true,
+      "muted": false,
+      "label": "Tab audio",
+      "id": "d5fbbbd4-8dc2-4811-8636-47a63ac4b89a"
+    }
+  },
+  "captureSampleRate": 44100,
+  "captureChannelCount": 2,
+  "contextSampleRate": 48000,
+  "monitorGain": 0,
+  "windows": [
+    {
+      "n": 1,
+      "capturedOk": true,
+      "capturedReason": null,
+      "capturedRms": 0.112140995,
+      "capturedPeak": 0.646449089,
+      "capturedSeconds": 4,
+      "capturedQuanta": 1500,
+      "capturedChannels": 2,
+      "capturedSeries": [
+        0.052978,
+        0.105251,
+        0.076463,
+        0.111169,
+        0.067953,
+        0.057233,
+        0.125267,
+        0.076774,
+        0.086193,
+        0.08415,
+        0.046209,
+        0.160696,
+        0.063221,
+        0.129854,
+        0.1126,
+        0.220297,
+        0.098497,
+        0.0775,
+        0.091751,
+        0.067467,
+        0.160365,
+        0.073047,
+        0.0535,
+        0.113232,
+        0.083194,
+        0.216424,
+        0.116221,
+        0.104823,
+        0.072876,
+        0.090481,
+        0.116225,
+        0.075211,
+        0.075461,
+        0.133557,
+        0.131088,
+        0.088995,
+        0.071305
+      ],
+      "trackAtWindow": {
+        "readyState": "live",
+        "enabled": true,
+        "muted": false,
+        "label": "Tab audio",
+        "id": "d5fbbbd4-8dc2-4811-8636-47a63ac4b89a"
+      },
+      "monitorGainAtWindow": 0,
+      "speakerRms": 0.0,
+      "speakerPeak": 0.0,
+      "speakerSeconds": 3.979,
+      "verdict": "PASS",
+      "why": "captured 0.112141 >= floor 0.0100; speaker 0.000000000 <= ceiling 0.0005"
+    }
+  ]
+}

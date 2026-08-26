@@ -1,0 +1,102 @@
+{
+  "tag": "youtube-nocapture-run1",
+  "page": "youtube",
+  "variant": "nocapture",
+  "knobs": {
+    "echo": false,
+    "mute": false,
+    "capture": false,
+    "silent": false
+  },
+  "nav": "none",
+  "seconds": 4,
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "probeOk": true,
+  "error": null,
+  "versions": {
+    "electron": "44.0.0",
+    "chrome": "152.0.7977.54",
+    "node": "24.18.1",
+    "v8": "15.2.124.13-electron.0",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "6.17.0-41-generic",
+    "osType": "Linux"
+  },
+  "env": {
+    "display": ":99",
+    "pulseSink": "harness_sink"
+  },
+  "handlerAnsweredWith": null,
+  "thresholds": {
+    "captureFloor": 0.01,
+    "silenceCeiling": 0.0005
+  },
+  "player": {
+    "ok": true,
+    "element": "VIDEO",
+    "paused": false,
+    "currentTime": 0.844695,
+    "duration": 90.101,
+    "muted": false,
+    "volume": 0.5623413251903491,
+    "readyState": 4,
+    "ended": false
+  },
+  "playerAfterWindow1": {
+    "element": "VIDEO",
+    "paused": false,
+    "currentTime": 6.924149,
+    "duration": 90.101,
+    "muted": false,
+    "volume": 0.5623413251903491,
+    "readyState": 4,
+    "ended": false
+  },
+  "navigation": null,
+  "viewAfterLoad": {
+    "isAudioMuted": false,
+    "isCurrentlyAudible": true,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewBeforeWindow1": {
+    "isAudioMuted": false,
+    "isCurrentlyAudible": true,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewAfterWindow1": {
+    "isAudioMuted": false,
+    "isCurrentlyAudible": true,
+    "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  },
+  "viewBeforeWindow2": null,
+  "viewAfterWindow2": null,
+  "trackAtEnd": null,
+  "captureStart": {
+    "ok": false,
+    "reason": "getDisplayMedia never called (--variant=nocapture)"
+  },
+  "captureSampleRate": null,
+  "captureChannelCount": null,
+  "contextSampleRate": null,
+  "monitorGain": null,
+  "windows": [
+    {
+      "n": 1,
+      "capturedOk": false,
+      "capturedReason": "no capture in this variant",
+      "capturedRms": null,
+      "capturedPeak": null,
+      "capturedSeconds": null,
+      "capturedQuanta": null,
+      "capturedChannels": null,
+      "capturedSeries": null,
+      "trackAtWindow": null,
+      "monitorGainAtWindow": null,
+      "speakerRms": 0.055664823,
+      "speakerPeak": 0.407238781,
+      "speakerSeconds": 3.989,
+      "verdict": "CONTROL"
+    }
+  ]
+}

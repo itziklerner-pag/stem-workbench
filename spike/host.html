@@ -1,0 +1,175 @@
+<!doctype html><meta charset="utf-8"><title>spike host</title>
+<body style="margin:0;background:#101820;color:#e8eef4;font:14px/1.5 system-ui,sans-serif">
+<h2 style="padding:12px 16px;margin:0">stem-workbench spike — host page</h2>
+<pre id="s" style="padding:0 16px;margin:0;color:#8fd">idle</pre>
+<script>
+// The capture side of the instrument: the RMS of the MediaStream that
+// getDisplayMedia handed back, measured in the renderer, sample-exact.
+//
+// ############################################################################
+// # THE CAPTURED AUDIO IS NEVER ROUTED TO THIS PAGE'S OUTPUT.                #
+// #                                                                          #
+// # The whole experiment is "does the ORIGINAL leak to the speakers while it #
+// # is being captured". The speaker-side meter is outside this process and   #
+// # cannot tell the original from a replay. If this page played the capture  #
+// # back, that meter would read the replay and every result would be         #
+// # worthless — a FAIL that looks exactly like a leak we did not cause.      #
+// #                                                                          #
+// # But Chromium only pulls graph nodes that reach ctx.destination: an       #
+// # unconnected AudioWorkletNode is never called and would report 0 forever  #
+// # — a zero meaning "not measured", indistinguishable from silence. So the  #
+// # worklet is connected to destination THROUGH A GAIN OF EXACTLY 0: pulled, #
+// # and inaudible. Anything other than 0.0 on that gain invalidates the run. #
+// ############################################################################
+const MONITOR_GAIN = 0;
+
+// Chromium's getDisplayMedia audio applies AGC by default. Measured on
+// Electron 44 / Chromium 152: a constant 440 Hz tone at peak 0.5 was captured
+// decaying 0.503 -> 0.038 over five seconds. Presence/absence survives that;
+// any LEVEL claim does not. These three constraints turn the processing chain
+// off and the series goes flat against the analytic value.
+const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+// A worklet sees EVERY sample of every 128-frame render quantum. An
+// AnalyserNode poll sees only whatever is in the FFT window at the moment it is
+// read, so it cannot carry a level claim.
+const WORKLET_SRC = `
+class RmsProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.reset();
+    this.port.onmessage = (e) => {
+      if (e.data === 'start') { this.reset(); this.running = true; }
+      else if (e.data === 'stop') { this.running = false; this.port.postMessage(this.snapshot()); }
+    };
+  }
+  reset() { this.running = false; this.sum = 0; this.n = 0; this.peak = 0;
+            this.quanta = 0; this.quantaWithChannels = 0; this.series = []; }
+  snapshot() {
+    return { sum: this.sum, n: this.n, peak: this.peak, quanta: this.quanta,
+             quantaWithChannels: this.quantaWithChannels, series: this.series,
+             sampleRate: sampleRate };
+  }
+  process(inputs) {
+    if (!this.running) return true;
+    this.quanta++;
+    const ch = inputs[0];
+    if (!ch || ch.length === 0) return true;   // pulled, but nothing connected
+    this.quantaWithChannels++;
+    let qs = 0, qn = 0;
+    for (let c = 0; c < ch.length; c++) {
+      const d = ch[c];
+      for (let i = 0; i < d.length; i++) {
+        const v = d[i];
+        this.sum += v * v; qs += v * v; qn++;
+        const a = v < 0 ? -v : v;
+        if (a > this.peak) this.peak = a;
+      }
+      this.n += d.length;
+    }
+    // One point per ~0.1 s, so a capture that decays or dies mid-window is
+    // visible instead of being averaged away.
+    if (this.quanta % 40 === 0) this.series.push(Math.sqrt(qs / (qn || 1)));
+    return true;
+  }
+}
+registerProcessor('rms', RmsProcessor);
+`;
+
+let ctx = null, node = null, src = null, gain = null, stream = null, audioTrack = null, videoTracks = [];
+const say = (t) => { document.getElementById('s').textContent = t; };
+
+function trackState(t) {
+  if (!t) return null;
+  return { readyState: t.readyState, enabled: t.enabled, muted: t.muted, label: t.label, id: t.id };
+}
+
+// ctxRate: force the measuring AudioContext's rate. The captured TRACK reports
+// 44 100 Hz here while a default AudioContext opens at 48 000, so the default
+// path resamples inside the renderer. CONTRIBUTING.md's settled decision for the
+// product is one AudioContext at 44 100 (the model's native rate) and NO JS
+// resampling on the live path, so whether 44 100 works end to end is a real
+// question for the seam, not a curiosity.
+window.spikeStart = async function (ctxRate) {
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ audio: AUDIO_CONSTRAINTS, video: true });
+  } catch (err) {
+    return { ok: false, reason: 'getDisplayMedia rejected: ' + String(err) };
+  }
+  videoTracks = stream.getVideoTracks();
+  const audioTracks = stream.getAudioTracks();
+  // The spec forbids an audio-only request; we ask for video and drop it.
+  videoTracks.forEach((t) => t.stop());
+  if (audioTracks.length === 0) {
+    return { ok: false, reason: 'the display-media grant carried NO audio track' };
+  }
+  audioTrack = audioTracks[0];
+  const settings = audioTrack.getSettings();
+
+  // No sampleRate option by default: forcing one would insert a resampler into
+  // the very path being measured. Whatever the context picks is reported.
+  ctx = ctxRate ? new AudioContext({ sampleRate: ctxRate }) : new AudioContext();
+  await ctx.resume();
+  const blob = new Blob([WORKLET_SRC], { type: 'text/javascript' });
+  const moduleUrl = URL.createObjectURL(blob);
+  // A blob URL, not a file:// sibling: worklet module fetches are CORS-checked
+  // and a file:// page has an opaque origin.
+  await ctx.audioWorklet.addModule(moduleUrl);
+  URL.revokeObjectURL(moduleUrl);
+
+  src = ctx.createMediaStreamSource(stream);
+  node = new AudioWorkletNode(ctx, 'rms', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+  gain = ctx.createGain();
+  gain.gain.value = MONITOR_GAIN;              // EXACTLY 0 — see the banner above
+  src.connect(node).connect(gain).connect(ctx.destination);
+
+  say('capturing');
+  return { ok: true, contextSampleRate: ctx.sampleRate, contextState: ctx.state,
+           monitorGain: gain.gain.value, audioConstraints: AUDIO_CONSTRAINTS,
+           trackSettings: settings, captureSampleRate: settings.sampleRate ?? null,
+           captureChannelCount: settings.channelCount ?? null,
+           audioTracks: audioTracks.length, videoTracksStopped: videoTracks.length,
+           track: trackState(audioTrack) };
+};
+
+window.spikeMeasure = function (seconds) {
+  return new Promise((resolve) => {
+    if (!node) return resolve({ ok: false, reason: 'spikeMeasure called before spikeStart' });
+    node.port.onmessage = (e) => {
+      const r = e.data;
+      // A window in which the worklet never ran, or ran with no input channels,
+      // is a BROKEN MEASUREMENT, not a silent one. Both would otherwise print 0.
+      if (r.quanta === 0) {
+        return resolve({ ok: false, reason: 'the worklet never ran — 0 render quanta', ...r });
+      }
+      if (r.quantaWithChannels === 0 || r.n === 0) {
+        return resolve({ ok: false, reason: 'the worklet ran but received no input channels', ...r });
+      }
+      const rms = Math.sqrt(r.sum / r.n);
+      say('captured rms ' + rms.toFixed(6));
+      resolve({
+        ok: true, rms, peak: r.peak, quanta: r.quanta, quantaWithChannels: r.quantaWithChannels,
+        samples: r.n, workletSampleRate: r.sampleRate,
+        // Wall seconds the worklet actually saw, so a short window cannot be
+        // reported as a quiet one.
+        seconds: r.quantaWithChannels * 128 / r.sampleRate,
+        channels: Math.round(r.n / (r.quantaWithChannels * 128)),
+        series: r.series.map((v) => Number(v.toFixed(6))),
+        track: trackState(audioTrack),
+        contextState: ctx ? ctx.state : null,
+        monitorGain: gain ? gain.gain.value : null,
+      });
+    };
+    node.port.postMessage('start');
+    setTimeout(() => node.port.postMessage('stop'), seconds * 1000);
+  });
+};
+
+window.spikeStop = async function () {
+  const t = trackState(audioTrack);
+  try { if (stream) stream.getTracks().forEach((x) => x.stop()); } catch {}
+  try { if (ctx) await ctx.close(); } catch {}
+  say('stopped');
+  return t;
+};
+</script>
