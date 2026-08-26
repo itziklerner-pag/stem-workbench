@@ -67,12 +67,22 @@ const ME = BUS.engine;
  * module-scope read would take the vendored `test.js` out at import.
  *
  * `offscreen/host-pin.js` IS DELIBERATELY LEFT AS THE EXTENSION'S. It is not one
- * of `unit.json`'s two holes; it is the extension's own pin (a huggingface.co
+ * of `unit.json`'s two holes; it is the extension's own pin (an upstream weights
  * URL and a Cache API bucket), the vendored `test.js` reads it to assert claims
  * about THAT origin policy, and `tools/host.mjs` imports it. Those are claims
  * about the extension, not about us, and repointing them belongs with the
  * `group('host')` repointing (docs/TESTING.md §1) rather than here. Nothing in
  * this file imports it.
+ *
+ * THE UPSTREAM HOST'S NAME IS NOT SPELLED IN THIS FILE, and it is not a stylistic
+ * choice: `test.js`'s `group('verifyModel')` greps every `.js` under `extension/`
+ * for it and requires `offscreen/host-pin.js` to be the only file that carries
+ * it — "that move is what took the network path out of the unit". The grep does
+ * not strip comments, so a prose mention here is a real red in the unit's own
+ * conformance report, and it was one until this paragraph replaced the name with
+ * a description. That the string is absent is what P1' says about this Host
+ * anyway: the weights ship in the installer and nothing here resolves a
+ * hostname.
  */
 const MODEL_PATH = '/model/htdemucs_6s.onnx';
 const modelUrl = () => {

@@ -33,50 +33,86 @@ expensive. Ours runs the vendored gate as one *step* (`vendor-unit`) instead.
 ### `group('host')` in the vendored `test.js`
 
 `VENDORING.md` offers three things to do about the 122 conformance assertions in
-that group. This repository intended **option 3 — point them at our files** —
-and what it actually does is worth stating precisely, because half of option 3
-turned out not to be available and a plan that is not the practice is worse than
-either.
+that group. This repository takes **option 3 — point them at our files** — and
+those assertions are now this Host's conformance suite, which is what they are
+for. Step `conformance` runs it; `docs/CONFORMANCE.md` is the report.
 
 **Option 1 is the intermediate green, and it was recorded.** `--unit` run
 *before* the holes were swapped: `GREEN (partial — the vendored unit's suites
 only; 12 of 23 steps)`, 12 of 12 PASS, **1156 assertions**, in the vendoring
 commit. It says the copy arrived intact and it is what `vendor/.pin` pins.
 
-**Option 3 is not available as written, and the reason is in the group itself.**
-`group('host')` installs a CHROME platform — `globalThis.chrome`, the Cache API
-keyed on the extension's own huggingface pin, `getUserMedia` with
-`chromeMediaSource` constraints — and then drives the hole modules over it. Ours
-reach for an Electron preload bridge, an `app://` origin and a bundled file, so
-those assertions do not become claims about our Host by being pointed at our
-files: they become claims about a platform that is not there. Repointing them
-means rewriting them, and a mechanical rewrite of the unit's largest suite is
-not a thing to do inside a vendored copy that `vendor-intact` gates byte for
-byte.
+**Option 3 IS available, and what it took is worth stating precisely, because
+this document said the opposite for one wave and a plan that is not the practice
+is worse than either.**
 
-**So we take option 2 and then re-make the claims on our own platform.** The
-reds are read as the conformance report `VENDORING.md` says they are, and every
-rule behind them is asserted again against the shipped hole modules over a stub
-of OUR platform:
+`group('host')` installs a CHROME platform — `globalThis.chrome`, the Cache API
+keyed on the extension's own upstream weights pin, `getUserMedia` with
+`chromeMediaSource` constraints — and drives the hole modules over it. Ours reach
+for an Electron preload bridge, an `app://` origin and a bundled file. Pointed at
+our files with nothing underneath them, the group does not report on our Host:
+**it CRASHES.**
+
+```
+node test.js
+TypeError: listeners[0] is not a function   at test.js:5833
+```
+
+The deck half calls `deckHost.onMessage(fn)`, asserts `listeners.length === 1`,
+**correctly reports it RED**, and then calls `listeners[0](...)` on the next
+line. Measured on a clean tree at `v0.2.0`: **50 of the group's 122 assertions
+run**, and `group('verifyModel')` and `group('backend')` — 31 further assertions
+about the unit itself — never start. 612 assertions become 509. A crash is
+strictly worse than a red: it hides the reds worth reading, and it looks like a
+broken vendored copy rather than an unimplemented duty.
+
+**No Host that is not a Chrome extension can get past that line**, because the
+only thing that fills that array is `chrome.runtime.onMessage.addListener`. It is
+an upstream defect — a sibling of `stem-splitter-live#30`, not the same bug — it
+is **not patched in the vendored copy** (rule V1; `vendor-intact` gates it byte
+for byte and runs first), and `docs/CONFORMANCE.md` records it.
+
+**What makes option 3 work is supplying the platform, not editing the group.**
+[`tools/conformance-platform.mjs`](../tools/conformance-platform.mjs) is a Node
+`--import` hook that installs `window.__wbDeck`, `__wbEngine` and a
+`location.origin` of `app://workbench` before `test.js` loads, each backed by
+whatever `globalThis.chrome` the harness has installed *at call time*. The group
+then completes:
+
+| | assertions | passed | failed |
+|---|---|---|---|
+| before the swap (option 1, the intermediate green) | 612 | 612 | 0 |
+| after the swap, bare | **509 reported, 103 lost to the crash** | 492 | 17 |
+| after the swap, under the platform double (**option 3**) | **612** | **593** | **19** |
+
+Step **`conformance`** is that run, and `vendor/.conformance.json` pins the
+result — the total, the pass count, and **every one of the 19 reds by name, with
+the reason it does not apply to a desktop Host**. The set is compared BOTH ways,
+so a red that vanishes fails the step as loudly as a red that appears: a red that
+stops being reported is usually an assertion that stopped running.
+
+**One red was fixed rather than justified**, and it is the kind VENDORING.md
+promised: `group('verifyModel')`'s scan for the model's upstream host name across
+`extension/` was red because a **comment** in our own `offscreen/host.js`
+mentioned it. The scan does not strip comments, deliberately. The paragraph now
+describes the pin instead of spelling it.
+
+**The double stands in for everything BELOW the hole module**, so an assertion
+whose subject is below the bridge reports on the double and not on this Host.
+Nine of them are named `apparatus` in the pin, this step asserts each is present
+and green so the list cannot rot, and `docs/CONFORMANCE.md` says where the real
+claim is made instead. The eleven that had to stay green — including the three
+`VENDORING.md` names by hand — are named `mustPass`, and the two lists are
+asserted disjoint.
+
+**The reds are still re-made on our own platform, and that has not changed:**
 
 | | where the unit's claim is re-made |
 |---|---|
 | the ENGINE half | `engine-host` (§5b) — over one real launch, plus the module driven directly inside the engine renderer |
-| the DECK half | `deck-seam` — the seven rules `shared/host.js` declares, over a stubbed preload bridge, in ~0.4 s |
-
-**Measured, so the report is a number and not an impression.** With our
-`offscreen/host.js` in place, the engine half of `group('host')` is **23 PASS /
-14 FAIL**, and every one of the fourteen is an assertion whose *stub* is Chrome:
-`chrome.runtime.sendMessage`'s envelope and its swallowed rejection, the
-`chrome.runtime.onMessage` listener, `getUserMedia`'s proprietary constraints,
-and the six model duties keyed on the Cache API and the huggingface pin. Every
-assertion in that group whose subject is the CONTRACT rather than the platform is
-green: `send()` returns undefined, `assetUrl` is synchronous and keeps a trailing
-slash, `captureStream` rejects rather than resolving null, `onTeardown` registers
-the engine's own callback unwrapped, `modelCached` answers `false` when it cannot
-look, `createBackend` returns a fresh three-duty backend per call with the hooks
-forwarded and the resolver un-overridable, and `assertHost` accepts the module
-and refuses every short one.
+| the DECK half | `deck-seam` (§5d) — the seven rules `shared/host.js` declares, over a stubbed preload bridge, in ~0.4 s |
+| the page/transport wire | `transport` (§5c) and `deck-host` (§5e) |
+| P1 on the model path | `p1` (§9) — the model read observed putting nothing on any network |
 
 ---
 
@@ -106,6 +142,7 @@ node tools/verify.mjs --list         # the steps table
 | `transport` | `tools/suites/transport.mjs` | window | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
 | `deck-host` | `tools/suites/deck-host.mjs` | window | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
+| `conformance` | `tools/suites/conformance.mjs` | — | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
 | `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | the same claims against real `youtube.com`. Nightly / by hand, never on the default path |

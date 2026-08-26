@@ -257,18 +257,30 @@ if they overlap. `--unit` launches no browser and has nothing to gain from it.
 That green is a real result: it says the copy arrived intact and runs. Put it in
 the vendoring commit.
 
-**2. `group('host')` is expected to go red after the swap, and the reds are the
-work.** `test.js` is both the unit's largest DSP suite *and* the extension's
-conformance suite: 122 of its assertions install a Chrome platform and check
-that the extension's two hole modules behave the way `shared/host.js` declares.
-Swap the holes for this Host's modules — which you must; they are holes — and
-those 122 assertions become claims about a platform that is not there.
+**2. `group('host')` IS this Host's conformance suite, and the reds are the
+work.** `test.js` is both the unit's largest DSP suite *and* a conformance suite:
+122 of its assertions install a Chrome platform and check that the two hole
+modules behave the way `shared/host.js` declares. Swap the holes for this Host's
+modules — which you must; they are holes — and those 122 assertions become claims
+about a platform that is not there.
 
 Upstream offers three responses. **This product takes option 3: point the group
-at our files.** Those assertions then become the Electron Host's conformance
-suite, which is what they are for — they are where `assetUrl`'s trailing slash,
-`send`'s `undefined` return and `storageGet`'s absent-versus-unreadable split
-get checked against a real implementation instead of a stub.
+at our files** — step `conformance`, `node tools/verify.mjs --only conformance`.
+They are where `assetUrl`'s trailing slash, `send`'s `undefined` return and
+`storageGet`'s absent-versus-unreadable split get checked against a real
+implementation instead of a stub, and all three are green.
+
+**Pointed at our files with nothing underneath them, the group does not fail — it
+CRASHES**, `TypeError: listeners[0] is not a function`, taking 103 assertions
+with it including two groups that are about the unit rather than about us. That
+is an upstream defect and a sibling of `stem-splitter-live#30`. Supplying our own
+platform under it — `tools/conformance-platform.mjs`, a Node `--import` hook, and
+**not one vendored byte edited** — is what makes it complete: **612 assertions,
+593 passed, 19 failed.** `vendor/.conformance.json` pins every red by name with
+the reason it does not apply to a desktop Host, and the set is compared BOTH
+ways: a red that vanishes fails the step as loudly as a red that appears, because
+a red that stops being reported is usually an assertion that stopped running.
+`docs/CONFORMANCE.md` is the argument, one red at a time.
 
 **Do not "fix" a red under `vendor/` by editing anything under `vendor/`.** See
 rule V1. Every time.

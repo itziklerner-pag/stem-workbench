@@ -118,6 +118,17 @@ const BAD_URL = `https://${BAD_HOST}/both-sessions`;
 const LOCK = process.env.STEM_WORKBENCH_BROWSER_LOCK
   || path.join(os.tmpdir(), `stem-workbench-browser-${process.getuid ? process.getuid() : 'x'}.lock`);
 
+/**
+ * SET BY `tools/suites/p1-mutations.sh`, WHICH HOLDS THE LOCK FOR ITS WHOLE RUN.
+ *
+ * `flock` is not reentrant across processes: a battery that took the mutex and
+ * then ran a suite that takes it again would wait for itself, for ever. The
+ * holder says so and the suite runs bare — twenty launches inside one lock hold
+ * rather than twenty separate acquisitions, which is also the neighbourly
+ * arrangement on a shared box.
+ */
+const LOCK_HELD = process.env.STEM_WORKBENCH_LOCK_HELD === '1';
+
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;
 const ok = (name, cond, detail = '') => {
@@ -300,7 +311,7 @@ try {
    * THAT wait is unbounded because it is a queue. The launch that follows gets a
    * real timeout, because that one is a measurement.
    */
-  lock = await takeLock(LOCK);
+  lock = LOCK_HELD ? null : await takeLock(LOCK);
   launch = await run(
     'bash', ['-c',
       `xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `

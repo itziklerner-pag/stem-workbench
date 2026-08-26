@@ -375,6 +375,38 @@ export const STEPS = [
      */
   },
   {
+    id: 'conformance',
+    title: "node tools/suites/conformance.mjs — the unit's own group('host'), pointed at THIS Host's hole modules, run to completion",
+    cmd: ['node', 'tools/suites/conformance.mjs'],
+    /**
+     * VENDORING.md OPTION 3, ACTUALLY DELIVERED — and it is a step of OURS
+     * rather than part of `vendor-unit` because the two ask opposite questions:
+     * `vendor-unit` asks whether the UNIT still works; this asks whether our
+     * HOST still satisfies the unit's own description of one. A red there is a
+     * broken copy. A red here is a broken Host. One step could not mean both.
+     *
+     * IT RUNS THE VENDORED `test.js` UNEDITED, with `tools/conformance-platform.mjs`
+     * installed under it by `--import`. Without that platform the file does not
+     * fail, it CRASHES — `TypeError: listeners[0] is not a function` at
+     * `test.js:5833` — and takes 103 assertions with it, including
+     * `group('verifyModel')` and `group('backend')`, which are about the unit
+     * and not about us. That is an upstream defect and a sibling of
+     * `stem-splitter-live#30`; it is NOT patched here (rule V1, and
+     * `vendor-intact` runs first and would say so), and `docs/CONFORMANCE.md`
+     * records both the measurement and the finding.
+     *
+     * THE RED SET IS PINNED IN `vendor/.conformance.json` AND COMPARED BOTH
+     * WAYS. It is deliberately not an expected-red list — `AGENTS.md`: an
+     * assertion parked on one stops being read at all. A red that VANISHES fails
+     * this step too, because a red that stops being reported is usually an
+     * assertion that stopped running, which is exactly how the crash hid 103 of
+     * them while the transcript still looked busy.
+     *
+     * NO WINDOW, NO DISPLAY, NO MUTEX, ~65 s: it is plain Node over the vendored
+     * suite, so it runs on the `--quick` plan with the other cheap steps.
+     */
+  },
+  {
     id: 'smoke',
     title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
     cmd: ['node', 'tools/suites/smoke.mjs'],

@@ -1,0 +1,152 @@
+{
+  "_": "THE CONFORMANCE REPORT, PINNED. See docs/CONFORMANCE.md for the long form and tools/suites/conformance.mjs for the gate. Every `red` is an assertion in the vendored test.js's group('host') (plus group('verifyModel')'s platform scan) that this desktop Host does not pass, WITH the reason it does not apply. The set is compared BOTH WAYS on every run: a new red fails the step, and a red that disappears fails it too, because a red that stops being reported is an assertion that stopped running.",
+  "tag": "v0.2.0",
+  "command": "node --import ../../tools/conformance-platform.mjs test.js",
+  "total": 612,
+  "passed": 593,
+  "classes": {
+    "platform": "The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.",
+    "policy": "This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.",
+    "upstream-vacuous": "test.js's own control reports that it can no longer lose under a non-Chrome Host. The red is the unit correctly refusing to claim something it cannot check — not a defect in this Host."
+  },
+  "mustPass": [
+    "AND A PATH ENDING IN `/` COMES BACK AS A DIRECTORY URL, trailing slash intact",
+    "send() RETURNS UNDEFINED, NEVER A PROMISE",
+    "send-returns-nothing, so no call site can start awaiting delivery",
+    "storageGet-REJECTS-a-read-that-FAILED rather than reporting it as a key that was not there",
+    "storageGet-answers-NULL-for-a-key-that-is-not-there",
+    "storageGet-READS-THE-AREA-IT-WAS-GIVEN",
+    "NO DUTY WILL TOUCH AN AREA THE UNIT NEVER NAMED",
+    "onStorageChanged-delivers-only-MY-key-in-MY-area",
+    "createBackend() HANDS BACK A BACKEND THAT OWES EVERY DECLARED DUTY",
+    "THE SHIPPING EngineHost SATISFIES EVERY DECLARED DUTY",
+    "assertHost-passes-the-SHIPPED-ui/host.js"
+  ],
+  "apparatus": [
+    "storageGet-UNWRAPS-THE-BAG",
+    "armShortcut-returns-the-ACCELERATOR-VERBATIM",
+    "armShortcut-answers-NULL-for-a-command-with-no-chord-bound",
+    "send-resolves-the-transport-at-CALL-time",
+    "...and the listener returns falsy, so MV3 does not hold the message channel open",
+    "send-swallows-a-delivery-failure",
+    "storageSet-swallows-a-failed-write",
+    "INSTRUMENT CHECK: onMessage registered exactly one listener on the bus",
+    "INSTRUMENT CHECK: onStorageChanged registered exactly one listener on the platform feed"
+  ],
+  "reds": [
+    {
+      "key": "and OWNERSHIP TRANSFERS: the stream arrives exactly as the platform made it",
+      "class": "platform",
+      "remade": "engine-host (docs/TESTING.md §5b), over a real launch and a real capture",
+      "why": "The extension's sourceToken IS the grant: chrome.tabCapture.getMediaStreamId returns something getUserMedia consumes directly, so the token reaches the platform untouched and the stream comes back whole. Here the token is a one-shot capture claim spent against main (src/main/claims.js) and the platform call is getDisplayMedia, which the spec forbids to be audio-only — so this Host necessarily stops and removes a video track before the engine sees the stream. There is no getDisplayMedia in this harness and no claim registry to spend against; both are exercised for real by engine-host."
+    },
+    {
+      "key": "modelCached() ANSWERS WITHOUT READING THE BYTES, AND ASKS THE PINNED KEY IN THE PINNED BUCKET",
+      "class": "policy",
+      "remade": "engine-host (§5b), which reads the real 114,559,139-byte file through the real protocol handler",
+      "why": "The pinned key and the pinned bucket are the extension's Cache API store keyed on its upstream weights URL. This Host has no store and no download: the model ships inside the installer (ADR 0001 decision 5, seed §15) and modelCached() answers with a HEAD over app://workbench/model/. 'Which bucket did it open' has no answer here because there is no bucket."
+    },
+    {
+      "key": "modelBytes() SERVES A STORED COPY WITHOUT TOUCHING THE NETWORK",
+      "class": "policy",
+      "remade": "engine-host (§5b); and P1' itself, tools/suites/p1.mjs, which observes that the model read puts nothing on any network",
+      "why": "The claim is that a warm store is served without a fetch. This Host is never warm and never cold: there is one immutable file on local disk behind app://, read fresh on every call because the unit detaches what it is handed. What the assertion is protecting — P1, no network on the model path — is held here by construction and is measured directly by the p1 step."
+    },
+    {
+      "key": "and on a MISS it fetches the PINNED url exactly once, and stores what it fetched",
+      "class": "policy",
+      "remade": "engine-host (§5b)",
+      "why": "Same reason: no store, therefore no read key and no write key to agree. The failure this assertion exists to prevent — a write key that is not the read key, and so a fresh 109 MB on every load for ever — cannot occur where nothing is written."
+    },
+    {
+      "key": "and it ANNOUNCES ITS PHASE BEFORE ANY BYTES MOVE",
+      "class": "policy",
+      "remade": "not re-made. Stated here as the one place this Host answers a phase the extension would call wrong.",
+      "why": "The assertion wants 'cache' on a store hit and 'download' on a cold fetch. This Host reports 'cache' ALWAYS and says so at the duty: the bytes shipped in the installer, so no byte of the user's data is being spent and 'downloading' would be a lie about a local file. The phase pairs with fromCache:false, which shared/host.js requires of a Host whose bytes are immutable so the unit stops after one ask. The two are one decision."
+    },
+    {
+      "key": "THE HOST HANDS OVER WHATEVER IT HAS AND NEVER JUDGES IT",
+      "class": "policy",
+      "remade": "engine-host (§5b) asserts the same property the other way round: the SHA-256 refusal comes from the unit, over bytes this Host handed over unjudged",
+      "why": "The property under test — the Host does not verify, so it cannot decline to — IS held here, and the file says so. The red is about the fixture: the assertion primes the extension's store with eight zero bytes and expects those eight bytes back. This Host has no store to prime, so it reads the real file and hands back the real length. What is asserted is the store, not the judgement."
+    },
+    {
+      "key": "clearModel() REALLY DROPS THE STORE",
+      "class": "policy",
+      "remade": "not re-made; it is a no-op with nothing to observe",
+      "why": "shared/host.js scopes its MUST precisely so this Host does not have to satisfy the duty by lying: 'A HOST THAT EVER REPORTS fromCache: true MUST REALLY DROP THAT STORE'. This one never reports true. The bytes are a read-only file inside the installed app and throwing it away is not something this Host can do or should — the named consequence is that a corrupt bundled model is fixed by reinstalling, which is the right outcome for a file that shipped in the installer."
+    },
+    {
+      "key": "THE DECK NAMES NO PLATFORM: zero executable `chrome.` in extension/ui/embed.js",
+      "class": "upstream-vacuous",
+      "remade": "vendor-intact (rule V1) and the p1 source scans, which are the same shape of claim about this Host's own platform words",
+      "why": "The claim is that the deck names no platform while the Host it imports is made of platform calls. Under this Host BOTH sides are zero — extension/ui/host.js reaches an Electron preload bridge and contains no `chrome.` at all — so the assertion has nothing to contrast with. test.js detects this itself and prints 'THE CONTROL CANNOT LOSE, so this assertion is reading nothing'. That is the unit refusing to claim something it can no longer check, which is correct behaviour and is why this red is not a defect."
+    },
+    {
+      "key": "INSTRUMENT CHECK: the scan can still SEE a chrome. call",
+      "class": "upstream-vacuous",
+      "remade": "n/a — it is the control for the row above",
+      "why": "The control for the assertion above: it requires offscreen/host.js to contain at least one `chrome.` so that the scan is known to be able to see one. This Host's offscreen/host.js contains none, by construction. The control losing its ability to lose is exactly what it is for, and it reported it."
+    },
+    {
+      "key": "HOSTED IS A FACT ABOUT THE HOST, NOT ABOUT FRAMES",
+      "class": "platform",
+      "remade": "deck-seam (§5d), which drives `hosted` over a real preload answer including a non-boolean",
+      "why": "The assertion imports ui/host.js twice, under a framed window and a lone one, and expects a transport in one and not the other — because the extension decides it with `window.parent !== window`. This Host's deck IS a top-level document and is still hosted, so the question is asked of main instead: the preload answers `hosted` synchronously and the module refuses anything that is not a boolean. The name of the assertion is this Host's own design, and the fixture is the extension's."
+    },
+    {
+      "key": "and the PAGE survives either way",
+      "class": "platform",
+      "remade": "deck-seam (§5d)",
+      "why": "The other half of the framed/lone pair above: with the extension's frame test, a lone window means no transport but the page duties must survive anyway, because a deck with no player still has to size itself and take its keys. Under this Host both imports report hosted, because under this Host they are — `hosted` comes from main through the preload, not from `window.parent`, so there is no lone case for the fixture to construct. That the page and transport namespaces are separable at all IS asserted here, over a real preload answer including a non-boolean one, which the module refuses rather than coerces."
+    },
+    {
+      "key": "and the frame test is the HOST's, where it is true: ui/host.js is the one file that asks it",
+      "class": "platform",
+      "remade": "deck-seam (§5d)",
+      "why": "It requires `window.parent !== window` to appear in ui/host.js. This Host deliberately does not ask that question anywhere — the answer comes from main — so the string is absent. The assertion's own detail names the risk it is guarding against ('a build that simply stopped asking'), and the guard against that here is that `hosted` must be a boolean from the preload or the module refuses to load."
+    },
+    {
+      "key": "THE PAGE AND TRANSPORT DUTIES POST THE DECK'S OWN NAMESPACE",
+      "class": "platform",
+      "remade": "deck-seam (§5d) for the payloads, transport (§5c) for what reaches the player",
+      "why": "The extension's DeckPage and DeckTransport ride `window.parent.postMessage` to a content script in the page. This Host's ride the preload's pageSend/onPageEvent over ipc to src/main/transport.js, one process away — a difference IN KIND, and one of the four HOST-DESIGN.md §3.6 names. The conformance platform deliberately does NOT route pageSend to postMessage: a double that implemented the wire would be asserting about itself."
+    },
+    {
+      "key": "and content.js is told which keys are the deck's, and how tall it is, verbatim",
+      "class": "platform",
+      "remade": "transport (§5c) and deck-host (§5e)",
+      "why": "Same wire as the row above, and red for the same reason: the extension's DeckPage talks to a content script by posting into the page, and this Host has no content script to talk to. The equivalent is src/preload/youtube.cjs, reached from src/main/transport.js one process away. What the assertion protects — that the key claim and the height reach the page verbatim rather than re-interpreted — is asserted at BOTH ends by the transport suite: filtered at the Host in transport.js and named again at the call site in the preload, deliberately twice."
+    },
+    {
+      "key": "to `parent` and to nothing else, and with no origin pinned",
+      "class": "platform",
+      "remade": "shell (§5), which asserts the source view's page can see no bridge of ours at all",
+      "why": "A claim about postMessage's target and targetOrigin. This Host posts nothing: the deck's page and transport duties are ipc invocations addressed by main. The property it protects — the deck cannot know at build time what page it was mounted into — is stronger here, because the deck and the page are in different processes and different sessions."
+    },
+    {
+      "key": "drive() WRITES ONLY THE THREE FIELDS ADR 0001 DECISION 4 NAMES",
+      "class": "platform",
+      "remade": "transport (§5c), where the closed write set is asserted at BOTH ends — filtered at the Host and named at the call site",
+      "why": "The claim is the closed write set, and it is one this Host holds and cares about more than the extension does. The red is the wire: drive() reaches the preload, not a postMessage the harness can read. This is the highest-value assertion in the unfixed set, which is why the transport suite re-makes it twice rather than once."
+    },
+    {
+      "key": "and a mute-only acquire stays mute-only, while the USER's speed is a different message",
+      "class": "platform",
+      "remade": "transport (§5c) and speed (src/main/speed.js, executed out of the vendored speed.js)",
+      "why": "Same postMessage wire as `drive()` above. The claim is that acquiring the player for a mute does not smuggle a rate change with it, and that a user-requested speed travels as its own message with its own type — which matters because the two have different refusal behaviour: a rate this Host cannot apply is REPORTED back through onSpeedReport rather than dropped. Both halves are asserted by the transport suite against the real preload, with the clamp executed out of the vendored speed.js rather than ported."
+    },
+    {
+      "key": "INSTRUMENT CHECK: ui/host.js registered exactly one `message` listener on the window",
+      "class": "platform",
+      "remade": "deck-seam (§5d), whose instrument check is the same claim over the real bridge",
+      "why": "The control for the two rows below it, and it is red because it is working. It requires ui/host.js to have registered exactly one `message` listener on the window at module scope, so that the assertions which drive that listener are known to be driving something real. This Host registers none: incoming page events arrive through the preload's onPageEvent over ipc, never through a window message. A control that reports `none` rather than silently inspecting a stub of the harness's own making is the control doing its job."
+    },
+    {
+      "key": "EACH WIRE TYPE REACHES ITS OWN DUTY, and all five payloads arrive as the host sent them",
+      "class": "platform",
+      "remade": "deck-seam (§5d)",
+      "why": "The receive half of the postMessage wire, red for exactly the reason its own instrument check reported one line earlier: there is no window message listener to deliver into. The property — five wire types each reaching their own duty, with the payload arriving as the SAME object rather than a copy or a normalised version — is the deck seam's central rule and is asserted by deck-seam over the real preload bridge, where the objects genuinely cross a contextBridge and identity is a claim worth making."
+    }
+  ]
+}

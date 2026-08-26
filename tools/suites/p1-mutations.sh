@@ -29,12 +29,67 @@
 # RECORDED RUN — 2026-08-26, Electron 44.0.0 / Linux, in a worktree of its own:
 # 19 of 19 caught, and `coverage.py` reports all 19 assertions watched red.
 # The per-case blast radius is in the table at the top of `tools/suites/p1.mjs`.
+#
+# ---------------------------------------------------------------------------
+# THREE THINGS THIS SCRIPT DOES BECAUSE THE HOST WAVE LOST WORK WITHOUT THEM
+# ---------------------------------------------------------------------------
+#   1. BACKUPS LIVE UNDER `out/p1-mutations/`, never a shared path. Two batteries
+#      writing `out/<n>.<file>.bak` clobbered each other's backups in the Host
+#      wave and one case died on `cp: cannot stat` because a backup had vanished
+#      mid-case.
+#   2. IT HOLDS THE SHARED BROWSER MUTEX FOR THE WHOLE RUN and tells the suite so
+#      (`STEM_WORKBENCH_LOCK_HELD=1`), because `flock` is not reentrant: a
+#      battery that took the lock and then ran a suite that takes it again waits
+#      for itself for ever. Twenty launches inside one hold, rather than twenty
+#      acquisitions interleaved with somebody else's.
+#   3. IT RESTORES ON SIGINT AND SIGTERM. A battery killed mid-case skips its
+#      cleanup and leaves a MUTATION STANDING ON A SHIPPED FILE — which is a
+#      broken app that nothing reports, until somebody commits it. The trap
+#      restores every backup in `$OUT` and exits 130.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/p1-mutations"
+
+# ---------------------------------------------------------------- the mutex
+# Re-exec once, holding the lock, so every launch below is inside one hold.
+LOCK="${STEM_WORKBENCH_BROWSER_LOCK:-${TMPDIR:-/tmp}/stem-workbench-browser-$(id -u).lock}"
+if [ "${STEM_WORKBENCH_LOCK_HELD:-}" != "1" ]; then
+  echo "taking the shared browser mutex ($LOCK) for the whole battery..."
+  exec env STEM_WORKBENCH_LOCK_HELD=1 flock "$LOCK" "$0" "$@"
+fi
+
 rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
+
+# ------------------------------------------------------- restore on a kill
+# `$OUT/<n>.<basename>.bak` is the only backup convention here, so the trap can
+# restore without knowing which case was running. It restores the MOST RECENT
+# backup for each basename, which is the one the interrupted case took.
+# EVERY CASE WRITES `$OUT/<n>.paths` BEFORE IT EDITS ANYTHING — the exact
+# repo-relative paths it is about to mutate, so the trap restores by PATH and
+# never has to guess one from a basename. Two files called `p1.mjs` live in this
+# tree (`tools/gate/` and `tools/suites/`) and a trap that matched on basename
+# would have restored the wrong one.
+restore_all() {
+  local paths n base
+  for paths in $(ls -t "$OUT"/*.paths 2>/dev/null); do
+    n="$(basename "$paths" .paths)"
+    while read -r f; do
+      [ -z "$f" ] && continue
+      base="$(basename "$f")"
+      [ -f "$OUT/$n.$base.bak" ] && cp "$OUT/$n.$base.bak" "$ROOT/$f"
+    done < "$paths"
+  done
+}
+on_signal() {
+  echo
+  echo "INTERRUPTED — restoring every mutated file from $OUT before exiting."
+  restore_all
+  git -C "$ROOT" status --short -- src tools vendor || true
+  exit 130
+}
+trap on_signal INT TERM
 
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
@@ -74,6 +129,7 @@ mutate_case() {
 
   local IFS=','; local -a flist=($files); unset IFS
   local f
+  printf '%s\n' "${flist[@]}" > "$OUT/$n.paths"
   for f in "${flist[@]}"; do cp "$ROOT/$f" "$OUT/$n.$(basename "$f").bak"; done
 
   while [ "$#" -ge 3 ]; do
@@ -94,6 +150,8 @@ mutate_case() {
       echo "${C_R}RESTORE FAILED for $f${C_X}"; missed=$((missed + 1)); return 0
     fi
   done
+
+  rm -f "$OUT/$n.paths"          # restored and verified: nothing left for the trap to undo
 
   local ok=1
   local IFS='|'; local -a wants=($expect); unset IFS
