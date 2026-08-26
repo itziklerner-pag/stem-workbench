@@ -263,8 +263,57 @@ const ok = (name, cond, detail = '') => {
   console.log(`${cond ? 'ok  ' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`);
   cond ? pass++ : fail++;
 };
+/**
+ * THE SUMMARY PRINTS EVEN IF THE APP WILL NOT DIE, AND THE MUTEX COMES BACK.
+ *
+ * MEASURED 2026-08-26, twice on this box: a run sat inside `await app.close()`
+ * for 15+ minutes with every assertion already made, and a sibling agent's
+ * mutation battery did the same for 52 minutes and had to be killed by hand.
+ * Both were holding the shared browser mutex (§0 above) the whole time, so
+ * every windowed suite on the machine queued behind a run that had FINISHED.
+ * Electron can decline to exit — an offscreen page with a live `AudioContext`
+ * is enough — and Playwright's `close()` waits on the process, so the wait is
+ * unbounded by construction, not by accident.
+ *
+ * The teardown is not one of this suite's claims. Every `ok()` has run by the
+ * time `done()` is called, so a slow exit must not be able to cost a result:
+ * the close gets `CLOSE_MS` to go quietly, then the app's own pid gets SIGTERM
+ * and SIGKILL, and the summary is printed either way. A close that had to be
+ * killed prints a `note` line, because an app that will not exit is a real
+ * finding about the product rather than noise from the harness.
+ *
+ * The other half of this repair is in `tools/suites/smoke-mutations.sh`: it used
+ * to read the summary as `tail -1`, which on a wedged run is the app-console
+ * line above — a gate reporting a number it did not measure. It now reads the
+ * summary BY PATTERN and says so when there is none.
+ */
+const CLOSE_MS = Number(process.env.STEM_WORKBENCH_SMOKE_CLOSE_MS || 30_000);
 const done = async (app) => {
-  if (app) { try { await app.close(); } catch { /* it may already be gone */ } }
+  if (app) {
+    let proc = null;
+    try { proc = app.process(); } catch { /* Playwright may have let go already */ }
+    let timer;
+    const verdict = await Promise.race([
+      app.close().then(() => 'closed', (e) => `threw: ${String((e && e.message) || e).slice(0, 120)}`),
+      new Promise((r) => { timer = setTimeout(() => r('TIMED OUT'), CLOSE_MS); }),
+    ]);
+    clearTimeout(timer);
+    if (verdict === 'TIMED OUT') {
+      console.log(`note  the app did not exit within ${CLOSE_MS / 1000}s — killing pid ${proc && proc.pid} so the shared browser mutex is released. The assertions above all ran; this is a teardown finding, not a red.`);
+      /**
+       * THE SLEEPS BELOW MUST HOLD THE EVENT LOOP OPEN. Measured while building
+       * this: an `unref()`d timer here let node exit with this function's own
+       * `await` still pending — exit 13, "unsettled top-level await", and NO
+       * summary line, which the outer wrapper then correctly reported as a run
+       * that did not assert. The watchdog would have caused the very failure it
+       * exists to prevent.
+       */
+      for (const sig of ['SIGTERM', 'SIGKILL']) {
+        try { if (proc && proc.pid) process.kill(proc.pid, sig); } catch { /* already gone */ }
+        await new Promise((r) => setTimeout(r, 500));   // NOT unref'd: see the note below
+      }
+    }
+  }
   console.log(`\n${ID}: ${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 };

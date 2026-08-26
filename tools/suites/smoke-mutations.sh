@@ -51,6 +51,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/smoke-mutations"
+# The suite's own `ID`, which prefixes the summary line `summary_of()` looks for.
+SUITE_ID="smoke"
 mkdir -p "$OUT"
 cd "$ROOT"
 
@@ -113,6 +115,19 @@ run_suite() {   # -> writes $1, returns the suite's exit code
 
 fails_of() { grep -E '^FAIL' "$1" || true; }
 
+# THE SUMMARY IS READ BY PATTERN, NEVER BY POSITION. This was `tail -1`, and on a
+# run that WEDGED — `smoke.mjs`'s teardown could sit in `app.close()` for fifteen
+# minutes, see the watchdog there — the last line of the log is the app-console
+# line, which `tail -1` would then print as if it were the result. A battery that
+# reports a number it did not measure is worse than one that reports nothing, so
+# an absent summary now says so out loud and in red.
+summary_of() {
+  local line
+  line="$(grep -E "^${SUITE_ID}: [0-9]+ passed, [0-9]+ failed\$" "$1" | tail -1)"
+  if [ -n "$line" ]; then printf '%s' "$line"
+  else printf '%s' "${C_R}NO SUMMARY — the run did not reach its own last line${C_X}"; fi
+}
+
 # `case N "label" "file[,file...]" "expect1|expect2" -- edits...`
 mutate_case() {
   local n="$1" label="$2" files="$3" expect="$4"; shift 4
@@ -165,7 +180,7 @@ mutate_case() {
   fi
 
   local n_fail; n_fail="$(fails_of "$log" | wc -l | tr -d ' ')"
-  echo "  ${C_D}$n_fail assertion(s) red in total · $(tail -1 "$log") · log out/smoke-mutations/$n.log${C_X}"
+  echo "  ${C_D}$n_fail assertion(s) red in total · $(summary_of "$log") · log out/smoke-mutations/$n.log${C_X}"
 
   if [ "$ok" -eq 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
 }
@@ -179,7 +194,7 @@ if ! run_suite "$OUT/baseline.log"; then
   tail -20 "$OUT/baseline.log"
   exit 2
 fi
-echo "  ${C_G}green${C_X}  $(tail -1 "$OUT/baseline.log")"
+echo "  ${C_G}green${C_X}  $(summary_of "$OUT/baseline.log")"
 
 # ==========================================================================
 # THE TOPOLOGY
