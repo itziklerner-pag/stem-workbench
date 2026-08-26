@@ -609,11 +609,48 @@ export const STEPS = [
   },
   {
     id: 'youtube',
-    title: 'node tools/suites/youtube.mjs — the same claims against real youtube.com. MANUAL / nightly only.',
+    title: 'node tools/suites/youtube.mjs — the same claims against real youtube.com, and the six stems. MANUAL / nightly only.',
     cmd: ['node', 'tools/suites/youtube.mjs'],
     window: true,
     manual: true,
-    todo: 'specified in docs/TESTING.md §7; not built',
+    /**
+     * THE ONLY STEP ANYWHERE THAT PROVES SIX STEMS COME OUT OF THE ENGINE INSIDE
+     * THIS APP, and it is deliberately not on any default plan.
+     *
+     * `smoke`'s header names that hole in the default plan by name — "NOTHING IN
+     * THE DEFAULT PLAN PROVES THE VENDORED ENGINE PRODUCES AUDIO INSIDE THIS
+     * APP" — and this step is what closes it, at the cost of needing the
+     * network, the 109 MB weights, and a site nobody here controls. It runs
+     * `youtube.com` in the source view, presses play with a real input event,
+     * waits out the pre-roll ad, clicks `Source -> Arm this Source` on the
+     * application menu, and then makes TWO different measurements, because they
+     * are two different claims:
+     *
+     *   THE LIVE PIPELINE, for twenty seconds of the engine's own `METERS` —
+     *       six names in `STEMS` order, the deck's rack painted in `ui/embed.js`
+     *       order, a master above the presence floor, and the scheduler's
+     *       `chunks / drops / p95ChunkMs`. Whether it KEPT UP is RECORDED, not
+     *       asserted: live mode needs ~4x real time and that is a property of
+     *       the machine (docs/TESTING.md §3 rule 8).
+     *   THE SEPARATOR, with the clock taken away — one 7.8 s SEGMENT of the
+     *       captured audio through `host.createBackend()` and `host.modelBytes()`
+     *       with no deadline. Six plane pairs, six distinct levels, and the SUM
+     *       test: the six add back to the mix (0.97x here) where six COPIES of
+     *       it would sum to six times it. That is the phase's headline claim and
+     *       the one arithmetic settles rather than a level.
+     *
+     * IT IS MANUAL BECAUSE THE SITE IS NOT OURS. A red here is a realism finding
+     * — the site changed, or the app stopped working on it — and it never blocks
+     * a build, because it is never on a build's plan. `docs/TESTING.md` §7 also
+     * forbids it a level BAND: one recorded spike run was measuring a pre-roll
+     * ad, so every level claim in it is presence/absence against one floor.
+     *
+     * WHAT FALSIFIES IT — `tools/suites/youtube-mutations.mjs`: 41 rows that
+     * doctor a RECORDED report one field at a time and re-judge it without
+     * launching anything (coverage 25/25), plus three `--live` rows that edit
+     * `src/` for real and re-run against the site. The two halves prove
+     * different things and the file says which.
+     */
   },
 ];
 

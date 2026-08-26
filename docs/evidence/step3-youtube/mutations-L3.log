@@ -1,0 +1,26 @@
+youtube-mutations: baseline docs/evidence/step3-youtube/report.json — 25 assertions, 0 failed
+
+ok    L3  THE HOST ORIGINATES NO CAPTURE_START — the deck asks, nothing answers, and the engine never opens a capture (moves report.seam.captureStart and everything downstream of it)
+        8 reds: ...and what it measured is the CONTENT, not a pre-roll ad — the ad was waited out or skipped | ...and the HOST originated CAPTURE_START to the engine, carrying a minted token and nothing about a tab | the engine is RECORDING the source view, and the ring is being fed REAL AUDIO — frames AND level | THE REAL WEIGHTS WENT THROUGH THIS HOST AND A SESSION WAS BUILT FROM THEM | THE LIVE PIPELINE RAN, and the run records whether it KEPT UP on this machine — the p95, the deadline and the drops | SIX STEMS COME BACK, BY NAME, IN THE UNIT'S OWN ORDER — drums, bass, other, vocals, guitar, piano | ...and what the deck PLAYED is audible — master rms above the 0.01 floor, presence not level | THE CAPTURE SURVIVES A FULL PAGE RELOAD — the grant is against the view, not the document
+
+coverage: 8/25 assertions were turned red by some row
+NO ROW EVER TURNED THESE RED:
+  - the app launches from its real entry point and the youtube probe writes a report
+  - the source view is on the REAL youtube.com, over https, with the page's own <video> in it
+  - ...and the run records what it was measuring — id, duration, ad flag, element volume
+  - THE VIEW IS MUTED FOR ITS WHOLE LIFE — before the first load, and across every navigation it made
+  - the page's own player is PLAYING, started by a real input event and not by `video.play()`
+  - ...and the SHIPPED preload reported it — the Host learns the player moved from its own transport
+  - the arm gesture is REACHABLE: the application menu carries `Arm this Source` with an accelerator
+  - ...and clicking it armed the deck: SESSION reached the deck's address
+  - ...and the DECK asked for the capture itself, over its own envelope
+  - ...and the DECK painted the six as its own rack — the SET is the model's six, the ORDER is `ui/embed.js`'s, and every label matches its own `data-stem`
+  - THE SEPARATOR RAN, in this app, over the audio it captured from the page — the Host's own backend and the real weights
+  - ...and the audio it separated came off the muted view at 44 100 Hz, STEREO, with AGC / echo / noise suppression all OFF
+  - SIX STEMS CAME BACK — six plane pairs, in the unit's own order, each with its own level
+  - ...and the six SUM BACK to the mix — residual under 0.5x the input, the sum within 1.5x of it, which six copies of one mix could not be
+  - ...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING
+  - the deck is PAINTED while the stems are live — a photograph of the running app, not a blank view
+  - nothing on the bus was dropped for want of a listener while all that happened
+
+youtube-mutations: 1 passed, 0 failed

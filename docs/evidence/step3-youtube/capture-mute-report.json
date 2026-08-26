@@ -1,0 +1,255 @@
+{
+  "gate": 1,
+  "probe": "capture-mute",
+  "when": "2026-08-26T18:00:22.915Z",
+  "versions": {
+    "node": "24.18.1",
+    "acorn": "8.16.0",
+    "ada": "3.4.4",
+    "amaro": "1.1.9",
+    "ares": "1.34.6",
+    "brotli": "1.2.0",
+    "cldr": "48.0",
+    "icu": "78.2",
+    "llhttp": "9.4.3",
+    "merve": "1.2.2",
+    "modules": "149",
+    "napi": "10",
+    "nbytes": "0.1.4",
+    "ncrypto": "0.0.1",
+    "nghttp2": "1.69.0",
+    "nghttp3": "",
+    "ngtcp2": "",
+    "openssl": "0.0.0",
+    "simdjson": "4.6.4",
+    "simdutf": "7.7.0",
+    "sqlite": "3.53.1",
+    "tz": "2025c",
+    "undici": "7.29.0",
+    "unicode": "17.0",
+    "uv": "1.52.1",
+    "uvwasi": "0.0.23",
+    "v8": "15.2.124.13-electron.0",
+    "zlib": "1.3.2.1-motley",
+    "zstd": "1.6.0",
+    "electron": "44.0.0",
+    "chrome": "152.0.7977.54"
+  },
+  "platform": "linux",
+  "sourceUrl": "file:///home/claudia/dev/claudia-stem/stem-workbench/tools/fixture/player.html",
+  "pid": 1235464,
+  "env": {
+    "pulseSink": "stem_workbench_gate",
+    "pipewireNode": "stem_workbench_gate",
+    "display": ":102"
+  },
+  "window": {
+    "seconds": 4,
+    "contextRate": 48000,
+    "preCaptureMs": 1500
+  },
+  "timeline": {
+    "playingAtMs": 402,
+    "preCaptureEndedAtMs": 1910,
+    "captureOpenAtMs": 1925,
+    "windowOpenAtMs": 1925,
+    "windowClosedAtMs": 5926
+  },
+  "mute": {
+    "witness": {
+      "mutedAtCreate": true,
+      "mutedBeforeLoad": [
+        true
+      ],
+      "navigations": 1,
+      "unmutedNavigations": 0
+    },
+    "atBoot": {
+      "isAudioMuted": true,
+      "isCurrentlyAudible": false,
+      "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/tools/fixture/player.html"
+    },
+    "whilePlaying": {
+      "isAudioMuted": true,
+      "isCurrentlyAudible": true,
+      "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/tools/fixture/player.html"
+    },
+    "beforeCapture": {
+      "isAudioMuted": true,
+      "isCurrentlyAudible": true,
+      "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/tools/fixture/player.html"
+    },
+    "afterCapture": {
+      "isAudioMuted": true,
+      "isCurrentlyAudible": true,
+      "url": "file:///home/claudia/dev/claudia-stem/stem-workbench/tools/fixture/player.html"
+    }
+  },
+  "play": {
+    "ok": true,
+    "said": "playing",
+    "ready": true,
+    "paused": false,
+    "duration": 60,
+    "muted": false,
+    "rate": 1,
+    "preservesPitch": true,
+    "currentTime": 0.326818,
+    "rms": 0.35355339059327373,
+    "srcIsBlob": true,
+    "volume": 1,
+    "navigations": 0,
+    "adShowing": false,
+    "autonav": "false",
+    "autonavPresent": true
+  },
+  "worklet": {
+    "url": "app://workbench/gate/rms-worklet.js",
+    "onDisk": true,
+    "head": 200
+  },
+  "capture": {
+    "ok": true,
+    "audioTracks": 1,
+    "videoTracks": 0,
+    "settings": {
+      "autoGainControl": false,
+      "channelCount": 2,
+      "deviceId": "web-contents-media-stream://5:1?local_echo=false",
+      "echoCancellation": false,
+      "latency": 0.01,
+      "noiseSuppression": false,
+      "restrictOwnAudio": false,
+      "sampleRate": 44100,
+      "sampleSize": 16,
+      "voiceIsolation": false
+    },
+    "track": {
+      "readyState": "live",
+      "enabled": true,
+      "muted": false
+    },
+    "contextSampleRate": 48000,
+    "contextState": "running",
+    "monitorGain": 0
+  },
+  "captureStats": {
+    "requests": 1,
+    "granted": 1,
+    "refused": 0,
+    "permissionAsks": 1,
+    "permissionDenied": 0,
+    "lastRefusal": null,
+    "lastPermissionDenied": null,
+    "lastGrantedFrame": {
+      "processId": 5,
+      "routingId": 1
+    },
+    "lastClaim": "3bdb39f8-c40a-4537-8462-be97b874c19b"
+  },
+  "sourceFrame": {
+    "processId": 5,
+    "routingId": 1
+  },
+  "measured": {
+    "ok": true,
+    "rms": 0.3510456592085091,
+    "channels": 2,
+    "seconds": 3.989333333333333,
+    "quanta": 1496,
+    "quantaWithChannels": 1496,
+    "samples": 382976,
+    "workletSampleRate": 48000,
+    "peak": 0.5000054240226746,
+    "series": [
+      0.363908,
+      0.346781,
+      0.333499,
+      0.333621,
+      0.347052,
+      0.36414,
+      0.373793,
+      0.370271,
+      0.355624,
+      0.338915,
+      0.331606,
+      0.339131,
+      0.355903,
+      0.37043,
+      0.373739,
+      0.363908,
+      0.346781,
+      0.333499,
+      0.333621,
+      0.347052,
+      0.36414,
+      0.373793,
+      0.370271,
+      0.355624,
+      0.338915,
+      0.331606,
+      0.339131,
+      0.355903,
+      0.37043,
+      0.373739,
+      0.363908,
+      0.346781,
+      0.333499,
+      0.333621,
+      0.347052,
+      0.36414,
+      0.373793
+    ],
+    "monitorGain": 0,
+    "contextState": "running",
+    "track": {
+      "readyState": "live",
+      "enabled": true,
+      "muted": false
+    },
+    "settingsAtEnd": {
+      "autoGainControl": false,
+      "channelCount": 2,
+      "deviceId": "web-contents-media-stream://5:1?local_echo=false",
+      "echoCancellation": false,
+      "latency": 0.01,
+      "noiseSuppression": false,
+      "restrictOwnAudio": false,
+      "sampleRate": 44100,
+      "sampleSize": 16,
+      "voiceIsolation": false
+    }
+  },
+  "fixtureAfter": {
+    "ready": true,
+    "paused": false,
+    "duration": 60,
+    "muted": false,
+    "rate": 1,
+    "preservesPitch": true,
+    "currentTime": 5.852341,
+    "rms": 0.35355339059327373,
+    "srcIsBlob": true,
+    "volume": 1,
+    "navigations": 0,
+    "adShowing": false,
+    "autonav": "false",
+    "autonavPresent": true
+  },
+  "stopped": {
+    "stopped": true,
+    "readyState": "live"
+  },
+  "claims": {
+    "live": 0,
+    "pending": null
+  },
+  "claimStats": {
+    "minted": 1,
+    "spent": 1,
+    "consumed": 1,
+    "refused": 0,
+    "revoked": 0,
+    "lastRefusal": null
+  }
+}

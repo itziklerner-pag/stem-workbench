@@ -1,0 +1,1612 @@
+[
+{
+"at": 1787771862735,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771863312,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771863866,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771864420,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771864975,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771865530,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771866084,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771866639,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771867193,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1278157184092234
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4022078514099121
+},
+"clip": false
+},
+{
+"at": 1787771867748,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10514009611509147
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3717288374900818
+},
+"clip": false
+},
+{
+"at": 1787771868324,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.08976838440706676
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3093997836112976
+},
+"clip": false
+},
+{
+"at": 1787771868879,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.08212146603423653
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.30376842617988586
+},
+"clip": false
+},
+{
+"at": 1787771869434,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10040041012241191
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.32594993710517883
+},
+"clip": false
+},
+{
+"at": 1787771869988,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.07671910778349612
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.26118433475494385
+},
+"clip": false
+},
+{
+"at": 1787771870543,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.09202200855767503
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3750029504299164
+},
+"clip": false
+},
+{
+"at": 1787771871098,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1122821582507932
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.37494638562202454
+},
+"clip": false
+},
+{
+"at": 1787771871652,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.092393790865982
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3462846875190735
+},
+"clip": false
+},
+{
+"at": 1787771872207,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11240040105907445
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.43401622772216797
+},
+"clip": false
+},
+{
+"at": 1787771872783,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.07294949007737243
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.25230515003204346
+},
+"clip": false
+},
+{
+"at": 1787771873338,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10302975981175141
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.41248267889022827
+},
+"clip": false
+},
+{
+"at": 1787771873892,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.05628024890960263
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1866217851638794
+},
+"clip": false
+},
+{
+"at": 1787771874447,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.08042499819141284
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.2735585570335388
+},
+"clip": false
+},
+{
+"at": 1787771875002,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.04680407109201626
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.19969907402992249
+},
+"clip": false
+},
+{
+"at": 1787771875556,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.18002090880529353
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.6287126541137695
+},
+"clip": false
+},
+{
+"at": 1787771876111,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1781522652646533
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.48001569509506226
+},
+"clip": false
+},
+{
+"at": 1787771876666,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.18587401952537502
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.5379638671875
+},
+"clip": false
+},
+{
+"at": 1787771877242,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.14647128681616786
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4330471158027649
+},
+"clip": false
+},
+{
+"at": 1787771877796,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11648498916566001
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.43140000104904175
+},
+"clip": false
+},
+{
+"at": 1787771878351,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.09000399641278381
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.2575985789299011
+},
+"clip": false
+},
+{
+"at": 1787771878906,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.045557695987624526
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.14319470524787903
+},
+"clip": false
+},
+{
+"at": 1787771879460,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.05305596307400283
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.22162750363349915
+},
+"clip": false
+},
+{
+"at": 1787771880015,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.0728522475054761
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.23118136823177338
+},
+"clip": false
+},
+{
+"at": 1787771880570,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.12805984826608793
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4156605005264282
+},
+"clip": false
+},
+{
+"at": 1787771881124,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.12343886266854116
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.42790019512176514
+},
+"clip": false
+},
+{
+"at": 1787771881700,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10368587424639204
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.34881216287612915
+},
+"clip": false
+},
+{
+"at": 1787771882255,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1321433150058229
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.41952720284461975
+},
+"clip": false
+},
+{
+"at": 1787771882809,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.16024275630984774
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.41287124156951904
+},
+"clip": false
+},
+{
+"at": 1787771883364,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.12180505780939553
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4512242078781128
+},
+"clip": false
+},
+{
+"at": 1787771883919,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1003333856976145
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.36604052782058716
+},
+"clip": false
+},
+{
+"at": 1787771884473,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11040940771488462
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3156992495059967
+},
+"clip": false
+},
+{
+"at": 1787771885028,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.062186279346490965
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.260250985622406
+},
+"clip": false
+},
+{
+"at": 1787771885584,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11068189389975973
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4893951416015625
+},
+"clip": false
+},
+{
+"at": 1787771886160,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.19990914706110305
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.7244951725006104
+},
+"clip": false
+},
+{
+"at": 1787771886714,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1994319664527489
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.5095404386520386
+},
+"clip": false
+},
+{
+"at": 1787771887268,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.107699788853121
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.319924533367157
+},
+"clip": false
+},
+{
+"at": 1787771889444,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771889999,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771890554,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771891108,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771891684,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771892240,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771892794,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771893348,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771893903,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.09000452900432276
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.2479134500026703
+},
+"clip": false
+},
+{
+"at": 1787771894458,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.07829359436077764
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.21517610549926758
+},
+"clip": false
+},
+{
+"at": 1787771895013,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.09395607643944835
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.31077808141708374
+},
+"clip": false
+},
+{
+"at": 1787771895567,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.12589929688834267
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.30171096324920654
+},
+"clip": false
+},
+{
+"at": 1787771896143,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11711157356205577
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.39420241117477417
+},
+"clip": false
+},
+{
+"at": 1787771896698,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11502458424048469
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.40354934334754944
+},
+"clip": false
+},
+{
+"at": 1787771897252,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10450249577855382
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.4551848769187927
+},
+"clip": false
+},
+{
+"at": 1787771897807,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.03821219923743825
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11087243258953094
+},
+"clip": false
+},
+{
+"at": 1787771898363,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.012755207486714772
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.04629037156701088
+},
+"clip": false
+},
+{
+"at": 1787771898916,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.034255306886007586
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.09386374056339264
+},
+"clip": false
+},
+{
+"at": 1787771899472,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771900026,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771900602,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771901156,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771901711,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771902266,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+},
+{
+"at": 1787771902820,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0
+},
+"clip": false
+}
+]

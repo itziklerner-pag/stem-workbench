@@ -1,12 +1,19 @@
 # stem-workbench
 
-**Pre-alpha. There is nothing to install.** There is now an application, and it
-starts: a window, youtube.com inside it, a cross-origin-isolated origin for the
-engine and the deck, and the capture grant. The engine and the deck are now
-**vendored into the tree** at `stem-splitter-live` `v0.2.0`, and their own 12
-suites — 1156 assertions — run green here. **It does not split anything yet**:
-the Host's 32 duties are not written, so nothing joins the two halves.
-`npm start` shows you a shell.
+**Pre-alpha. There is nothing to install** — no installer, no signed build, no
+release. There IS an application, and it works end to end: `npm start` opens a
+window with `youtube.com` in it, you press play, you arm it from the menu, and
+the app captures the page — muted, so you hear nothing of it — and separates
+what it captured into **six stems with the real 109 MB weights**. That whole
+chain is verified on Linux by one manual gate, `node tools/verify.mjs --only
+youtube`: **25 assertions, 0 failed.**
+
+**One step of it this machine could not show:** live separation needs about 4x
+real time and this box has no reachable GPU, so the six faders do not move here —
+the deck plays the passthrough mix and says *Starving*, which is what it is
+designed to do. The separator itself was measured with the clock taken away and
+returns six real stems. [Run it on this machine](#run-it-on-this-machine) has
+both halves, with numbers.
 
 ---
 
@@ -60,42 +67,28 @@ that decides what this product may become. The code itself is
 
 | | |
 |---|---|
-| step 1 — the capture/mute spike | **done on Linux; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware** |
-| step 2 — the Host seam in `stem-splitter-live` | not started; **authorised** on the Linux evidence, by decision |
-| step 3 — desktop host v0 | **the shell runs on Linux** (`npm start`): the window, the three views, `app://` with `crossOriginIsolated === true`, the muted source view, the capture grant. 34 assertions, every one watched red by mutation |
-| step 3, the vendored unit | **landed** — 50 files at `v0.2.0`, byte-verified twice, `12 of 12 PASS, 1156 assertions` from the unit's own gate, plus ONNX Runtime at its pin |
-| step 3, the rest | the 32 duties, the arm gesture, the model — **not started** |
+| step 1 — the capture/mute spike | **done on Linux**; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware |
+| step 2 — the Host seam in `stem-splitter-live` | **done** — Host interface v1, frozen at `v0.2.0` |
+| step 3 — desktop host v0, the YouTube Live source | **it runs end to end on Linux.** A real `youtube.com` watch page in the window, armed from the application menu, captured while the view is muted, and **six stems out of the engine with the real 109 MB weights**. `node tools/verify.mjs --only youtube` — **25 assertions, 0 failed** |
+| step 3, the vendored unit | **landed** — 50 files at `v0.2.0`, byte-verified twice, plus ONNX Runtime at its pin |
+| step 3, what is NOT done | the File source, stem export, packaging/installers, and macOS — none of them started |
 
-### What actually runs today
+## Run it on this machine
+
+**You will be the first person to see this run with a screen and speakers.**
+Everything below was verified on a headless Linux box under `xvfb`, by an agent
+with no display and no soundcard, so the pictures are `capturePage()` output and
+the silence is a number off a PipeWire monitor. What it looks and sounds like on
+a real desktop is not yet known to anybody.
 
 ```bash
-npm start                     # a window: our 44 px bar, youtube.com, the deck slot
-node tools/verify.mjs         # the gate — GREEN (partial), because four suites are unbuilt
+npm install
+bash tools/vendor-unit.sh --model    # 109 MB of weights — CC BY-NC 4.0, dev only, not in git
+npm start
 ```
 
-The shell that starts is: one `BaseWindow` with three `WebContentsView`s (our
-chrome bar, youtube.com on its own `persist:youtube` session, the deck slot) and
-a hidden `BrowserWindow` for the engine. Everything of ours is served from
-`app://workbench` with COOP/COEP, so `crossOriginIsolated === true` and
-`SharedArrayBuffer` constructs — in the document **and** inside a module worker,
-which is the half ORT's threaded wasm needs. The source view is muted before it
-loads anything. Navigation is allow-listed to youtube.com and the four sign-in
-hosts; `window.open` is denied; every permission is denied; downloads are
-refused. `getDisplayMedia` from the engine returns one stereo 44 100 Hz track
-naming that view's frame — and the same call from the deck, or from a page
-inside the view, is refused.
-
-What is **not** there: the 32 Host duties, the arm gesture, the model, and any
-audio at all. The deck slot now loads the **real** vendored `ui/embed.html`
-rather than the placeholder — which is how it should be, and which currently
-costs three of `shell`'s 34 assertions: its two deck-view probes live in
-`src/renderer/deck-placeholder.js`, and that file is no longer the page in that
-slot. **`shell` is RED for that reason** — a measurement that lost its carrier,
-not a product regression. The probes belong in `src/preload/deck.cjs`, which is
-exempt from the deck's `script-src 'self'` and works for both pages.
-
-**On a Linux development tree** Chromium's setuid sandbox helper ships without
-its permissions, and Electron refuses to start rather than run unsandboxed:
+**On a Linux development tree**, Chromium's setuid sandbox helper ships without
+its permissions and Electron refuses to start rather than run unsandboxed:
 
 ```bash
 sudo chown root:root node_modules/electron/dist/chrome-sandbox
@@ -105,6 +98,145 @@ sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
 That is a property of `node_modules`, not of the app; a packaged build installs
 it correctly. `ELECTRON_DISABLE_SANDBOX=1` also starts it, with the sandbox off,
 which is worth knowing and not worth doing.
+
+### What you should see, in order
+
+1. **A 1280x860 window** — a 44 px bar of ours at the top, `youtube.com` filling
+   the middle, and the deck across the bottom: six strips, in the deck's own rack
+   order — **Vocals, Drums, Bass, Other, Guitar, Piano** — each with a fader, M
+   and S, and a meter, plus a master fader, KEY, BPM, TRANSPOSE, SPEED, and a
+   *Stop at the end of the video* checkbox.
+2. **Find a video and press play**, in YouTube's own player, the way you always
+   do. The app never presses play for you: there is no `play()` anywhere in
+   `src/`, by rule (L1).
+3. **You will hear nothing.** The view is muted before it loads anything and
+   stays muted for its whole life. That is the product, not a bug — the app
+   hears the page and you do not, so that what you hear later is the stems.
+4. **Arm it: `Source -> Arm this Source`, or `Ctrl+Shift+A`** (`Cmd+Shift+A` on
+   a Mac). The deck's badge moves off *idle*, the app opens a capture on the
+   view, and the engine starts separating.
+5. **On a machine with a working WebGPU adapter**, the six meters should start
+   moving and the faders should be live — pull *Vocals* down and the vocal goes
+   away. **Nobody has watched this happen yet**; see the section below.
+
+**If your deck says *Starving* too**, the engine did not get a GPU adapter, and
+it says so in one line of its own log, which `npm start` prints to the terminal:
+
+```
+deck A webgpu unavailable (…) — falling back to wasm
+```
+
+That line, plus `engine coi=true sab=true` in our bar and the drop count next to
+the badge, is the whole diagnosis.
+
+### Step 5 is the one this box could not show you
+
+Live separation needs about **4x real time**: `offscreen/live.js` runs one 7.8 s
+segment of audio every 1.95 s. With a WebGPU adapter the engine has that; on
+CPU-only wasm it does not, and the deck does exactly what it is designed to do —
+drops the chunk, plays the **passthrough** mix, and shows **Starving** with a
+drop count. The six stem meters then read zero because there are no stems, only
+the mix.
+
+That is what happened here, and the numbers are recorded rather than described:
+**11 of 11 chunks missed the 1950 ms hop deadline, p95 5676.8 ms, `ep: wasm`,
+4 threads, `adapter: null`.**
+
+**It is not "this box has no GPU" — it is that a headless X server gives
+Chromium no GPU at all**, which is the more useful sentence if you are about to
+run this in CI. The box has an Intel iGPU on `/dev/dri`; under `Xvfb` the chain
+is, measured in that order:
+
+```
+WARNING:ui/gfx/linux/gbm_support_x11.cc:48] dri3 extension not supported.
+app.getGPUFeatureStatus() -> webgpu "disabled_off", vulkan "disabled_off", webgl "disabled_off"
+app.getGPUInfo('basic')   -> throws "GPU access not allowed. Reason: GPU access is
+                              disabled due to frequent crashes."
+navigator.gpu             -> undefined, in every renderer
+```
+
+With no `navigator.gpu` there is no WebGPU execution provider for ONNX Runtime to
+pick, so it falls back to wasm — and the unit pins that at 4 threads
+(`min(4, hardwareConcurrency >> 1)`, measured upstream; 8 was a regression on a
+12-core machine). **Device permissions are not the problem**: granting this user
+the render node changed nothing, because the GPU process never comes up on a
+display without DRI3.
+
+**If your machine has a real display and a GPU, step 5 is the one that works and
+none of us has watched it.**
+
+**The separator itself was measured with the clock taken away**, which is the
+part that IS verified: one 7.8 s segment of the audio this app captured from the
+real YouTube page, through the Host's own `createBackend()` and `modelBytes()`,
+with no deadline — six stems came back.
+
+### What the run proved, with numbers
+
+Every number below is from **one launch**, recorded in
+[`docs/evidence/step3-youtube/`](docs/evidence/step3-youtube/) — the report, the
+engine's own log, the meters, the pictures, and the 25-assertion transcript. That
+directory also carries the `capture-mute` run that measured the other half of the
+premise: the app captured the view at **rms 0.351 / peak 0.500** while the audio
+device read **bit-exact zero** for the app's whole lifetime, with a control
+process on the same sink proving the meter could hear something.
+
+Re-judge the recorded run without launching anything:
+
+```bash
+YOUTUBE_REPORT=docs/evidence/step3-youtube/report.json node tools/suites/youtube.mjs
+```
+
+| | |
+|---|---|
+| the page | `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, duration **213.061 s**. No pre-roll before arming; the page **reload** later brought one, and the run pressed YouTube's own **Skip** once and waited 1.1 s before measuring anything. The playhead was then moved to 48 s through the deck's own `drive` — it landed at **50.39 s**, `adShowing: false` — so the segment is the song's chorus and not an advertisement |
+| the capture | `channelCount: 2`, `sampleRate: 44100`, `autoGainControl / echoCancellation / noiseSuppression` all **false**, `local_echo=false`; the segment's own rms **L 0.1636 / R 0.1651**, and the deck's ring at **1,425,408 frames / 32.3 s**, peak **[0.608, 0.594]**, 0 dropped — while the view is muted |
+| the weights | **114,559,139 bytes** — every one of them — through `modelBytes()` in **580 ms**, hash-verified by the unit, ORT session built |
+| the separator | `separate()` **5485 ms** for a 7.8 s segment on `ep: wasm`, 4 threads (prep 92 · infer 4870 · post 522) |
+| **the six stems** | rms per stem, in the model's own `STEMS` order — see below |
+| the sum | mix **0.164336**, Σstems **0.159585** (**0.971x**), residual **0.017901** (**0.109x**) |
+| the live pipeline | 11 chunks, **11 drops**, p95 **5676.8 ms** against a 1950 ms hop — **did not keep up on this box** |
+
+```
+drums    L 0.066890   R 0.058397   peak 0.566612
+bass     L 0.037113   R 0.026569   peak 0.167636
+other    L 0.030644   R 0.036382   peak 0.211143
+vocals   L 0.122456   R 0.126314   peak 0.622599
+guitar   L 0.002328   R 0.002366   peak 0.019544
+piano    L 0.000175   R 0.000187   peak 0.001546
+```
+
+Read them as a human would: 50 s into that song is a full chorus, so **vocals
+loudest**, drums right behind, bass and the residual "other" present, guitar
+barely there, and **piano essentially silent — because that song has no piano.**
+Six distinct signals, 56.9 dB from the loudest to the quietest.
+
+**The sum is the line that cannot be faked by a meter.** `htdemucs` is a masking
+separator: its six stems add back to the input. They do — Σstems is 0.971x the
+mix and the residual is 0.109x of it. Six *copies* of one mix would sum to six
+times it. That single row is what separates "six stems" from "one mix fanned out
+into six planes", which is exactly what the passthrough path publishes and what
+a careless level check calls a pass.
+
+### What does not work yet
+
+- **Real-time live separation without a GPU.** Above, in full.
+- **The File source.** Not started. The deck has no way to open a file yet.
+- **Stem export.** Not started, and it is the line this product exists to cross.
+- **Packaging.** There is no `electron-builder` configuration and no installer:
+  `npm start` from a checkout is the only way to run this today. The CI and the
+  signing story for macOS and Windows are **not written**, and nothing here has
+  been built or signed on either.
+- **The deck still speaks the extension's language in one sentence.** With
+  nothing armed it prints *"Click the Stem Splitter Live toolbar icon on this
+  tab to arm it, or press Ctrl+Shift+A"*. There is no toolbar icon and there are
+  no tabs. `docs/VENDORING.md` names this as the one string a second Host must
+  patch; the accelerator half is already ours.
+- **`vendor-unit` is RED, on purpose.** The vendored `test.js` is both the
+  unit's largest suite and a conformance suite over the two hole modules, and
+  with a non-Chrome Host in them it crashes at `:5833` instead of failing. The
+  verdict for that file is the `conformance` step — 612 assertions, 593 passed,
+  19 failed, every red pinned by name — and the rest is an upstream fix.
+  [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) is the long form.
 
 ### The spike
 
@@ -168,7 +300,9 @@ docs/ARCHITECTURE.md         the map: how the product is put together
 docs/HOST-DESIGN.md          the design: the Electron Host, duty by duty
 docs/adr/                    the decisions, with their alternatives
 docs/spike-capture-mute.md   step 1's findings, limitations, and the gate spec
-docs/TESTING.md              how this repo is gated, and the five host suites
+docs/TESTING.md              how this repo is gated, suite by suite
+docs/CONFORMANCE.md          the unit's own group('host') over this Host's holes
+docs/evidence/               what a real run produced — pictures and numbers
 src/main/                    the main process: the window, app://, the bus, the
                              capture grant, the source view's short list
 src/preload/                 four preloads: engine, deck, chrome — and youtube,
@@ -179,7 +313,13 @@ vendor/.pin                  the pin: tag, expected counts, `ours`
 vendor/upstream.sha256       what the 50 copied files were at the tag
 tools/vendor-unit.sh         vendors it, and `--check`s it. One command
 tools/verify.mjs             the gate. `node tools/verify.mjs`
-tools/suites/                the host suites (two built, four specified)
+tools/suites/                the host suites — all built, plus their mutation
+                             batteries. `youtube.mjs` is the manual one that
+                             drives the real site and measures the six stems
+tools/gate/                  one probe per QUESTION, imported only under
+                             `--gate` — `probe` (the shell), `engine-host`,
+                             `deck-host`, `transport`, `capture-mute`, `p1`,
+                             and `youtube` (the whole product, on the real site)
 tools/gate/probe.mjs         what `--gate` reads out of a real launch — a flag
                              read only when `!app.isPackaged`, so a shipped
                              binary has no such door. It never asserts; the
@@ -194,11 +334,20 @@ NOTICE.md                    the non-commercial statement and attribution
 ## Testing
 
 ```bash
-node tools/verify.mjs                # the gate
-node tools/verify.mjs --self-check   # the runner's own classifier, ~0 s
-node tools/verify.mjs --only shell   # one real launch of `electron .`, ~2 s
-tools/suites/shell-mutations.sh      # watch all 34 of its assertions go red
+node tools/verify.mjs                  # the gate — every step that is built and automatic
+node tools/verify.mjs --quick          # ...minus anything that opens a window or takes the sink
+node tools/verify.mjs --self-check     # the runner's own classifier, ~0 s
+node tools/verify.mjs --only shell     # one real launch of `electron .`, ~2 s
+node tools/verify.mjs --only youtube   # MANUAL: the real site, end to end, ~5 min
+tools/suites/shell-mutations.sh        # watch all 34 of its assertions go red
+node tools/suites/youtube-mutations.mjs        # 41 rows over a recorded run, ~10 s
+node tools/suites/youtube-mutations.mjs --live # ...and three real edits to src/, one launch each
 ```
+
+**`youtube` is never on a default plan**, and the runner names it under *WHAT DID
+NOT RUN* on every run that leaves it out. It needs the network, the 109 MB
+weights and a site nobody here controls — and it is the only step anywhere that
+proves six stems come out of the engine inside this app.
 
 The engine and the deck are gated by **their own** suites, which travel with the
 vendored copy (`node tools/verify.mjs --unit --no-reap` inside `vendor/`, and

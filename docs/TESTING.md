@@ -145,7 +145,7 @@ node tools/verify.mjs --list         # the steps table
 | `conformance` | `tools/suites/conformance.mjs` | — | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
 | `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
-| `youtube` | `tools/suites/youtube.mjs` | window, **manual** | the same claims against real `youtube.com`. Nightly / by hand, never on the default path |
+| `youtube` | `tools/suites/youtube.mjs` | window, **manual** | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
 
 <!-- suites:end -->
 
@@ -158,13 +158,15 @@ green from the outside.
 `sink` additionally needs PipeWire and an exclusive null sink; `--quick` drops it.
 `manual` is never on any default plan at all.
 
-**`todo`.** Two of the twelve steps above — `p1` and `youtube` — are specified
-and **not built**. They are in the steps table anyway, marked `todo`. A suite
-that is not in the table is indistinguishable from a suite nobody thought of —
-that is the standing rule at the top of the extension's runner, and it cost that
-repository three separate incidents. A `todo` step never runs, is printed under
-**WHAT DID NOT RUN** every time, and makes an unqualified `GREEN` impossible
-until it is built.
+**`todo`.** **Every step above is now built; the flag is empty.** It is kept in
+the runner because a suite that is not in the table is indistinguishable from a
+suite nobody thought of — the standing rule at the top of the extension's runner,
+which cost that repository three separate incidents. A `todo` step never runs, is
+printed under **WHAT DID NOT RUN** every time, and makes an unqualified `GREEN`
+impossible until it is built. `void-canary` asserts it in both directions, so a
+built suite left marked `todo` (a suite nothing runs) is as red as a step marked
+built with no file behind it — it caught exactly that when `tools/suites/youtube.mjs`
+landed.
 
 ### The VOID rule
 
@@ -1246,49 +1248,149 @@ is a checked fact rather than an intention.
 
 ---
 
-## 7. `youtube` — the real thing, manual only
+## 7. `youtube` — the real thing, and the six stems. Manual only
 
-**File:** `tools/suites/youtube.mjs`. **Flags:** `window`, `manual`.
-**Never on a default plan.** `node tools/verify.mjs --only youtube`, or `--manual`.
+**File:** `tools/suites/youtube.mjs` · **probe:** `tools/gate/youtube.mjs` ·
+**battery:** `tools/suites/youtube-mutations.mjs`.
+**Flags:** `window`, `manual`. **Never on a default plan.**
 
-It exists because of a limitation the local gate cannot close, named in the
-spike's write-up (Limitation 14):
+```bash
+node tools/verify.mjs --only youtube      # ~5 min, one real launch
+node tools/verify.mjs --manual
+STEM_WORKBENCH_YT_URL='https://www.youtube.com/watch?v=…' node tools/suites/youtube.mjs
+YOUTUBE_REPORT=out/youtube/report.json    node tools/suites/youtube.mjs   # judge a recorded run
+```
+
+It exists for two reasons. The first is a limitation the local gate cannot
+close, named in the spike's write-up (Limitation 14):
 
 > **Nothing in CI will ever catch a YouTube-side regression** — DRM/EME content
 > returning silence, a player change, an autoplay-muted default. That needs a
 > manual re-check on a cadence, not a green local gate implying YouTube still
 > works.
 
-The runner prints it under `WHAT DID NOT RUN` on **every** default run, so its
-absence is stated rather than assumed.
+The second is the hole `smoke`'s own header names: **nothing on the default plan
+proves the vendored engine produces audio inside this app.** `vendor-unit` proves
+the engine is correct against its own suites; `engine-host` proves this Host
+wires it and that a capture carries audio; the seam between those two claims — a
+real song going in and six named stems coming out — is here and nowhere else.
 
-### What it asserts, and what it must NOT
+### Two claims, and a machine may only be able to make one
 
-Same boot / seam / transport claims as `smoke`, plus the two paths a local
-fixture cannot exercise — both measured in the spike:
+|  | what it is | where it is judged |
+|---|---|---|
+| **the separator produces six stems** | one 7.8 s `SEGMENT` of the audio this app captured from the page, through `host.createBackend()` and `host.modelBytes()`, with **no deadline** — `shared/host.js`: *"a backend either separates or throws"*, and `Deck.infer`'s own `budgetMs = Infinity` is the unit's name for this case | asserted |
+| **the live pipeline keeps up** | `offscreen/live.js` runs one 7.8 s segment every 1.95 s hop, so live mode needs ~4x real time. That is a property of the machine | **recorded, not asserted** — the scheduler's own `chunks / drops / p95ChunkMs / hopSeconds`, printed as a `NOTE` line with the verdict in words |
 
-- **Full page reload**: the capture survives, on the *same* `MediaStream`, and
-  `track.readyState === 'live'`. The grant is bound to the `WebContents`, not to
-  the document.
-- **SPA navigation** (a real click on a related video — no URL is resolved or
-  parsed by us, rule L1): the capture follows.
+A red for *"this box has no GPU"* would be a red people learn to ignore
+(§3 rule 8: `SKIPPED` is for the machine, never for the code under test) — but a
+measurement nobody wrote down is worse, so the run carries the numbers either
+way. On the box this suite was built on, the answer is **NO**, and the transcript
+says so with the deadline it missed.
 
-**It must not assert a level band.** The source level is unknown and uncontrolled
-— one recorded YouTube run was measuring a **pre-roll ad**, at `duration 60.101`
-where every other run read `213.061`, with a capture series dipping to `0.00428`,
-within 2.3× of the proposed floor. So the level claim here is
-**presence/absence only**: `capturedRms >= 0.01` (the floor, 26 dB above the
-silence ceiling). The `getSettings()` constraints (§8 assertion 4) are
-level-independent and **are** asserted, unchanged.
+### What it asserts
 
-Record, in the run's output: the video id, `duration`, `volume`, and whether an
-ad was detected. An uncontrolled measurement that does not say what it measured
-is not evidence.
+Twenty-five assertions, in the order the gesture happens:
 
-**A red here is a realism finding, not a build breakage.** It never blocks a
-default run, because it is not on one.
+| # | claim |
+|---|---|
+| 1 | the app launches from its real entry point and the probe writes a report |
+| 2 | the source view is on the **real** `youtube.com` over https, with the page's own `<video>` |
+| 3 | ...and the run records what it measured — id, duration, ad flag, element volume |
+| 4 | the view is **muted for its whole life**, before the first load and across every navigation |
+| 5 | the page's own player is **playing**, started by a real input event — `video.play()` appears nowhere in `src/` |
+| 6 | ...and what it measured is the **content, not a pre-roll ad** |
+| 7 | ...and the **shipped preload** reported the play — the Host learns it from its own transport |
+| 8 | the arm gesture is **reachable**: `Arm this Source` on the application menu, with an accelerator |
+| 9 | ...and clicking it armed the deck: `SESSION` reached the deck's address |
+| 10 | ...and the **deck** asked for the capture itself (`SW_CAPTURE_START`) |
+| 11 | ...and the **Host** originated `CAPTURE_START` — six envelope keys, no `tabId`, no `streamId` |
+| 12 | the engine is **recording**, and the ring is fed **real audio** — frames *and* peak |
+| 13 | the **real weights** went through this Host and a session was built from them |
+| 14 | the live pipeline ran, and the run records whether it kept up |
+| 15 | six stems come back **by name, in `STEMS` order**, in the `METERS` payload |
+| 16 | ...and the deck painted them as **its own rack** — the set, `ui/embed.js`'s order, and every label matching its `data-stem` |
+| 17 | ...and what the deck played is audible — master above the presence floor |
+| 18 | **the separator ran** — the Host's own backend, the real weights, over the captured segment |
+| 19 | ...and the audio it separated came off the muted view at 44 100 Hz, **stereo, AGC/echo/noise off** |
+| 20 | **six stems came back** — six plane pairs at `(k*2+ch)*SEGMENT`, in `STEMS` order |
+| 21 | ...and the six **sum back to the mix** — residual under 0.5x the input, the sum within 1.5x |
+| 22 | ...and **no two are the same signal** — six distinct levels, none of them digital silence |
+| 23 | the deck is **painted** while the run is live — a photograph, not a blank view |
+| 24 | the capture **survives a full page reload** — the grant is against the view, not the document |
+| 25 | ...and nothing on the bus was dropped for want of a listener while all of it happened |
+
+### The two lists that must not be conflated
+
+`shared/config.js`'s `STEMS` is `drums, bass, other, vocals, guitar, piano` — the
+model's plane order, and what `METERS` is keyed by. `ui/embed.js`:78's
+`STEM_ORDER` is `vocals, drums, bass, other, guitar, piano` — the order the six
+strips are **painted** in. Assertion 15 is about the payload and reads the first;
+assertion 16 is about the surface and reads the second, **out of `ui/embed.js` as
+text**, so there is no third copy to drift. An assertion that conflated them
+would go red on correct code, and the obvious "fix" is to loosen it until it
+passes.
+
+### The sum test, and why it is the one that cannot be faked
+
+`htdemucs` is a masking separator: its six stems sum back to the input. So
+`rms(mix - Σstems)` is a small fraction of `rms(mix)`, and `rms(Σstems)` sits
+close to it. **Six copies of the mix would sum to six times it**, leaving a
+residual of 5x — which is exactly the failure "six identical meters" describes,
+and the only one of these claims that arithmetic settles rather than a level.
+The thresholds (0.5x residual, 1.5x sum) are an order of magnitude away from the
+defect rather than tight around the measurement, and the measured values are
+printed on the line.
+
+### It must not assert a level band
+
+**§7's oldest rule, and it has been broken once already.** The source level is
+unknown and uncontrolled — one recorded YouTube run was measuring a **pre-roll
+ad**, at `duration 60.101` where every other run read `213.061`, with a capture
+series dipping to `0.00428`, within 2.3x of a floor somebody was about to call
+safe. So every level claim here is **presence/absence** against one floor,
+`RMS_FLOOR = 0.01`, which is 26 dB above the silence ceiling `capture-mute`
+measures. The `getSettings()` constraints (assertion 19) are level-independent
+and **are** asserted, unchanged.
+
+The same run is why assertion 6 exists: the probe now waits `#movie_player` out
+of `ad-showing` and presses YouTube's own **Skip** when there is one — a real
+click, the same gesture and the same L1 position as pressing play — and the
+suite refuses to call a measurement over an ad evidence about a song.
+
+### Deliberately not asserted here
+
+- **L1's static scan** of `src/preload/youtube.cjs` is `transport`'s (63
+  assertions) and theirs is the better one. What this suite adds is the request
+  ledger for the source session, **recorded** — `youtube.com` legitimately asks
+  for hundreds of things, so a URL list cannot carry a judgement here.
+- **SPA navigation** (a real click on a related video). It is in §7's original
+  specification and it is not built: it needs a stable selector on somebody
+  else's DOM, and the reload half already proves the property it was there for —
+  the grant is bound to the `WebContents`, not to the document.
+- **The audio device.** This suite proves a capture opens, carries level, and
+  separates. It does NOT witness the speakers; `capture-mute` (§8) is the one
+  that measures silence and **this suite cannot replace it**.
+
+### Watched red
+
+`tools/suites/youtube-mutations.mjs`, and it has **two kinds of row** because the
+suite judges one file — the `report.json` a launch wrote — and that makes two
+different mutations possible:
+
+| rows | what they do | what they prove | what they do NOT prove |
+|---|---|---|---|
+| `R1`–`R24` (default) | doctor one field of a **recorded** report and re-judge it with `YOUTUBE_REPORT=<file>`, launching nothing (~0.2 s each) | the assertion can fail, names the right thing, and reads the field it claims to read | that a broken **product** would produce that field |
+| `L1`–`L3` (`--live`) | a real edit to `src/`, a real launch against real `youtube.com` (~5 min each) | that the probe **measures the product** | nothing about the assertions the R rows already cover |
+
+Both halves are needed and neither is presented as the other. Each `L` row names
+the report field it moves, so a reader can see which `R` row it is the expensive
+twin of. A row that produces **no** red means the suite is blind to that defect;
+an assertion **no** row ever turned red is the failure invisible from inside a
+green run, and the coverage report at the end is the only place it shows up.
 
 ---
+
 
 ## 8. `capture-mute` — the permanent gate
 
