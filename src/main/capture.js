@@ -92,6 +92,16 @@ export function installCapturePolicy(ses, resolveSourceFrame, isCaptor) {
     // be a second, unowned pipeline on the same source. Cancelling is
     // `callback({})` — an empty grant, which the renderer sees as a rejected
     // promise.
+    // THE INNER GATE. Unreachable while the permission policy above holds — and
+    // that is the point of having it: a later wave that replaces
+    // `setPermissionRequestHandler` must not thereby hand the deck a capture.
+    //
+    // `callback({})` cancels, and the renderer sees a rejected promise. Electron
+    // ALSO logs `UnhandledPromiseRejectionWarning: Video was requested, but no
+    // video stream was provided` from inside its own handler wrapper when it
+    // does. That noise is Electron's, not ours, and it is the documented way to
+    // refuse; it is written down here so the next person to see it does not go
+    // looking for a bug in this file.
     const asker = frameOwner(request.frame);
     if (!asker || !isCaptor(asker)) {
       stats.refused++;
@@ -107,12 +117,20 @@ export function installCapturePolicy(ses, resolveSourceFrame, isCaptor) {
     }
 
     stats.granted++;
-    // The id the renderer will see inside `track.getSettings().deviceId`, as
-    // `web-contents-media-stream://<id>:<frame>`. Recorded so a gate can prove
-    // the grant named the SOURCE view and not some other frame — a handler that
-    // answered with the wrong frame captures silence and looks like a bug in the
-    // engine.
+    // The two numbers the renderer will see inside `track.getSettings().deviceId`:
+    // measured as `web-contents-media-stream://<processId>:<routingId>` — NOT the
+    // WebContents id, which is a different number and the one a gate reaches for
+    // first. Recorded so the gate can prove the grant named the SOURCE view's
+    // frame; a handler that answered with the wrong frame captures silence and
+    // looks like a bug in the engine.
     stats.lastGrantedFrame = { processId: frame.processId, routingId: frame.routingId };
+
+    // NO `enableLocalEcho`. Its default is false, which is spike variant (b) —
+    // the one that passed. Variant (c) set it true ALONGSIDE the mute and
+    // variant (d) set it true INSTEAD of the mute, and (d) is the control that
+    // proved the speaker meter could hear this app at all: it plays out loud,
+    // during a capture, by design. Turning it on here would make the product
+    // audible to the user twice over.
     callback({ video: frame, audio: frame });
   });
 
