@@ -352,7 +352,27 @@ export const STEPS = [
     title: "node tools/suites/p1.mjs — P1': every session the app creates reaches the update host and nothing else",
     cmd: ['node', 'tools/suites/p1.mjs'],
     window: true,
-    todo: 'specified in docs/TESTING.md §9; not built',
+    /**
+     * IT NEEDS `openssl` AS WELL AS A DISPLAY, and it skips rather than fails
+     * without it: the suite stands up a real TLS server wearing `UPDATE_HOST`'s
+     * certificate and points Chromium's resolver at it, because the app's check
+     * goes through Chromium's own network stack and there is no route to fulfil.
+     *
+     * THE ASSERTION THIS STEP EXISTS FOR CANNOT BE MADE BY THE INSTRUMENT ALONE.
+     * "The app's own sessions reached exactly one host" is silence-shaped: an
+     * app that made no requests and an observer that was never installed produce
+     * the same transcript. So the fake host's own hit counter — another process,
+     * on the other side of the wire — is half of two of the assertions, and
+     * `instrument silent + host hit` is a RED rather than a green.
+     *
+     * WHAT FALSIFIES IT — `tools/suites/p1-mutations.sh`, 19 named cases, one
+     * per assertion, with `tools/suites/coverage.py` refusing an assertion that
+     * has never been seen on a FAIL line. Two of them are worth knowing about
+     * without reading the file: case 14 stops the observer recording https while
+     * leaving the wire alone (the blind-observer shape), and case 17 records the
+     * cancellation and then does not apply it — the log still says
+     * `cancelled: true` and only the fake host's counter disagrees.
+     */
   },
   {
     id: 'smoke',

@@ -53,11 +53,27 @@ The YouTube view's traffic is the user's own browsing, on its own persistent
 partition, and it is excluded from the rule *by name* rather than by silence.
 [`PRIVACY.md`](PRIVACY.md) states both halves in the user's words.
 
-This is meant to be an acceptance test, ported from the extension's P1 test —
-the app's own sessions make no request except to the update host. **It is not
-written yet.** Until it is, P1′ is a rule enforced by review, and saying
-otherwise in a document would be the kind of overclaim this project spends
-paragraphs avoiding.
+**It is an acceptance test, not a rule enforced by review**, ported from the
+extension's P1 test: `node tools/verify.mjs --only p1` boots the real app behind
+a local TLS server wearing the update host's certificate, drives a full session —
+the vendored deck and engine, the source view playing, the transport, the 109 MB
+model read through the Host — and asserts that the set of network origins the
+app's own sessions reached is exactly `{ https://api.github.com }`.
+
+Two things about it are worth knowing before you change anything near a session:
+
+- **Every session the app creates goes through one factory**,
+  `src/main/sessions.js`, and the suite scans every file under `src/` — comments
+  stripped, all of them named — for a `session.fromPartition(` or a
+  `session.defaultSession` anywhere else. Electron cannot enumerate its own
+  sessions, so a session nobody observed reads exactly like a session that made
+  no requests, and this is what stops those being the same picture.
+- **`webRequest.onBeforeRequest` takes one listener per session and replaces it
+  silently.** Subscribe through the factory; do not register a second one. That
+  is not a style rule — it is how the instrument goes blind with no symptom.
+
+`docs/TESTING.md` §9 is the specification, the four controls and the 19
+mutations.
 
 ### M1 — No remote code
 

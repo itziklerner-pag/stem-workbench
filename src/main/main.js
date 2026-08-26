@@ -54,8 +54,18 @@
  *                      one launch that answers everything: a probe that both
  *                      arms a capture and asserts the window is a probe whose
  *                      failures cannot be told apart.
+ *   --update-check     put the update check on the wire during a `--gate` run.
+ *   --no-update-check  keep it off during an ordinary run.
+ *
+ * THE UPDATE CHECK IS OFF BY DEFAULT UNDER `--gate` AND ON OTHERWISE, and the
+ * asymmetry is one line with a reason: a gate launch is an automated launch and
+ * the five windowed suites must not need a network to be green, while a user's
+ * launch is the one PRIVACY.md describes ("on by default, with a visible
+ * toggle"). `tools/suites/p1.mjs` is the one gate that opts back IN, and it
+ * points the check at a fake host wearing `UPDATE_HOST`'s certificate rather
+ * than at a different URL — so the URL under test is the shipping constant.
  */
-import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu, session } from 'electron';
+import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,6 +79,8 @@ import { createTransport } from './transport.js';
 import { createEngineMessages } from './engine-messages.js';
 import { createStorage } from './storage.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
+import { createSessions } from './sessions.js';
+import { createUpdateCheck } from './update.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = path.resolve(HERE, '..', '..');
@@ -115,6 +127,13 @@ const SOURCE_URL = val('source-url', 'https://www.youtube.com/');
 const GATE = app.isPackaged ? '' : val('gate', '');
 const GATE_PROBE = val('gate-probe', 'probe');
 const USER_DATA = val('user-data', '');
+/**
+ * See the header. `--gate` implies off, because five windowed suites launch this
+ * app and none of them should depend on GitHub being reachable; `--update-check`
+ * opts back in and is what `tools/suites/p1.mjs` passes.
+ */
+const UPDATE_CHECK = argv.includes('--update-check')
+  || (!GATE && !argv.includes('--no-update-check'));
 
 // A run's profile never lands in ~/.config/Electron during development: the
 // `out/` tree is gitignored and a gate run gets its own directory entirely.
@@ -217,6 +236,9 @@ const state = {
   deckClosed: false,     // `page.close()` — the surface goes, the audio does not
   refusals: [],
   engineBoot: null,      // filled from the engine's own probe, for the chrome bar
+  sessions: null,        // the ONE session factory (src/main/sessions.js) — rule P1'
+  update: null,          // the one host this app's own code talks to (src/main/update.js)
+  updateCheck: null,     // the in-flight promise for the boot check, or null
   quitting: false,
 };
 
@@ -273,9 +295,27 @@ async function boot() {
   // origin, our storage, and the only session the `app://` handler is on.
   // `persist:youtube` holds the source view and nothing else: cookies, sign-in
   // state and every byte YouTube stores are reachable from nothing but it.
-  const ours = session.defaultSession;
-  const theirs = session.fromPartition('persist:youtube');
+  //
+  // EVERY SESSION THIS APP CREATES COMES THROUGH ONE FACTORY, AND THE FACTORY
+  // INSTALLS THE P1' OBSERVER AS IT CREATES. `src/main/sessions.js` says why the
+  // enumeration has to be closed here rather than reconstructed later: Electron
+  // cannot list its own sessions, so a session nobody observed reads exactly
+  // like a session that made no requests. `tools/suites/p1.mjs` asserts that no
+  // other file in `src/` names a session at all.
+  state.sessions = createSessions();
+  const ours = state.sessions.makeSession('app', null);
+  const theirs = state.sessions.makeSession('youtube', 'persist:youtube');
   state.protocol = installAppProtocol(ours, ROOTS);
+
+  /**
+   * THE ONE HOST THIS APP'S OWN CODE TALKS TO. It is built here, on the `app`
+   * session, so it goes through Chromium's network stack and therefore past the
+   * observer installed above — a check issued with `node:https` would leave the
+   * stack entirely and be invisible to the instrument that exists to see it
+   * (`src/main/update.js` says so at the call site).
+   */
+  state.update = createUpdateCheck({ session: ours, enabled: UPDATE_CHECK });
+
   state.bus = createBus();
 
   // No address bar and no tabs. The menu is not empty any more: `installDeckHost`
@@ -315,7 +355,12 @@ async function boot() {
    */
   state.transport = createTransport({
     source: () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents : null),
-    sourceSession: theirs,
+    // L1'S RUNTIME WITNESS IS A SUBSCRIPTION NOW, NOT A SECOND LISTENER.
+    // `onBeforeRequest` takes ONE listener per session and replaces it silently,
+    // so a transport that registered its own would unhook the P1' observer on
+    // the partition it shares with it — an instrument going blind with no
+    // symptom. The factory owns the registration and fans out.
+    sourceRequests: (fn) => state.sessions.onRequest('youtube', fn),
   });
   // A DOCUMENT SETTLED. `hello` already does this from the preload's side; this
   // is the half that survives a preload that failed to run at all, and it is
@@ -474,6 +519,15 @@ async function boot() {
   // gate having to be running.
   state.engineBoot = await state.engineWin.webContents.executeJavaScript('window.__wbProbe()').catch(() => null);
   pushStatus();
+
+  /**
+   * AFTER THE WINDOW IS UP AND NOT AWAITED. The update check is the least
+   * important thing this app does; it must never be on the path between a
+   * double click and a window, and it must never be able to fail a boot. It
+   * resolves on failure rather than rejecting (see `createUpdateCheck`), so the
+   * `.catch` here is belt to that.
+   */
+  state.updateCheck = UPDATE_CHECK ? state.update.check().catch(() => null) : null;
 
   console.log(`[main] ready · source=${state.source.webContents.getURL()} · deck=${deckUrl} `
     + `· engine coi=${state.engineBoot && state.engineBoot.coi} sab=${state.engineBoot && state.engineBoot.sab}`);

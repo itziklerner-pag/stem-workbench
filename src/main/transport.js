@@ -85,9 +85,11 @@ function channel(name, stats) {
 /**
  * @param {object} o
  * @param {() => Electron.WebContents|null} o.source  the source view's webContents
- * @param {Electron.Session} [o.sourceSession]        `persist:youtube`
+ * @param {(fn: (row: {url: string, resourceType: string}) => void) => void} [o.sourceRequests]
+ *        subscribe to the source view's session log. NOT a session: `src/main/sessions.js`
+ *        owns the one `onBeforeRequest` registration that partition is allowed to have.
  */
-export function createTransport({ source, sourceSession }) {
+export function createTransport({ source, sourceRequests }) {
   /** The last state the preload pushed. `null` until it pushes one. */
   let lastState = null;
   /** Every URL the source view asked for, so L1 has a runtime witness. */
@@ -229,11 +231,15 @@ export function createTransport({ source, sourceSession }) {
    * holds that view and nothing else, so every row here was caused by that page
    * or by us.
    */
-  if (sourceSession && sourceSession.webRequest) {
-    sourceSession.webRequest.onBeforeRequest((details, callback) => {
-      requests.push({ url: String(details.url).slice(0, 300), type: details.resourceType });
-      callback({});
-    });
+  //
+  // IT SUBSCRIBES; IT DOES NOT REGISTER. `Session.webRequest.onBeforeRequest`
+  // takes ONE listener per session and REPLACES whatever was there without
+  // saying so, so a second registration here would silently unhook the P1'
+  // observer `src/main/sessions.js` installs on this same partition — an
+  // instrument going blind with no symptom, which is the one failure both of
+  // these witnesses exist to prevent.
+  if (typeof sourceRequests === 'function') {
+    sourceRequests((row) => { requests.push({ url: String(row.url).slice(0, 300), type: row.resourceType }); });
   }
 
   const api = {

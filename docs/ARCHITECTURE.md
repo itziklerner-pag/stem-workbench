@@ -400,9 +400,30 @@ extension, where Google did this.
 partition, and it is not the app's code talking. `PRIVACY.md` says so in those
 words; saying it any other way would be a lie by omission.
 
-Held by an acceptance test ported from the extension's P1 test: the app's own
-sessions make no request except to the update host, with the `persist:youtube`
-partition excluded from the assertion and *named* as excluded. Not written yet.
+**Held by an acceptance test** ported from the extension's P1 test —
+`tools/suites/p1.mjs`, step `p1`, 19 assertions over one real launch. It boots
+the app behind a local TLS server wearing `api.github.com`'s certificate, drives
+a full session (the vendored deck and engine, the source view playing, the
+transport, the 109 MB model read through the Host), and asserts the set of
+network origins the app's own sessions reached is exactly
+`{ https://api.github.com }`. **Measured on 2026-08-26: 49 requests on the app's
+own session, 48 of them `app://`, one on the network.**
+
+Three structural things make that a measurement rather than a silence:
+
+- **Every session goes through one factory** (`src/main/sessions.js`), which
+  installs the observer as it creates. Electron cannot enumerate its own
+  sessions, so a session nobody watched reads exactly like a session that made no
+  requests; the suite scans every file under `src/` to prove no other file names
+  one.
+- **The `persist:youtube` exclusion is exercised with the same URL through both
+  sessions**, with opposite verdicts — allowed on the user's partition, cancelled
+  on ours. An exclusion that is never exercised might be excluding everything.
+- **A server in another process counts the hits.** Instrument silent while the
+  server is hit is a RED, and it is the only shape that catches an observer that
+  has quietly stopped being installed.
+
+`docs/TESTING.md` §9 is the specification and the 19 mutations.
 
 ---
 
@@ -420,6 +441,7 @@ The substituted pass condition, and the honest labels for it:
 |---|---|---|
 | **VERIFIED** | the capture/mute mechanism | Linux, Electron 44.0.0 / Chromium 152.0.7977.54, an external out-of-process meter, ~40 recorded runs, three adversarial audits, one of which refuted part of the original claim |
 | **VERIFIED** | a runnable Linux app the owner can **start** on this box | `tools/suites/shell.mjs` — 34 assertions over one real launch of `electron .`: the window and its three views, every renderer's isolation flags, `crossOriginIsolated === true` with `SharedArrayBuffer` in the document and in a module worker, the capture grant naming the source view's frame, the mute landing before the first load, the allowlist refusing. Every one watched red by a named mutation (`tools/suites/shell-mutations.sh`), and the tables are in `docs/TESTING.md` §5 |
+| **VERIFIED** | **P1′ — the app's own code reaches one host and nothing else** | `tools/suites/p1.mjs` — 19 assertions over one real launch behind a local TLS server wearing the update host's certificate: the set of network origins is exactly `{ https://api.github.com }`, the `persist:youtube` exclusion is exercised with the same URL through both sessions with opposite verdicts, and the fake host's own hit counter is half of two assertions so that a blind observer is a red. 19 of 19 watched red by `tools/suites/p1-mutations.sh`; `docs/TESTING.md` §9 |
 | **NOT YET** (target) | ...and **arm** it | the deck, the engine and the 32 duties are not in this tree. There is nothing to arm |
 | **CONFIGURED, NEVER BUILT** (target) | electron-builder and CI for macOS and Windows | configuration files and a workflow. **Nothing is compiled, signed or notarized here.** A green CI file is not a green build |
 | **WRITTEN DOWN ONLY** | everything about macOS behaviour | nothing. See §3 and issue #2 |

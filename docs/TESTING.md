@@ -1604,77 +1604,157 @@ watched red.** A subset run cannot make that claim and does not try.
 
 ## 9. `p1` — the P1′ acceptance test
 
-**File:** `tools/suites/p1.mjs`. **Flags:** `window`.
+**File:** `tools/suites/p1.mjs`. **Flags:** `window` (and `openssl`; it SKIPs
+without either). **19 assertions, 19 mutations, ~30 s plus the lock queue.**
 
 **P1′**, successor to the extension's P1: *the app's own code talks to exactly one
 named host — GitHub Releases, for the update check — and nothing else.* No
 telemetry, no crash reporting, no fonts, no CDN. **The `persist:youtube`
-partition is excluded**: that traffic is the user's browsing, and `PRIVACY` says
-so.
+partition is excluded**: that traffic is the user's browsing, and `PRIVACY.md`
+says so.
 
 ### The instrument, and how you prove it is looking
 
 `session.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, …)` on **every
-session the app creates**, recording `{ label, url, method, resourceType }`.
+session the app creates**, recording
+`{ label, owner, url, origin, scheme, method, resourceType, webContentsId, cancelled }`.
 
 **The hard part is "every".** Electron has no API that enumerates sessions, so an
 observer that lists the sessions it knows about is blind to the next partition
 someone adds — and a session nobody observed reads exactly like a session that
-made no requests. Close it at the source:
+made no requests. Closed at the source, in three parts:
 
-1. The app funnels **every** session it creates through one factory,
-   `host/sessions.js: makeSession(label, partition)`, which installs the listener
-   as it creates.
-2. The suite asserts, by scanning the app's own source with comments stripped and
-   **naming every file scanned**, that there is **no** `session.fromPartition(`
-   and no `session.defaultSession` reference anywhere outside that factory.
-   Same shape as the vendored `tools/unit-check.mjs`'s "no bare `chrome.*`" scan.
-3. The suite asserts the factory really installed a listener on each session it
-   made — count of sessions created == count of listeners installed, and both
-   `>= 2` (default + `persist:youtube`).
+1. Every session the app creates goes through one factory,
+   `src/main/sessions.js: makeSession(label, partition)`, which installs the
+   listener before it returns. The **owner** comes from a frozen table in
+   `src/main/p1.js` and **a label that is not in it is refused**, so a new
+   partition cannot be added without somebody writing down whose traffic it is.
+2. The suite asserts, by scanning every `.js`/`.cjs` under `src/` with comments
+   stripped and **naming all 28 files scanned**, that there is **no**
+   `session.fromPartition(` and no `session.defaultSession` anywhere outside that
+   factory. Same shape as the vendored `tools/unit-check.mjs`'s "no bare
+   `chrome.*`" scan.
+3. The suite asserts the factory installed a listener for each session it made —
+   `created === listeners`, both `>= 2`.
 
-**Then prove the instrument sees a request that SHOULD be seen** — two of them,
-because one is not a control:
+**`onBeforeRequest` takes ONE listener per session, and a second registration
+replaces the first silently.** That is not a footnote: `src/main/transport.js`
+had its own, for L1's request witness, on the same partition. It now
+*subscribes* through the factory. Two owners of that registration is an
+instrument going blind with no symptom at all, on the one seam whose job is to
+notice silence.
 
-- **A request the app really makes.** Stand up a local TLS server answering as the
-  update host (`tools/host.mjs`'s trick: a self-signed cert with that CN, plus
-  `--host-resolver-rules=MAP <host> 127.0.0.1:<port>`), trigger the update check,
-  and assert **both** that the instrument recorded that URL **and** that the fake
-  host's own hit counter incremented. The hit counter is evidence *independent of
-  the instrument*: instrument silent + host hit = the observer is blind, and that
-  is a **RED**, not a green.
-- **A request the app never makes.** From the app's own renderer,
-  `fetch('https://example.invalid/x')`. Assert the instrument saw it **and** the
-  policy cancelled it. This proves the observer covers the renderer, not just
-  main.
+**Then prove the instrument sees a request that SHOULD be seen.** Four controls,
+each with a known and different outcome:
+
+| | what | must be observed | must be cancelled | must reach the fake host |
+|---|---|---|---|---|
+| **A** | the real update check, from the app's own code | yes, under `app` | no | **yes** |
+| **B** | `Session.fetch` on `persist:youtube`, to a forbidden host | yes, under `youtube` | no | **yes** |
+| **C** | **the same URL**, on the app's own session | yes, under `app` | **yes** | **no** |
+| **D** | our own renderer fetching any off-origin URL | **no** — the CSP answers first | n/a | no |
+
+**A local TLS server wearing `UPDATE_HOST`'s certificate** stands behind all of
+it (`tools/p1-host.mjs`): a self-signed cert with SANs for both names, plus
+`--host-resolver-rules=MAP <name> 127.0.0.1:<port>` and
+`--ignore-certificate-errors` on the Electron command line. Nothing in `src/`
+knows it exists, and **the URL under test is the shipping constant** — the app
+asks for the real `UPDATE_URL` and Chromium routes it locally, so a re-point of
+`UPDATE_HOST` moves the certificate with it instead of leaving the assertion
+pointing at the old name.
+
+**Its hit counter is the evidence the instrument did not produce.** It is in
+another process, on the other side of the wire:
+
+```
+instrument silent + host hit      -> the observer is blind.            RED
+instrument saw it + host hit      -> the request really went out.
+instrument saw it + host NOT hit  -> the policy really cancelled it.
+```
+
+**B and C are the same URL through two sessions with opposite verdicts**, and
+that pairing is the whole of what makes the exclusion testable without YouTube:
+written as a URL substring instead of a session owner, B still passes and C
+stops failing.
+
+**Control D is reported as a `securitypolicyviolation` EVENT, not as a rejected
+promise.** Chromium says `TypeError: Failed to fetch` for a CSP refusal, a DNS
+failure and a cancelled request alike, so the message cannot say which layer
+answered. The directive can: `connect-src`.
+
+> **A measurement that changed the design of this suite.** The first draft issued
+> control B from the source view's *page*. It never reached the network stack:
+> `tools/fixture/player.html` carries `default-src 'none'` in its own markup, on
+> purpose — "the fixture cannot reach the network even by accident" is what makes
+> `transport`'s L1 request witness mean anything. The instrument correctly saw
+> nothing, which is the one outcome a control must not have. `docs/TESTING.md`
+> §9's original wording asked for a renderer-issued control; the claim it was
+> after — *does the observer cover renderers at all* — is now its own assertion,
+> made off the rows Chromium attributes to a `webContents`: **47 of 49 app rows
+> and the source view's own navigation**, including 38 rows of the vendored
+> unit's assets.
 
 ### What it asserts
 
 | # | assertion |
 |---|---|
-| 1 | over a full session — start, arm the local fake player, play, stop, quit — the set of hosts requested from **app-owned** sessions is exactly `{ UPDATE_HOST }` |
-| 2 | ...and that set is **non-empty**. A "no request except X" assertion over zero observations passes vacuously; the count must be `>= 1`, the same `[1-9]` rule the runner's VOID regex encodes |
-| 3 | `UPDATE_HOST` is read from **one** constant in the app (`host/update.js`), never re-typed here. A re-point moves the assertion with it |
-| 4 | the instrument saw the update request **and** the fake host recorded the hit *(the could-it-look guard)* |
-| 5 | the instrument saw the `example.invalid` request from the renderer, and the policy cancelled it |
-| 6 | **the exclusion is by label, and the control can lose.** A synthetic request into the `persist:youtube` partition is observed, recorded under the youtube label, and correctly ignored — while **the same URL** from the default session is a RED |
-| 7 | `crashReporter.start` is never called, and `app.getPath('crashDumps')` is never touched — source scan, comments stripped, files named |
-| 8 | the host window's own HTML and CSS reference no external origin — a scan for `https?://` outside the allowlist |
+| 1 | `mayRequest('app', …)` admits `UPDATE_HOST` over https — three URLs |
+| 2 | ...and refuses every other network URL: nine, including `endsWith`/`includes` host traps, a userinfo `@`, an http downgrade and a `wss:` |
+| 3 | ...and does not bind `app:`, `blob:`, `data:`, `devtools:`, `file:` or an unparseable URL — P1′ is about the network, and breaking the app protects nobody |
+| 4 | ...and refuses **nothing** on a user-owned session: the exclusion is by OWNER |
+| 5 | no file but `src/main/sessions.js` names a session at all — 28 files, comments stripped, every one named in the detail |
+| 6 | `api.github.com` is spelled in exactly one file under `src/`, and the suite imports it |
+| 7 | `crashReporter` is never started and `crashDumps` never asked for — same scan |
+| 8 | the update request carries no identifier: no machine id, no install id, no UA override, one `accept` header |
+| 9 | the app's own `.html`/`.css` reference no external origin |
+| 10 | the app launches from its real entry point and writes a report |
+| 11 | `created === listeners >= 2`, and the two sessions are distinct objects with distinct storage paths |
+| 12 | **over a full session** — boot, the vendored deck and engine, the source view playing, the transport driven, the 109 MB model read through the Host — the app's own sessions reached exactly `{ https://api.github.com }`. A cancelled request still counts as the app *asking*, and the failure names each violation with its initiator |
+| 13 | ...and that set is **non-empty**. A "no request except X" assertion over zero observations passes by not looking — the runner's `[1-9]` VOID rule, one level in |
+| 14 | **the could-it-look guard**: the instrument saw the update request **and** the fake host recorded the hit |
+| 15 | ...and the check really completed: the app parsed a `tag_name` only that server could have sent |
+| 16 | **the same URL, two sessions, opposite verdicts** (controls B and C) |
+| 17 | ...and the fake host was reached exactly once for it — the cancellation is a fact about the wire, not about a log line |
+| 18 | the observer covers renderer-initiated traffic on **both** sessions, not just what main asks for |
+| 19 | our renderer cannot reach an off-origin URL at all: the instrument sees nothing **and** the page reports a `connect-src` violation |
 
-**Assertion 6 is the one that makes the exclusion testable at all**, and it needs
-no YouTube: it is the same URL through two sessions, with opposite verdicts. An
-exclusion that is never exercised is an exclusion that might be excluding
-everything.
+### Deliberately not asserted here
+
+- **The real GitHub.** The check is pointed at a local server. A gate that needs
+  the internet is a gate that goes red for somebody else's reasons.
+- **The update download.** There is no downloader. `PRIVACY.md` says the download
+  follows GitHub's redirect to its asset host; when that lands it is a second
+  origin and this suite grows an assertion, not a tolerance.
+- **Real YouTube traffic.** The source view loads the local fixture; the
+  `youtube`-labelled control is synthetic on purpose, because the claim is about
+  the LABEL.
+- **What Chromium put on the wire.** That the request carries no installation
+  identifier is asserted by reading the two lines that build it (#8), not by
+  parsing bytes: what is not there cannot be observed arriving.
 
 ### Watched red
 
-| assertion | mutation |
-|---|---|
-| 1 | add a `fetch('https://fonts.googleapis.com/…')` to the host window |
-| 2 | stub the update check out entirely — the observation set empties and must **not** pass |
-| 3 | change `UPDATE_HOST` and leave the fake host's CN alone |
-| 4 | remove the listener from the factory — host hit, instrument silent, RED |
-| 6 | move the youtube exclusion from the label to a URL substring — the default-session control then passes, which it must not |
+19 cases in `tools/suites/p1-mutations.sh`, one per assertion, with
+`tools/suites/coverage.py` refusing any assertion never seen on a `FAIL` line.
+Recorded run 2026-08-26, Electron 44.0.0 / Linux: **19 of 19 caught, 19 of 19
+watched red.** The full table is at the top of `tools/suites/p1.mjs`; the four
+worth knowing here:
+
+| case | mutation | what went red |
+|---|---|---|
+| 14 | the observer stops recording `https:` — the wire is untouched | **the could-it-look guard**: instrument 0, fake host 1 |
+| 17 | the policy is recorded and then not applied — the log still says `cancelled: true` | the fake host was reached twice |
+| 16 | the exclusion moves from the session owner to a URL substring | the two-session pair, exactly as §9's original design predicted |
+| 5 | `session.fromPartition` in `main.js` instead of the factory | the source scan — **and the boot throws**, because `onRequest('youtube')` has no such session |
+
+### The lock queue is not in the stopwatch
+
+This suite takes the shared browser mutex in a child that holds it until its
+stdin closes, and times only the launch. Sibling agents share this machine and
+the mutex can be held for minutes; folding that into the launch timeout makes the
+suite report *"the app did not start"* about an app it never launched — a red
+that costs an investigation to discover is not a bug. `STEM_WORKBENCH_LAUNCH_TIMEOUT_MS`
+overrides the launch half.
 
 ---
 

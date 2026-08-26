@@ -7,6 +7,11 @@
 > now so that it can be checked *before* there is anything to check it against —
 > and so that a decision that would break it has to break a document first.
 > Where a promise here is not yet held by an automated test, it says so.
+>
+> **Updated 26 August 2026:** the network promise — *one host, and the YouTube
+> partition excluded by name* — **is** held by an automated test now
+> (`tools/suites/p1.mjs`, `docs/TESTING.md` §9). Everything else on this page is
+> still design.
 
 ## The short version
 
@@ -187,10 +192,20 @@ Do not take our word for it.
 3. **Turn the network off and use it.** Everything except the update check works
    offline. The model is already on your disk.
 
-The intent is that (2) becomes an automated acceptance test — the app's own
-sessions make no request except to the update host, with the YouTube partition
-excluded and named as excluded. **It is not written yet**, and until it is, that
-line is a claim about design rather than a measurement.
+(2) **is an automated acceptance test now**, and it is the one in this list you
+do not have to take on trust: `node tools/verify.mjs --only p1` boots the real
+app, drives a full session, and asserts that the set of network origins the app's
+own sessions reached is exactly `{ https://api.github.com }` — with the YouTube
+partition excluded **by name**, and the exclusion exercised with the same URL
+through both sessions so that it can be seen to be doing something. The check
+itself is pointed at a local server wearing GitHub's certificate, and that
+server's own hit counter is half of the assertion: an instrument that sees
+nothing while the server is hit is a **failure**, not a pass.
+`docs/TESTING.md` §9 is what it asserts and how each assertion was watched fail.
+
+What it does **not** prove is stated there too: nothing here tests the real
+GitHub, the update download does not exist yet, and the YouTube view loads a
+local fixture rather than youtube.com.
 
 Source: <https://github.com/itziklerner-pag/stem-workbench>
 
