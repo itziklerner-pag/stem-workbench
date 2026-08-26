@@ -65,7 +65,11 @@ node tools/verify.mjs --list         # the steps table
 | `void-canary` | `tools/suites/void-canary.mjs` | — | the runner's own VOID rule, and the steps table against this document |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | the unit's 12 suites over the exact tag we pinned |
+| `deck-seam` | `tools/suites/deck-seam.mjs` | — | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
 | `shell` | `tools/suites/shell.mjs` | window | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
+| `engine-host` | `tools/suites/engine-host.mjs` | window | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
+| `transport` | `tools/suites/transport.mjs` | window | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
+| `deck-host` | `tools/suites/deck-host.mjs` | window | **the DECK half of the Host seam** — the fourteen members over a stub bridge in plain node AND over one real launch, the three messages the Host originates to the deck, and the autoplay-next wire that would otherwise leave a checkbox dead |
 | `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
 | `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
@@ -401,6 +405,372 @@ automatic gain control whose level decays 17× over 8 s. The spike's original
 four-assertion gate called that a PASS. The constraints belong to the *engine*,
 not to `main`, so today they live in the gate probe; when `offscreen/host.js`
 lands they move there and assertion 25 moves with them.
+
+---
+
+## 5b. `engine-host` — the engine half of the seam, over one real launch
+
+**File:** `tools/suites/engine-host.mjs`. **Probe:** `tools/gate/engine-host.mjs`.
+**Flags:** `window`. **Cost:** ~60 s, almost all of it ONNX Runtime compiling and
+warming a 109 MB model on wasm.
+
+`shell` asks whether the app skeleton is the shape it says it is, and never loads
+the unit. This one asks the next question: **does the vendored engine run inside
+it?** Same launch mechanism (`electron . --gate=DIR`), different probe, chosen
+with `--gate-probe=engine-host` — one probe per question, because a probe that
+both checks a window and arms a capture has failures nobody can tell apart.
+
+### What it drives, and through what
+
+The nine `EngineHost` duties are reached **two ways, and both are the shipping
+`vendor/…/offscreen/host.js`** — never a copy, never a stub:
+
+- **Through the unit.** `send`, `onMessage`, `createBackend`, `captureStream`,
+  `modelBytes`, `modelCached` and `assetUrl` are all exercised by the vendored
+  `offscreen/engine.js` answering real messages. This is the half that matters:
+  a duty that works when called directly and not when the engine calls it is a
+  duty that does not work.
+- **Directly.** The same module is `import()`ed inside the engine renderer — the
+  module registry returns the instance the engine is holding — so `assetUrl`'s
+  trailing slash, its **detached** call, `modelBytes`'s whole-buffer rule and
+  `clearModel`'s honesty can be read as values instead of inferred from a green.
+
+Plus `main`'s own half: the three messages it must **originate**, which
+`assertHost` structurally cannot check because it cannot check for a message
+nobody sent.
+
+### The one that carries the most
+
+**`HELLO`.** `engine.js` runs `assertHost(host, ENGINE_HOST_DUTIES)` at module
+scope, line 96, and sends `HELLO` on its last line, 1712. A Host short a duty —
+or one that threw anywhere on the way past — produces no `HELLO` at all, and
+nothing in the unit exports a flag saying "I booted". The probe **reloads the
+engine** to watch a real second boot rather than reading a stale value: a fresh
+module evaluation, a fresh `assertHost`, a fresh `WorkerBackend`, over the same
+Host.
+
+### What it asserts
+
+| # | assertion | detail must carry |
+|---|---|---|
+| 1–5 | `claims.js` as a pure function: one shot, consumed by the grant, expiry against an **injected clock**, revocation, an unminted token | the code of each refusal |
+| 6–7 | the frozen payloads: `CAPTURE_START {sourceToken, source:{title,url}}` with no `tabId`, and `deck?` **omitted** for the default deck | the key lists |
+| 8 | the app launches and the probe writes a report | electron/chromium versions |
+| 9 | **the vendored engine boots under this Host** — `HELLO` on the bus after a reload | the envelope's `from`/`to` |
+| 10 | the module declares all nine duties, against `ENGINE_HOST_DUTIES` itself | the nine names |
+| 11–14 | `assetUrl`: inside the unit bundle, **trailing slash intact**, fetchable with a readable `.ok`, and an escape refused (M1) | the URLs, the `HEAD` status |
+| 15–17 | `modelBytes`: 114,559,139 bytes owning their whole buffer, a **fresh buffer per call**, phase `'cache'` announced at 0 bytes | offsets, lengths, the phase |
+| 18 | `modelCached` + `clearModel` as **one decision** — a no-op paired with `fromCache: false` | all four values |
+| 19–20 | the engine answers `STATUS`, and its page is cross-origin isolated | `boot.sab`, `boot.coi` |
+| 21 | **wasm really got shared memory**: `onReady({threads}) >= 2` | the thread count |
+| 22–23 | `DECK_PREPARE` builds the ORT session and the **unit's** SHA-256 over our bytes passes | `ms`, `ep`, `model.status` |
+| 24 | a forged token buys nothing, and `captureStream` **rejects** rather than resolving null | the refusal's own sentence |
+| 25–26 | the capture is stereo/44100/AGC-EC-NS off, and names the **source view's frame** | all five fields, the `deviceId` |
+| 27–28 | `CAPTURE_START` arms a real capture and **the audio reaches the ring** | the frame count |
+| 29 | `CAPTURE_STOP` stops it and revokes every live claim | the claim registry, after |
+| 30 | the `AudioContext` is at 44100 | `boot.sampleRate` |
+| 31 | `onTeardown` registers the caller's own function on `pagehide` and it runs **synchronously** | whether it had run when `dispatchEvent` returned |
+| 32–35 | the three originated messages, by name, with their frozen key sets, all delivered | the key lists and the counts |
+
+**Three of those are counts, and each replaces a claim a stopwatch cannot make.**
+The wasm **thread count** is what says threaded wasm really got a growable
+`SharedArrayBuffer` — "the model loaded quickly" is green on one thread. The
+**frame count** is what says audio really reached the ring — "the capture
+opened" is green over silence. The **byte count** is what says the whole file
+arrived.
+
+### Deliberately not asserted here
+
+- **The deck half.** `DeckHost`, `DeckPage` and `DeckTransport` are 23 of the 32
+  duties and this suite never looks at the deck view.
+- **The six `SW_*` messages** the deck sends to `BUS.host` (§5.3 of
+  HOST-DESIGN.md, finding F1). `main` still answers none of them.
+- **The speaker.** This suite proves a capture opens and is usable; it does not
+  witness the audio device. `capture-mute` (§8) is that claim and **this suite
+  cannot replace it**.
+- **Six stems.** `DECK_PREPARE` runs the whole model path including one warm-up
+  inference, but nothing here asserts what came out of it.
+- **WebGPU.** There is no adapter on this box, so `ep` is `wasm` and
+  `boot.ep === 'webgpu'` has never been observed here.
+
+### It skips rather than fails without the weights
+
+`models/htdemucs_6s.onnx` is 109 MB, is not in git, and is seeded by
+`bash tools/vendor-unit.sh --model`. A machine without it cannot answer the model
+half of this suite at all — so it **skips**, and the runner names the skip in the
+verdict. A red for a file that was never meant to be committed is a red people
+learn to ignore.
+
+### Watched red
+
+`tools/suites/engine-host-mutations.sh`. The table is in the suite's own header,
+with what actually went red rather than what was expected to.
+
+---
+
+## 5c. `transport` — the source view's transport, over one real launch
+
+**File:** `tools/suites/transport.mjs`. **Gate probe:** `tools/gate/transport.mjs`.
+**Flags:** `window`. **Cost target:** < 120 s. **63 assertions**, 22 of which need
+no launch at all.
+
+The suite that runs `src/preload/youtube.cjs` — the file that touches somebody
+else's `<video>` — against the local fake player, and the two decisions behind
+it: `src/main/speed.js` (which EXECUTES the vendored `extension/speed.js`) and
+`src/main/autonav.js` (which PORTS a Host file that does not travel).
+
+```bash
+node tools/suites/transport.mjs             # the whole thing, one launch
+node tools/suites/transport.mjs --static    # sections 1-4 only, 0.3 s, no display
+```
+
+`--static` is not a plan the runner ever uses; `tools/verify.mjs` runs the file
+with no flag. It exists because 22 of these assertions are a text read and a pure
+function, and a mutation battery that had to launch Electron 25 times would be a
+battery nobody runs.
+
+### It drives the real interface, not a private door
+
+Every command the gate issues goes through `state.transport`'s public members —
+the same ones `src/main/deck-host.js` injects into the `DeckTransport` the deck
+sees. Nothing reaches past the transport into the preload, because a gate that
+used a private door would be gating a door nothing else opens.
+
+The probe **never asserts**. It drives, it records what arrived on the five
+report channels in arrival order, and it writes `report.json`. Every judgement is
+in the suite, which is a separate process and can be run against a report from a
+mutated build.
+
+### How L1 is proved — three instruments, none sufficient alone
+
+| # | instrument | what it can see | what it cannot |
+|---|---|---|---|
+| 1 | **the write set, ENUMERATED** — with comments and string literals stripped, the *complete* set of member assignments in the preload is compared against the closed write set | any new write, including one nobody thought to forbid | a write built at run time |
+| 2 | **the read set, ALLOW-LISTED** — every property the file touches at all, against an enumerated list | a new `el.videoWidth`; it is red until somebody widens the list on purpose | the same |
+| 3 | **it asked for nothing** — `main` records every request the source view's session made across the whole exercise | code no scanner could read: a `new Function`, a property name assembled from pieces | anything that resolves a URL without fetching it |
+
+A forbidden-token blacklist answers *"is this one bad thing absent"*. (1) answers
+*"is anything else present"*, which is the question. The blacklist is kept anyway,
+because it is what a reviewer reads and it names the failure in `CONTRIBUTING.md`
+L1's own words — and because it covers **bare identifiers**, which a member scan
+cannot see: `fetch(...)` and `new Blob(...)` have no dot in front of them.
+
+**The scanner carries its own could-it-look guard.** A stripper that ate the file
+would report zero of everything and every assertion above would be vacuously
+green — the exact shape `AGENTS.md` is a record of. So the stripped text must
+still be over 3 000 bytes, must still contain `driveRate`, and must NOT contain
+the header's own prose (which says `src`, `currentSrc` and `captureStream` out
+loud).
+
+Measured: **6 164 bytes** of code after stripping, **4** distinct member
+assignments — `muted`, `currentTime`, `playbackRate`, `preservesPitch` — and
+**2 requests** over the whole run, both the fixture document itself, both
+`mainFrame`, zero off-scheme.
+
+### The pin, and why this Host executes `speed.js` instead of porting it
+
+`extension/ui/embed-state.js` is a **unit** file that reads `../speed.js` **as
+text** and pins the deck's 29-rung speed ladder against that file's clamp
+(`unit.json` `hostReads`). A Host that declared `SPEED_MIN = 0.5` of its own
+would not have copied a constant — it would have made that pin a **lie**: the
+deck would go on checking its ladder against a file that is no longer the clamp
+in force, go on passing, and the two numbers would be free to part company in
+exactly the silence the pin exists to prevent.
+
+So `src/main/speed.js` runs the vendored file in a `node:vm` context and
+re-exports what it declares. `speed.js` is a **classic script** — its `var`s are
+how a content script publishes them into the isolated world `content.js` shares
+with it — so `import` gets an empty namespace and `vm` reproduces the extension's
+arrangement exactly. The file's own `demo()` does not run: it is guarded on
+`typeof process !== 'undefined'`, and a bare `vm.createContext({})` has none.
+
+Three assertions hold it: the path this Host executes **is** `ui/../speed.js`;
+the range and the key-lock in force **are** that file's own declarations; and no
+file under `src/` declares a speed range of its own.
+
+### `autonav.js` is a port, and that is a finding rather than a choice
+
+`extension/autonav.js` **is not on this tree.** `tools/vendor-unit.sh` §3 derives
+the copy list from `unit.json` — unit files, holes, `hostReads`, and everything
+the declared suites and runners read — and nothing reads `autonav.js`. It is
+classified `host` with no reader, so it does not travel. `speed.js` is classified
+`host` too and travels only because two suites read it.
+
+`src/main/autonav.js` is therefore a port of a Host-side decision, which is not a
+fork — a fork is an edited copy of a *unit* file. What it costs is stated where
+it lives: the two copies of `autonavPlan` can drift and nothing on either machine
+goes red. **One thing can be pinned and is**: `PREFS_KEY`, against
+`shared/config.js`'s export, because a Host reading a different key is autoplay
+suppression that silently never applies.
+
+### What it asserts
+
+| # | assertion | detail must carry |
+|---|---|---|
+| 1–4 | the clamp executed **is** the file the ladder is pinned to; its range and key-lock are that file's own; nothing under `src/` re-declares a range; `PREFS_KEY` is the unit's | the two paths, the declared values, the files scanned |
+| 5–7 | the preload's `VIDEO_EVENTS` and `JUMP_EVENTS` are the reference Host's, parsed out of the vendored `content.js`; `ratechange` is in one list and not the other | both arrays, from both files |
+| 8–13 | **L1, statically**: the complete member-write set is the closed one plus the key-lock policy; it writes all four; every property touched is allow-listed; no forbidden name appears; the scanner is looking at code; `play()` never appears | the write set, the strangers, the bytes scanned |
+| 14–21 | the pure decisions: `filterDrive` drops everything outside the set and coerces nothing; the event→reason mapping is `speed.js`'s entry-point rule; the same want and current **write** on a remount and **yield** on a ratechange; the clamp, the refusal, the release; `resolveSuppress`; every autonav failure has a name; the original is recorded once; the selector matches on ARIA | the values, both directions |
+| 22 | the app launches and the gate writes a report | exit code, section count |
+| 23 | **the gate was actually listening while it drove** | `tap.subscribed`, the emitted counts |
+| 24–26 | the five transport values come back; states are **pushed** on media events and a tick with nobody asking; `adShowing` is `null` and not `false` before the Host has named the ad selector | the five values, the event names |
+| 27–30 | the three writes land; the key-lock policy lands with the rate; the four fields outside the set leave **no trace on the element**; `release` hands it back | the element read back, `srcScheme`, `volume`, `loop`, `srcObject` |
+| 31–33 | **our own corrective seek is not a content jump, and the seek really happened**; a seek the page made **is** one; a rate change is not | jump counts, the self-seek counter, the element's position |
+| 34–40 | the user's speed reaches the element and reports the literal `'ok'`; a rate above the ceiling is clamped, applied and reported; an unreadable rate is refused out loud; the page's own speed menu is **yielded** to; an ad neutralises to 1 and remembers the claim; the ad-end edge puts it back; the run wrote the rate a handful of times, not once per tick | every report, the element's rate at each point |
+| 41–45 | with no deck armed a claimed digit is the page's; armed, it is taken and the page does **not** see it; an unclaimed key stays the page's; a claimed digit **typed into a text field** is the page's; `?` is taken by character | both ends of every case — the page's own witness and the transport's |
+| 46–51 | the page ships autoplay-next **on** and the Host takes it; the value is put back; turning it off re-takes it; a toggle that ignores its click is `stuck` after a bounded number of tries; an absent control is `looking` then `missing`; every state is in the deck's vocabulary | the `aria-checked` at each point, the state names, the click count |
+| 52–55 | an announced single-page navigation is one jump and one swap; the speed claim goes with the video; **an unannounced one is noticed anyway**; the element *arriving* is not a jump | the change list, the rate before and after |
+| 56–57 | a window in which nothing changed carries **zero** speed and autonav reports (the control); `resend()` puts all three back | both counts |
+| 58–63 | L1 at run time; nothing but the source view spoke on the channel; a deck host was already subscribed to all five channels before the gate looked; every `on*()` returns a working unsubscribe | the requests, the listener counts before and after |
+
+**Assertion 23 is not decoration.** The first run of this gate produced a
+complete-looking report in which every channel was empty, because `subscribe()`
+had never fired — `main.js` had stopped calling `beforeLoad` and the tap's only
+other entry was untaken. Every count in the report was zero and every count-based
+assertion would have been trivially satisfied. *"Nothing happened" is also what a
+dead instrument looks like.*
+
+**Assertions 41–45 are witnessed at both ends.** The page records the keys it
+saw; the transport records the keys it took. "The deck got nothing" on its own is
+also what a broken wire looks like, and the product ruling is a claim about the
+*page* — with no deck armed, `1`–`6` must do on somebody else's site exactly what
+they do with this app not running.
+
+**Assertion 54 is the one that matters most.** `yt-navigate-finish` is the site's
+**private** event name. A Host that only listened for it would lose the feature
+the day it is renamed, with nothing to see. The fixture's `spaNavigate(announce)`
+runs the same navigation both ways, and the unannounced one is the only evidence
+that the preload's 250 ms tick is load-bearing rather than decorative.
+
+### Deliberately not asserted here
+
+- **Real YouTube.** The fixture's player chrome is a reproduction of markup
+  measured on a watch page on 2026-08-15, not the page itself. Nothing here can
+  catch a YouTube-side change; that is `youtube` (§7), manual only, and its
+  absence is printed under **WHAT DID NOT RUN** on every default run.
+- **The deck.** This suite drives the transport directly. A `deck-host.js` that
+  subscribed to nothing would still be green here — except for assertion 60,
+  which is the one thread between them: it records that *somebody else* was
+  already subscribed to all five channels before the gate looked.
+- **A sender that is not the source view.** `transport.js` drops a `'yt'` message
+  from any other `WebContents` and counts it. No renderer we ship can put a
+  message on that channel at all — none of the three preloads exposes it — so
+  there is nothing to send the message that would prove the drop. What *is*
+  asserted is `strangers === 0`: nothing unexpected spoke.
+- **The audio.** This suite proves the transport drives an element. Whether the
+  capture is audible and the speakers are silent is `capture-mute` (§8), and
+  **this suite cannot replace it.**
+- **`lost`, live.** `autonavPlan`'s `lost` branch — the control vanished while we
+  still owed a restore — is asserted as a pure function. Reaching it live costs a
+  6 s find window on top of the 6 s the `missing` case already spends, and the
+  pure assertion covers the decision. The wire it shares with `missing` is
+  exercised.
+
+### The fixture is a fake *player*, not just a `<video>`
+
+`tools/fixture/player.html` is shared with `shell` (§5) and `capture-mute` (§8),
+so its analytic level is unchanged: a 440 Hz stereo sine at amplitude 0.5, RMS
+`0.5/√2 = 0.353553`, 60.0 s = 26 400 whole cycles, generated in-page into a
+`blob:`. What this slice added is the page furniture the transport reaches for,
+in the markup that was **measured** rather than the markup we wish they shipped:
+`#movie_player` carrying `ad-showing` as a class, the `<video>` **inside** it, and
+the autoplay toggle whose `aria-checked` lives on a `<div>` inside the `<button>`
+— so the flip happens by **bubbling**, which is the half that would break if
+somebody "simplified" the selector to match the button.
+
+**One `__wb*` global, and it is `__wbFixture`.** `shell.mjs` asserts the source
+view's `window` carries no bridge of ours by listing every `__wb`-prefixed own
+property and allowing exactly that one. Every hook hangs off it as a property; a
+second global would turn a real assertion about `preload/youtube.cjs` into a red
+about the fixture.
+
+### Watched red
+
+`tools/suites/transport-mutations.sh`, which runs the suite **unmutated first and
+requires green**, refuses to continue if an anchor has moved, requires the named
+assertions on `FAIL` lines, restores the file and checks the restored bytes. A
+case declares whether its red is `static` (0.3 s) or `live` (one real launch);
+`--static` runs the cheap half.
+
+## 5d. `deck-host` — the deck half of the seam, twice over
+
+**File:** `tools/suites/deck-host.mjs`. **Flags:** `window`. **Cost:** ~1 s for §1,
+~45 s for §2.
+
+Two halves, and neither stands in for the other.
+
+**§1, the conformance half** — plain node, no window, no launch, no mutex. It
+imports the SHIPPED hole module (`vendor/…/extension/ui/host.js`) over a stub
+bridge and drives it with the unit's own `assertHost`, `assertHostOption` and
+duty tables. This is `VENDORING.md` option 3 for the DECK half of `test.js`'s
+`group('host')`: the same claims, about our implementation, in a harness that can
+stub the platform this Host actually has. 38 assertions.
+
+**§2, the launch half** — one real `electron .` with `--gate-probe=deck-host`,
+the real preload, the real ipc, the real vendored deck. `tools/gate/deck-host.mjs`
+reaches into the deck renderer and pulls out the very `host` object
+`ui/embed.js` imported (`import('./host.js')` returns the cached instance), so
+every duty exercised is the shipped module in the real renderer. 27 assertions.
+
+### What it asserts
+
+| # | assertion | detail must carry |
+|---|---|---|
+| 1–5 | `assertHost` accepts the shipped DeckHost, its `page`, and its `transport`; every duty works UNBOUND; `transport` is SPELLED | the duty lists, the detached-call count |
+| 6–8 | the three states of "is there a player above me" — `true`, `false`, and *could not ask* — and that importing the module is INERT | which branch, and the sentence the first duty call throws |
+| 9–12 | `send` carries the finished envelope verbatim, returns nothing, and RESOLVES THE TRANSPORT AT CALL TIME | the keys on the wire; 1-before/1-after |
+| 13–16 | `onMessage` delivers only `to: 'ui'`, hands over the same object, and drops what the deck returns | how many of how many |
+| 17–22 | storage: the area is honoured, absent resolves `null`, unreadable REJECTS, a third area is refused in both shapes, the change feed filters by area AND key | the two values for one key; which shape each refusal took |
+| 23–25 | the arm chord is raw, in `chordLabel()`'s vocabulary, and `null` when the menu could not take it | the raw string and both drawn forms |
+| 26–29 | `drive`'s write set is CLOSED, wrong types are dropped, `requestSpeed` is NOT filtered, and each page duty puts one named command on the wire | the exact command objects |
+| 30–35 | `src/main/storage.js`: `local` outlives the run and `session` does NOT, present-and-broken is not absent, a write clears the unreadable state | the second store's answers, the file name |
+| 36–38 | `deckTakesKey`: a claimed key while armed is ours; eight other cases are the page's; `?` matches by character | which cases were taken |
+| 39–43 | over a real launch: the vendored deck BOOTS, its module is ours, the storage lifetimes survive the ipc hop, a change made by main reaches the deck | the boot time, the two values, the duty list |
+| 44–48 | SESSION paints and clears the not-armed hint; ARM_ERROR paints, is dismissible, offers no Restart, is persisted with `{code, message, at, seq}`, and ARM_ERROR_CLEARED takes it down | the banner title, the record |
+| 49–52 | `claimKeys` arrives with the UNIT's list, `setHeight` is clamped and the view really is that tall, `ready` produced the re-send it owes | the key list, the heights, the counts |
+| 53–57 | `drive` lands on a REAL `<video>` and nothing else does, `release` restores, `requestSpeed(3)` is clamped to 2 and REPORTED, and `onState` really reaches the deck | the element's three values; the message counts |
+| 58–60 | the autoplay-next checkbox is not dead: the click stored the preference, main pushed it, the transport moved, and the report came back | the prefs record, the push count, the file on disk |
+| 61–63 | the preload bridge cannot be rewritten from inside the page; `page.close` hides the deck and the ENGINE IS STILL ALIVE; the deck PAINTED | the swap result, the colour count |
+
+**Assertion 57 is a bug this suite already caught.** The transport's payloads
+carry their own `{t:'state'}`; the relay in `deck-host.js` was written
+`toDeck({ t: 'video', ...s })`, the spread overwrote the type, the deck's inbound
+map had no handler for `'state'`, and `onState` — the duty the whole deck follows
+— never fired. Nothing went red anywhere: the deck simply showed a player that
+never moved. Measured on this Host's first launch as `toDeck.state: 48,
+toDeck.video: 0`, and the fix is `t` spelled LAST.
+
+### Deliberately not asserted here
+
+- **The engine half of the seam.** `offscreen/host.js`, `captureStream`,
+  `modelBytes` and the three messages addressed to `BUS.engine` are
+  `engine-host`'s.
+- **The source view's own behaviour.** That L1 holds in the preload, that a
+  YouTube `<video>` is driven correctly and that the autoplay toggle is really
+  found and clicked are `transport`'s. What is asserted here is only that the
+  deck's fourteen members REACH it and that what comes back reaches the deck.
+- **Six stems.** Nothing here proves the engine produces audio inside this app.
+- **The three-layer write set, at more than one layer.** `drive` is filtered at
+  the seam, again in `transport.js` and again in the preload. §1 watches the
+  SEAM's layer go red; breaking it alone does not change what reaches the
+  element, because the other two still hold. That is the point of defence in
+  depth and it is also the limit of what one suite can watch.
+- **`test.js`'s `group('host')` itself.** Its deck half installs a `chrome`
+  platform; against ours it cannot pass, because there is no `chrome` here to
+  stub. §1 is that group's deck half re-aimed, and the vendored file is left
+  byte-identical — which is what `vendor-intact` checks.
+
+### Watched red
+
+`node tools/suites/deck-host-mutations.mjs` is the battery: 58 rows, each one
+edit to one shipped file, the assertions it must turn red, and a restore in a
+`finally`. It fails in two ways — a mutation that produced NO red, and, at the
+end, any assertion no mutation ever turned red. The second is the one worth
+having: it is invisible from inside a green run.
+
+`DECK_HOST_ONLY=conformance` runs §1 alone, which is how the battery pays a
+second for a hole-module mutation instead of forty-five. The runner never sets
+it.
 
 ---
 

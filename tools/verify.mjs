@@ -239,10 +239,72 @@ export const STEPS = [
     },
   },
   {
+    id: 'deck-seam',
+    title: 'node tools/suites/deck-seam.mjs — the DeckHost conformance suite: the shipped hole module over a stubbed preload bridge',
+    cmd: ['node', 'tools/suites/deck-seam.mjs'],
+    /**
+     * NO WINDOW, NO DISPLAY, NO MUTEX, ~0.4 s — and that is the point of it
+     * rather than a convenience. `docs/VENDORING.md` offers three things to do
+     * about `group('host')`'s 122 conformance assertions and this repository
+     * takes option 3, but half of option 3 is not available: that group installs
+     * a CHROME platform, and our `ui/host.js` reaches for an Electron preload
+     * bridge, so its deck half reports on a platform that is not there. This
+     * step is the same claims — the seven rules `shared/host.js` declares — made
+     * against the shipped hole module over a stub of OUR platform.
+     *
+     * It runs BEFORE `shell` deliberately: it is the cheapest thing on the plan
+     * and the two things a broken Host breaks silently (late binding and the
+     * envelope) are both in it, so a red here changes how a windowed green is
+     * read.
+     */
+  },
+  {
     id: 'shell',
     title: 'node tools/suites/shell.mjs — one real launch of `electron .`: the window, isolation, the capture grant, the mute, the allowlist',
     cmd: ['node', 'tools/suites/shell.mjs'],
     window: true,
+  },
+  {
+    id: 'engine-host',
+    title: 'node tools/suites/engine-host.mjs — the ENGINE half of the seam over one real launch: the nine duties, the model, a real capture',
+    cmd: ['node', 'tools/suites/engine-host.mjs'],
+    window: true,
+    /**
+     * AFTER `shell`, ON PURPOSE, AND MUCH SLOWER THAN IT. `shell` asks whether
+     * the app skeleton is the shape it says it is and answers in ~2 s without
+     * ever loading the unit. This one boots the vendored engine, reads 109 MB of
+     * weights through the Host, builds an ONNX session (~8 s of compile and
+     * warm-up on wasm) and arms two real captures. Its cost is the model's, not
+     * the suite's, and `--quick` drops it with every other windowed step.
+     *
+     * IT SKIPS, RATHER THAN FAILS, WITHOUT `models/htdemucs_6s.onnx`. The
+     * weights are 109 MB, are not in git, and are seeded by
+     * `bash tools/vendor-unit.sh --model`. A skip is named in the verdict; a red
+     * for a file that was never meant to be committed would be a red people
+     * learn to ignore.
+     */
+  },
+  {
+    id: 'transport',
+    title: 'node tools/suites/transport.mjs — the source view\'s transport: L1, the closed write set, the jump rule, speed, autoplay-next, the keys',
+    cmd: ['node', 'tools/suites/transport.mjs'],
+    window: true,
+  },
+  {
+    id: 'deck-host',
+    title: "node tools/suites/deck-host.mjs — the DECK half of the seam: fourteen members over a stub AND one real launch, the three messages the Host originates, and the autoplay-next wire",
+    cmd: ['node', 'tools/suites/deck-host.mjs'],
+    window: true,
+    /**
+     * IT IS A `window` STEP AND HALF OF IT IS NOT. §1 — 38 assertions driving
+     * the shipped hole module over a stub bridge in plain node — needs no
+     * display at all, and `--quick` therefore drops assertions it did not have
+     * to. That is deliberate rather than an oversight: splitting it into two
+     * steps would let the conformance half go green over an app that does not
+     * boot, which is the pairing this suite exists to prevent. The cost is
+     * named in `docs/TESTING.md`, and `DECK_HOST_ONLY=conformance` is how the
+     * mutation battery pays only the second's worth.
+     */
   },
   {
     id: 'p1',

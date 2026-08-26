@@ -1,346 +1,555 @@
 /**
- * The deck's Host, as a Chrome extension. This is the ONE module `embed.js` is
- * allowed to import that knows what `chrome` is or what a frame is; the duties
- * it implements and the rules they have to hold are written down in
- * `../shared/host.js`.
+ * THE DECK'S HOST, AS AN ELECTRON DESKTOP APP — `stem-workbench`'s answer to the
+ * hole `ui/embed.js` imports.
  *
- * It is six callable duties and two namespaces long on purpose. The seam is
- * not an abstraction layer — "no abstraction with one implementation" is a
- * standing rule here — it is the list of things a second application would
- * have to supply, kept short enough that the list itself is the specification.
+ * THIS FILE IS NOT THE UNIT. It sits at a unit path because the unit imports it
+ * by path (`import { host } from './host.js'`), and `extension/unit.json`
+ * declares it a HOLE for exactly that reason: it is not in `unit.sha256`, it
+ * never was, and `vendor/.pin`'s `ours` array names it so that "did somebody
+ * edit the unit" and "did somebody edit our Host" stay two separately answerable
+ * questions. The reference implementation this replaces — the Chrome extension's
+ * — is at `extension/ui/host.js` in `stem-splitter-live` at v0.2.0, and reading
+ * the two side by side is the fastest way to see what a Host is.
  *
- * TWO WIRES LEAVE THROUGH HERE AND THEY ARE NOT THE SAME WIRE.
- *  - `send` / `onMessage` ride `chrome.runtime`, the EXTENSION BUS: a broadcast
- *    between the deck, the engine and the service worker. The envelope on it is
- *    the UNIT's (`{ v, to, from }`) and this file carries it verbatim.
- *  - `page` / `transport` ride `postMessage` across the IFRAME BOUNDARY to
- *    `content.js`, which is the host's own other end. That protocol —
- *    `from: 'stem-splitter-live'` out, `from: 'stem-splitter-live-host'` back —
- *    is entirely the HOST's, so this file is free to name its own fields, and
- *    it does: the seam speaks ADR 0001 decision 4's `currentTime` where the
- *    wire says `seekTo`.
+ * The duties, and the rules they have to hold, are `../shared/host.js`. That
+ * file is the unit's and is byte-identical to the tag; every sentence quoted
+ * below is from it.
  *
- * The remaining four — `storageGet`, `storageSet`, `onStorageChanged` and
- * `armShortcut` — are not a wire at all. They read and write platform state
- * (`chrome.storage`, `chrome.commands`) that has no other end to talk to.
+ * ===========================================================================
+ * THREE WIRES LEAVE THROUGH HERE, AND THEY ARE NOT THE SAME WIRE
+ * ===========================================================================
  *
- * LATE BINDING IS THE WHOLE POINT OF THE `send` BODY. `chrome.runtime.sendMessage`
- * is looked up when the message is sent, not when this module is imported,
- * because `tools/embed-smoke.mjs` replaces that PROPERTY after the deck has
- * booted and that patch is the only window onto the outgoing wire. Write
- * `chrome.runtime.sendMessage.bind(chrome.runtime)` here and the recorder stays
- * empty for the rest of the run, taking the transpose-ceiling and speed/ad-gate
- * assertions green-on-nothing with it. See rule 2 in `../shared/host.js`.
+ *  1. `send` / `onMessage` ride the UNIT'S BUS — one router in the main process
+ *     over `ipcMain`/`ipcRenderer` (`src/main/bus.js`, HOST-DESIGN.md §4). The
+ *     envelope on it is the UNIT's (`{ v, to, from }`) and this file carries it
+ *     verbatim, in both directions. Nothing here stamps, rewrites, normalises or
+ *     filters it — rule 1, and the deck's two correspondents (`BUS.engine` and
+ *     `BUS.host`) are addresses on that bus rather than two transports.
+ *
+ *  2. `page` / `transport` ride the HOST'S OWN deck<->main channel (`'page'`,
+ *     `src/main/transport.js`), which reaches the source view's preload one hop
+ *     further on. That protocol is entirely the Host's, so this file is free to
+ *     name its own fields and does: `{c: …}` out, `{t: …}` in.
+ *
+ *  3. `storageGet` / `storageSet` / `onStorageChanged` / `armShortcut` are not a
+ *     wire to another context at all. They read and write state that main OWNS —
+ *     two storage areas with two lifetimes (`src/main/storage.js`) and the
+ *     application menu's accelerator — and have no other end to talk to.
+ *
+ * ===========================================================================
+ * EVERY DUTY IS A PLAIN FUNCTION THAT RESOLVES THE BRIDGE WHEN IT IS CALLED
+ * ===========================================================================
+ *
+ * Two rules of the seam meet in that sentence, and `shared/host.js` names this
+ * Host as the one both were written against.
+ *
+ * A DUTY MAY BE CALLED UNBOUND, and one already is: `offscreen/engine.js` hands
+ * `host.assetUrl` ITSELF to `MasterBus` and to every deck. The deck's half has
+ * no such site today, but the refusal in `assertHost` is one check for both
+ * lists, and the failure it describes is precisely ours — *"an Electron preload
+ * bridge wrapped one level too deep hands over `{ send: fn }`"*, and *"a duty
+ * implemented as a method that needs its `this` — an Electron preload bridge —
+ * passes this check … and fails only at the first worklet load"*. So: every
+ * duty below is an ARROW FUNCTION that closes over module scope and reads no
+ * `this`, and this module never re-exports the preload bridge object.
+ *
+ * THE TRANSPORT IS RESOLVED AT CALL TIME, NEVER AT IMPORT — rule 2. `bridge()`
+ * runs inside each duty. Under the extension that rule exists because
+ * `tools/embed-smoke.mjs` replaces `chrome.runtime.sendMessage` after boot and
+ * that patch is its only window onto the outgoing wire; here it is what lets
+ * `tools/suites/deck-host.mjs` swap `window.__wbDeck.send` after the deck has
+ * booted and actually see traffic. Write `const send = window.__wbDeck.send`
+ * here and that recorder stays empty for the rest of the run, taking every
+ * assertion over it green-on-nothing.
+ *
+ * ===========================================================================
+ * WHAT THIS HOST ANSWERS DIFFERENTLY FROM THE EXTENSION, AND WHY
+ * ===========================================================================
+ *
+ * `armShortcut()` — the extension READS a binding the user controls at
+ *   chrome://extensions/shortcuts. We OWN the binding, so the honest answer is
+ *   our own menu accelerator; it is read back out of the INSTALLED menu at call
+ *   time rather than from the constant it was built from, because a chord
+ *   reported and not bound is worse than no chord at all. HOST-DESIGN.md §6.3.
+ *
+ * `transport` — the extension asks `window.parent !== window`, which is a fact
+ *   about FRAMES. Here the deck is a top-level document and is still hosted, so
+ *   the question is asked of the Host instead: main answers `hosted` when the
+ *   preload starts, and it is a boolean or this module refuses to load. A Host
+ *   that guessed would be guessing about the branch `follow()` reads as licence
+ *   to START THE PIPELINE ON BOOT.
+ *
+ * ===========================================================================
+ * L1 — CAPTURE ONLY WHAT THE USER'S OWN PLAYER RENDERS
+ * ===========================================================================
+ * This file names `muted`, `currentTime` and `playbackRate` and no other
+ * property of any media element, reads no URL, and touches no byte of media.
+ * `drive`'s write set is closed HERE as well as in `src/main/transport.js` and
+ * again in the source view's preload — three layers, deliberately, because L1 is
+ * a security property and this channel reaches a `<video>` on somebody else's
+ * page.
  */
 
 import { BUS } from '../shared/host.js';
 
 /**
- * This context's address on the bus, READ OUT OF THE SEAM'S OWN DECLARATION.
- * The deck's outbound envelope is composed in `embed.js` (`to: BUS.engine` /
- * `to: BUS.host`, `from: BUS.deck`) because the addresses are the unit's
- * protocol; the host reads `to` in exactly one place, here, to answer the one
- * question only the transport can — "is this one mine?"
- *
- * It was `const ME = 'ui'` until Host interface v1 (S11) put the address set in
- * `../shared/host.js`, where a second Host reading its duties finds them.
+ * This context's address on the bus, READ OUT OF THE SEAM'S OWN DECLARATION
+ * rather than typed as `'ui'`. `shared/host.js` put the address set there at
+ * interface v1 precisely so a second Host would not have to guess what
+ * "addressed to me" means.
  */
 const ME = BUS.deck;
 
 /**
- * THE ONLY TWO AREAS THIS HOST WILL INDEX, and the refusal is a P1 guard rather
- * than type theatre.
+ * The preload's bridge (`src/preload/deck.cjs`). One name, spelled once.
  *
- * `chrome.storage[area]` is an index into the whole namespace, and the
- * `'local'|'session'` union next door is a JSDoc comment that runs nowhere. So
- * before this list existed, `storageSet('sync', …)` from the deck WOULD HAVE
- * WORKED — and `chrome.storage.sync` is a network write, which is the one thing
- * CONTRIBUTING.md P1 forbids after the model download and SECURITY.md promotes
- * to a security property. Until the areas became a parameter, `sync` was
- * unreachable from the deck by construction, because every call site read
- * `chrome.storage.local` literally. This keeps that impossibility while keeping
- * the parameter.
- *
- * IT ALSO GIVES A SECOND HOST A DEFINED ANSWER instead of an accident. Without
- * it an unexpected area was undefined behaviour that HAPPENED to reject on
- * `storageGet` (`undefined.get` inside an `async` method) and HAPPENED to throw
- * synchronously on the other two. Both refusals are now deliberate, both are
- * asserted in `test.js`, and rule 5 in `../shared/host.js` says which is which:
- * `storageGet` rejects, because one of its two call sites is a module-scope
- * `.then().catch()` that a synchronous throw jumps straight past; the other two
- * throw at the call site, because a wrong area there is a bug in the deck rather
- * than a failure of the platform, and the cheapest place to be told is the line
- * that wrote it.
+ * `globalThis.window` and not a bare `window`, so this module can be driven from
+ * Node with a stubbed global — the same discipline the extension's `ui/host.js`
+ * applies to `window.parent`, and what makes the conformance suite able to drive
+ * the SHIPPED module instead of reimplementing it.
  */
-const AREAS = ['local', 'session'];
+const BRIDGE = '__wbDeck';
 
 /**
- * @param {string} area
- * @returns {string} `area`, so the check reads inline at the index it guards
+ * ANNOUNCED ONCE, AND NEVER THROWN — the shape `offscreen/host.js` settled on
+ * for the engine, held here for the same reason and one harder one.
+ *
+ * A deck renderer created without `src/preload/deck.cjs` is a misconfiguration,
+ * not a user error, and every duty this Host owes is undeliverable from that
+ * moment. The instinct is to throw at the first call. It is wrong, and the
+ * vendored gate is what proves it: `test.js`'s `group('host')` calls
+ * `deckHost.send(...)`, `deckHost.page.close()` and `await
+ * deckHost.storageGet(...)` as BARE STATEMENTS, with no try around them — so a
+ * throw does not produce a red, it CRASHES the group and every assertion after
+ * it never runs. The engine slice measured that: 482 assertions in, a stack
+ * trace instead of a conformance report.
+ *
+ * So a missing bridge is: ONE `console.error` naming the file, and then the
+ * inert answer for each duty. That is not the silent failure `shared/host.js`
+ * warns about — the sentence is on the console, once, at the first duty that
+ * needed it — and it is what lets the unit's own conformance group say which
+ * duties are wrong instead of dying at the first one.
  */
-function assertArea(area) {
-  if (!AREAS.includes(area)) {
-    throw new Error(`DeckHost: ${JSON.stringify(area)} is not a storage area this unit uses `
-      + `— it names one of ${AREAS.join(', ')}, and a lifetime it did not ask for is not the Host's to pick.`);
-  }
-  return area;
+let announcedMissingBridge = false;
+function noBridge(duty) {
+  if (announcedMissingBridge) return undefined;
+  announcedMissingBridge = true;
+  console.error(`[wb deck-host] window.${BRIDGE} is absent, so ${duty}() has nowhere to go. `
+    + 'The deck renderer was created without src/preload/deck.cjs, or the preload threw, or '
+    + 'src/main/deck-host.js was not installed before the view was loaded. Every duty this Host '
+    + 'owes is undeliverable until that is fixed.');
+  return undefined;
 }
 
 /**
- * THE DECK -> HOST NAMESPACE, and the one place in the unit that spells it.
+ * The bridge an absent bridge stands in for. Every member answers the way its
+ * duty must answer when there is nothing behind it:
  *
- * It used to be typed out at each of the eight posting sites in `embed.js`;
- * they are all in this file now, so one constant is the honest shape. Its
- * counterpart is the guard in `content.js`, and `tools/name-check.mjs` pairs
- * the two — a slice that moved the posters and forgot the guard, or the other
- * way round, is a rename that half-landed, which is the failure that gate was
- * written for. Keep it a single-quoted literal on both sides: the gate counts
- * the literal, so a template string is the same as deleting it.
+ *   storageGet   `{ok: true, value: null}` — which the duty turns into `null`.
+ *     RESOLVING RATHER THAN REJECTING IS THE CRASH-VS-RED TRADE ABOVE, and it is
+ *     the one place it costs something: rule 6 says a read that FAILED must
+ *     reject, and this one cannot without taking the group down at a bare
+ *     `await`. The distinction is not lost — it is asserted, with a real bridge,
+ *     in `tools/suites/deck-seam.mjs`, which is where the production case lives.
+ *   armShortcut  `null` — "nothing is bound", which the deck already prints a
+ *     sentence for.
+ *   everything else does nothing, having said so.
  */
-const NS = 'stem-splitter-live';
+const INERT = {
+  hosted: null,
+  send: () => noBridge('send'),
+  onMessage: () => noBridge('onMessage'),
+  storageGet: () => { noBridge('storageGet'); return Promise.resolve({ ok: true, value: null }); },
+  storageSet: () => noBridge('storageSet'),
+  storageWatch: () => noBridge('storageWatch'),
+  onStorageChanged: () => noBridge('onStorageChanged'),
+  armShortcut: () => { noBridge('armShortcut'); return Promise.resolve(null); },
+  pageSend: () => noBridge('pageSend'),
+  onPageEvent: () => noBridge('onPageEvent'),
+};
+
+const bridge = () => {
+  const w = globalThis.window;
+  return (w && w[BRIDGE]) || INERT;
+};
 
 /**
- * IS THERE A PAGE ABOVE THIS DECK THAT OWNS A PLAYER?
+ * IS THERE A PLAYER ABOVE THIS DECK — asked ONCE, at import, because
+ * `ui/embed.js` reads `host.transport != null` at module scope and boots
+ * differently on the answer.
  *
- * For THIS Host that is the same question as "am I in a frame", because the
- * only thing that ever frames this document is `content.js` on a watch page,
- * and it is the thing that owns the `<video>`. It is not the same question for
- * a Host in general — under a desktop Host the deck is the top-level document
- * and there is still a player — which is exactly why the deck no longer asks it
- * and asks `host.transport != null` instead. The frame test is a fact about
- * this Host and it stays inside this Host.
+ * ===========================================================================
+ * IMPORTING THIS MODULE IS INERT. ONLY CALLING A DUTY CAN FAIL.
+ * ===========================================================================
+ * This constant used to THROW when the bridge was missing, on the argument that
+ * a Host with no transport is worse than no Host at all. It is still worse — but
+ * throwing HERE is the wrong place to say so, and the vendored gate is what
+ * proved it: `test.js`'s `group('host')` imports this module under plain Node to
+ * report on it, and a module-scope throw does not produce a red, it CRASHES the
+ * suite. Measured by the engine slice: the run died at `test.js:5577` after 482
+ * assertions and every assertion after it never executed. A crash is strictly
+ * worse than a failure — it hides the reds we want to read, and it looks like a
+ * broken vendored copy rather than an unimplemented duty.
  *
- * `window.parent` rather than a bare `parent`, so this module can be driven
- * from Node with a stubbed `window` — the same discipline `test.js` already
- * applies to `chrome` and `navigator`.
+ * So the rule this file now holds, and the engine's hole holds the same one:
+ * NOTHING AT MODULE SCOPE TOUCHES A BROWSER-ONLY GLOBAL IN A WAY THAT CAN THROW.
+ * `bridge()` is called from inside each duty; the only thing read here is
+ * whether a bridge happens to be present, and reading it cannot fail.
+ *
+ * ===========================================================================
+ * ...AND "I COULD NOT ASK" IS ITS OWN ANSWER, WHICH IS NOT `null`
+ * ===========================================================================
+ * Three states, not two, and the third is the one that matters:
+ *
+ *   true   `main` said a Live source is bound to this deck. `transport` is the
+ *          six duties.
+ *   false  `main` said there is none — a File source, or a deck opened alone.
+ *          `transport` is `null`, which is a sentence the deck acts on.
+ *   null   THERE WAS NO BRIDGE TO ASK, or it answered with something that is not
+ *          a boolean. `transport` is a namespace whose every duty THROWS.
+ *
+ * The third case must not collapse into the second, and `follow()` is why: with
+ * `transport: null` the deck concludes nobody will ever tell it whether the
+ * video is playing, and treats that as licence to START THE PIPELINE ON BOOT —
+ * a capture, and behind it a 109 MB model download, on a page nobody pressed
+ * play on. `shared/host.js` records that this repository has already paid for
+ * that outcome once. A refusing transport is the safe direction: the deck waits
+ * to be told about a player, is told nothing, does nothing — and the first
+ * gesture that reaches for the player fails with a sentence naming the preload
+ * instead of failing silently.
  */
-const FRAMED = window.parent !== window;
+const HOSTED = (() => {
+  const w = globalThis.window;
+  const b = w && w[BRIDGE];
+  if (!b) return null;
+  return typeof b.hosted === 'boolean' ? b.hosted : null;
+})();
 
 /**
- * Every deck -> host message leaves through here, and `'*'` is not laziness:
- * the deck is served from an extension origin and cannot know at build time
- * what page it was mounted into. The host's side is pinned — `content.js`
- * accepts these only from this frame's `contentWindow` — which is where the
- * check belongs, because that is the side that knows both origins.
+ * THE ONLY TWO AREAS THIS HOST WILL INDEX, and refusing a third is a rule of the
+ * seam rather than type theatre.
+ *
+ * `shared/host.js` rule 5: the areas are a LIFETIME the deck names and the Host
+ * honours, never a default — `'local'` outlives the app and `'session'` does
+ * not, and the deck's two uses are one of each on purpose. A Host that
+ * substituted an area it did have would be inventing a lifetime the deck never
+ * asked for, and picking which of two mistakes to make: a preference that does
+ * not survive a restart, or a stale arm refusal painted as current.
+ *
+ * The refusals differ in SHAPE, and that difference is also the seam's:
+ * `storageGet` REJECTS, because the deck's preferences read is a module-scope
+ * `.then().catch()` that a synchronous throw would jump straight past, taking
+ * the rest of boot with it; `storageSet` and `onStorageChanged` THROW at the
+ * call site, because a wrong area there is the deck being wrong about a value it
+ * wrote itself and the cheapest place to be told is the line that wrote it.
+ *
+ * `src/main/storage.js` refuses a third area too. That is not redundant: this
+ * check is what gives the DECK a defined answer without an ipc round trip, and
+ * main's is what stops any other caller in the main process reaching a lifetime
+ * that does not exist.
  */
-const post = (msg) => { window.parent.postMessage(msg, '*'); };
+const AREAS = ['local', 'session'];
+
+const assertArea = (area) => {
+  if (!AREAS.includes(area)) {
+    throw new Error(`DeckHost: ${JSON.stringify(area)} is not a storage area this unit uses `
+      + `- it names one of ${AREAS.join(', ')}, and a lifetime it did not ask for is not the Host's to pick.`);
+  }
+  return area;
+};
 
 /**
- * Wire type -> the deck's handler. One handler per type: the deck registers
- * each exactly once as it boots, and a type nobody registered is dropped, which
- * is what happens today for anything arriving before the deck's own listener
- * was up.
+ * Register an inbound handler for one `{t: …}` type on the deck<->main channel.
+ *
+ * ONE HANDLER PER TYPE, exactly as the extension's iframe protocol has: the deck
+ * registers each once as it boots, and a type nobody registered is dropped —
+ * which is already what happens to anything arriving before the deck's own
+ * listeners are up.
  */
 const inbound = new Map();
+let pageWired = false;
 
-/**
- * ONE LISTENER, REGISTERED AT MODULE SCOPE, and the two guards on it are the
- * host's because both are facts about the transport.
- *
- * `ev.source !== window.parent` is the one that matters: this document is
- * embedded in a page that runs YouTube's own JavaScript and any number of other
- * frames, all of which can postMessage at us. Only the frame that put us here
- * is heard. There is deliberately no `ev.origin` check — the source check
- * carries it, and the host page's origin is not knowable here.
- */
-window.addEventListener('message', (ev) => {
-  if (ev.source !== window.parent) return;
-  const d = ev.data;
-  if (!d || d.from !== 'stem-splitter-live-host') return;
-  const fn = inbound.get(d.type);
-  if (fn) fn(d);
-});
-
-/** Build one inbound duty: register the deck's handler for one wire type. */
-const on = (type) => (fn) => { inbound.set(type, fn); };
+const on = (type) => (fn) => {
+  inbound.set(type, fn);
+  if (pageWired) return;
+  pageWired = true;
+  bridge().onPageEvent((msg) => {
+    if (!msg || typeof msg.t !== 'string') return;
+    const h = inbound.get(msg.t);
+    if (h) h(msg);
+  });
+};
 
 /** @type {import('../shared/host.js').DeckHost} */
 export const host = {
   /**
-   * Fire and forget. No return value, and the rejection is swallowed rather
-   * than reported: on this bus there is very often no listener, and an
-   * unhandled rejection per message is a console nobody can read.
-   */
-  send(msg) {
-    chrome.runtime.sendMessage(msg).catch(() => {});
-  },
-
-  /**
-   * `return false` is not a formality. MV3 reads a truthy return from a
-   * message listener as "I will call `sendResponse` asynchronously" and keeps
-   * the channel open waiting for it — so the deck's handler must not be able
-   * to hold one open by accident, and its return value is dropped here.
-   */
-  onMessage(fn) {
-    chrome.runtime.onMessage.addListener((m) => {
-      if (m && m.to === ME) fn(m);
-      return false;
-    });
-  },
-
-  /**
-   * `chrome.storage[area]` and not a pair of branches: the two areas are the
-   * same API under two lifetimes, and a `if (area === 'session')` here would be
-   * a third place to edit the day a third lifetime is wanted.
+   * ONE FINISHED MESSAGE, PUT ON THE BUS UNTOUCHED.
    *
-   * THE UNWRAP IS THE DUTY. `chrome.storage[area].get(key)` answers with a BAG —
-   * `{ [key]: value }`, or `{}` when nothing is stored — and every caller of the
-   * raw API therefore writes `got && got[key]`, which is the same expression
-   * whether the read succeeded and found nothing or the read succeeded and found
-   * a stored `undefined`. Answering with the value collapses that at the seam,
-   * once, and `key in got` is what keeps "absent" distinct from "stored as
-   * undefined" while doing it.
+   * Freeze item 5's asymmetry, and it is deliberate rather than an oversight:
+   * `EngineHost.send` STAMPS `{v:1, to:'ui', from:'off'}` because the engine has
+   * exactly one correspondent and 22 call sites that end `return send({…})`;
+   * `DeckHost.send` carries a finished envelope because the deck has TWO
+   * correspondents and a stamping deck `send` would need the address passed in —
+   * which is the envelope crossing the seam by another route, and would put the
+   * Host in a position to normalise what it stamps. One Host, two functions.
    *
-   * `async`, SO A BAD AREA IS A REJECTION AND NOT A THROW. `assertArea` refuses
-   * anything but the two declared lifetimes, and this is the ONE duty where that
-   * refusal must not reach the call site as a throw: the preferences read is a
-   * module-scope `.then(…).catch(…)`, and a synchronous throw is not caught by
-   * that `.catch` — it takes the rest of the deck's boot with it. (The arm-error
-   * read is an `await` inside a `try`, which would survive either shape; the
-   * duty answers the same way at both call sites rather than the weaker of the
-   * two.)
-   * `async` on the method is what turns the refusal into the rejection those two
-   * call sites are already written to survive. (Before `assertArea` existed the
-   * same rejection happened by accident — `chrome.storage.nope` is `undefined`
-   * and `.get` on it throws — which is a defined answer only as long as nobody
-   * reorders the line.) Rule 6: a read that could not happen must not look like
-   * a key that was not there.
+   * So this is one line and it must stay one line. `main` reads `msg.to` to
+   * route and reads nothing else.
+   *
+   * RETURNS UNDEFINED, so no call site can start awaiting delivery, and
+   * delivery failure is not reported: on this bus there is frequently no
+   * listener at all (the deck's own boot poll is written for exactly that), and
+   * `src/main/bus.js` drops and COUNTS such a message rather than throwing —
+   * which is where "the deck is blank" gets a number attached to it.
    */
-  async storageGet(area, key) {
-    const got = await chrome.storage[assertArea(area)].get(key);
-    return got && key in got ? got[key] : null;
+  send: (msg) => { bridge().send(msg); },
+
+  /**
+   * THE ADDRESS GUARD IS THE HOST'S — rule 4 — and it is here even though
+   * `main` already routes by address, because the rule is about what the DECK
+   * can rely on and not about what our particular router happens to do. A Host
+   * whose transport became a broadcast tomorrow would otherwise start handing
+   * the deck the engine's traffic with nothing in this file to stop it.
+   *
+   * THE RAW ENVELOPE IS HANDED OVER — normalising, re-wrapping or filtering it
+   * breaks receivers quietly. And what `fn` returns is DROPPED: MV3's
+   * "I will call sendResponse later" has no analogue here, so nothing can hold a
+   * channel open by accident, and the deck's return value must not start
+   * meaning something the day one appears.
+   */
+  onMessage: (fn) => {
+    bridge().onMessage((m) => { if (m && m.to === ME) fn(m); });
   },
 
   /**
-   * Fire and forget, exactly like `send` and for the same reason: the value is
-   * already on screen, so there is nothing a rejection could tell the user that
-   * the next read would not tell them better. Returns undefined so no call site
-   * can start awaiting a write.
+   * READ ONE VALUE BACK, FROM THE AREA WHOSE LIFETIME THE DECK NAMED.
+   *
+   * ABSENT RESOLVES `null`; A FAILED READ REJECTS — rule 6, and the two must not
+   * be folded together. A fresh profile holds no preferences and that is the
+   * ordinary case, not a fault; storage that could not be READ is a fault, and a
+   * Host that answered `null` for it would tell the deck "the user has no
+   * preferences" on precisely the run where it could not tell. The deck applies
+   * its defaults on `null`, so folding them would apply defaults most
+   * confidently on the one run where the user's real choices existed and were
+   * unreachable.
+   *
+   * `async`, SO A BAD AREA IS A REJECTION AND NOT A THROW. See the note on
+   * `AREAS`: this is the one duty whose refusal must not reach the call site as
+   * a throw.
+   *
+   * THE UNWRAP IS THE DUTY. main answers `{ok, value}` / `{ok:false, error}`
+   * rather than a bare value, because "the read failed" has to survive an ipc
+   * hop that flattens a rejection into nothing.
+   */
+  storageGet: async (area, key) => {
+    assertArea(area);
+    const r = await bridge().storageGet(area, key);
+    if (!r || r.ok !== true) {
+      throw new Error(`DeckHost: ${area}/${key} could not be read - ${(r && r.error) || 'the Host gave no answer'}`);
+    }
+    return r.value === undefined ? null : r.value;
+  },
+
+  /**
+   * FIRE AND FORGET, exactly like `send` and for the same reason: the one caller
+   * is a checkbox and a picker whose truth is already on screen, and there is
+   * nothing a rejected write could tell the user that the next read would not
+   * tell them better. Returns undefined so no call site can start awaiting it.
    *
    * A WRITE THAT FAILED AND AN AREA THAT WAS NEVER ASKED FOR ARE NOT THE SAME
-   * THING, which is why one is swallowed and the other throws here: the first is
-   * the platform having a bad day, the second is this call site being wrong
-   * about a value it wrote itself.
+   * THING: the first is the platform having a bad day and is swallowed in main,
+   * the second is this call site being wrong about a value it wrote itself and
+   * throws here, at the line that wrote it.
    */
-  storageSet(area, key, value) {
-    chrome.storage[assertArea(area)].set({ [key]: value }).catch(() => {});
+  storageSet: (area, key, value) => {
+    assertArea(area);
+    bridge().storageSet(area, key, value);
   },
 
   /**
-   * The area and key filter is the host's, exactly as the address guard on
-   * `onMessage` is: `chrome.storage.onChanged` is one listener for every area
-   * and every key in the extension, so unpicking `(changes, area)` down to "the
-   * one value you asked about" is transport work and not the deck's.
+   * IT IS NOT SUGAR OVER `storageGet`. The deck is not the only writer of what
+   * it reads: `src/main/deck-host.js` watches the same `PREFS_KEY` to drive
+   * YouTube's autoplay-next toggle, and a second deck would be another writer
+   * still — so a deck that read only at boot would sit there disagreeing with
+   * the behaviour the user is watching.
    *
-   * `changes[key]` RATHER THAN `key in changes`: a change record is present only
-   * for the keys that moved, and its `newValue` is absent when the key was
-   * REMOVED. `fn(undefined)` is then the honest report of a removal, which is
-   * what the deck's `applyPrefs` already treats as "no preferences stored".
+   * THE AREA AND KEY FILTER IS THE HOST'S, exactly as the address guard on
+   * `onMessage` is: main delivers changes in whatever batched shape it likes and
+   * unpicking that shape is transport work.
+   *
+   * `assertArea` UP FRONT, not inside the filter: a listener registered for an
+   * area that can never report is a subscription that silently covers nothing —
+   * the change-feed spelling of the same green-on-nothing shape rule 6 is about.
+   *
+   * `fn` IS CALLED WITH THE NEW VALUE, and with `undefined` when the key was
+   * removed, which the deck's `applyPrefs` already treats as "no preferences
+   * stored".
    */
-  onStorageChanged(area, key, fn) {
-    // The filter below compares against `area`, so an area nothing can ever
-    // report would register a listener that is guaranteed never to fire — a
-    // subscription that silently covers nothing, which is the change-feed
-    // spelling of the same green-on-nothing shape rule 6 is about.
+  onStorageChanged: (area, key, fn) => {
     assertArea(area);
-    chrome.storage.onChanged.addListener((changes, changedArea) => {
-      if (changedArea !== area || !changes[key]) return;
-      fn(changes[key].newValue);
+    bridge().storageWatch(area, key);
+    bridge().onStorageChanged((ch) => {
+      if (!ch || ch.area !== area || ch.key !== key) return;
+      fn(ch.value);
     });
   },
 
   /**
-   * The arm chord, READ FROM CHROME rather than typed into the markup, because
-   * the user can rebind it at chrome://extensions/shortcuts and a surface that
-   * states a chord the browser is not bound to is worse than one that omits it.
+   * THE ARM CHORD, READ FROM THE PLATFORM WE ARE.
    *
-   * RAW. What comes back is whatever Chrome spells it as — `'Ctrl+Shift+9'` off
-   * a Mac, and `'⌃⇧9'` on one, already drawn, NOT the `'MacCtrl+Shift+9'` token
-   * the manifest declares. Both forms are `chordLabel()`'s job in the unit, and
-   * the raw string is printed by `tools/embed-smoke.mjs`, which is the only
-   * place in this repo that records what Chrome actually returns.
+   * The extension reads a binding the USER controls and answers in Chrome's
+   * spelling. This Host owns the binding, so "reading a platform's answer"
+   * becomes "answering for a platform we are" — and the honest version of that
+   * is to read the INSTALLED application menu back, at call time, rather than to
+   * quote the constant the menu was built from. A menu item whose accelerator
+   * could not be taken is a real outcome, and `null` is the branch the deck
+   * already has for it: it prints a different sentence instead of an empty key
+   * cap.
    *
-   * `'arm-tab'` IS THE MANIFEST'S COMMAND NAME and this is the fourth copy of
-   * that literal — `manifest.json`, `sw/service-worker.js` and `ui/welcome.js`
-   * carry the others. It cannot come from `shared/config.js`, because the name
-   * of a Chrome command is host vocabulary and the unit must not learn it. All
-   * four are pinned: `tools/tree-check.mjs` asserts the manifest declares
-   * exactly `[arm-tab]`, and `tools/embed-smoke.mjs` presses the chord and reads
-   * `getAll()` back through the real extension.
+   * RAW, NOT RENDERED — rule 7. `chordLabel()` in `ui/embed-state.js` turns an
+   * accelerator into the pair of strings a surface DRAWS and ANNOUNCES, and that
+   * judgement has been wrong here once already: a chord drawn in words was
+   * announced as a graphic on every non-Mac machine, suppressing text a screen
+   * reader could read. A Host that returned the rendered pair would be a second
+   * copy of that judgement per Host, outside the gate that caught it.
    *
-   * `null` AND NOT `''` for a command with no chord bound, so the caller can
-   * print a different sentence instead of an empty key cap. A missing
-   * `chrome.commands` REJECTS rather than resolving null, for rule 6's reason:
-   * "there is no such API here" and "the user has unbound the chord" are two
-   * different facts and only one of them is the user's doing.
+   * AND RAW IS NOT ARBITRARY. `chordLabel`'s vocabulary is `MacCtrl`, `Ctrl`,
+   * `Command`, `Alt`, `Shift` and the four glyphs; anything else is drawn on the
+   * key cap VERBATIM. Electron's own portable spelling would therefore put the
+   * word "CommandOrControl" in front of the user, on a surface where nothing
+   * goes red because it renders perfectly. `src/main/keys.js` holds the table
+   * and `chordIsSpellable()`; main refuses to answer with a token outside it.
+   *
+   * IT RESOLVES AND DOES NOT REJECT. The extension's rejection means "there is
+   * no command table on this platform at all", which is a real fact there and
+   * cannot be one here: we always have a menu, so the only two answers are a
+   * chord and `null`.
    */
-  async armShortcut() {
-    const all = await chrome.commands.getAll();
-    const cmd = (all || []).find((c) => c.name === 'arm-tab');
-    return (cmd && cmd.shortcut) || null;
+  armShortcut: async () => {
+    const accel = await bridge().armShortcut();
+    return typeof accel === 'string' && accel !== '' ? accel : null;
   },
 
   /**
-   * THE PLAYER, or `null` when this deck was not mounted onto a page that has
-   * one. `null` and not "absent": `../shared/host.js`'s `assertHostOption`
-   * refuses a Host that simply never mentioned a transport, because the deck
-   * reads the answer as a fact about the world and boots differently on it.
+   * THE PLAYER, or `null` when this Host has none — SPELLED, never omitted.
+   *
+   * `host.transport != null` is the single question that decides whether this
+   * deck is hosted, so the key is required and the value may be null:
+   * `assertHostOption` refuses a Host that simply never mentioned a transport,
+   * because a Host that MEANT to supply one and misspelled the key must not read
+   * as a Host that deliberately has none.
+   *
+   * Under this Host `HOSTED` is a Live source — the YouTube view above the deck.
+   * A File source (step 4 of the plan) makes the deck the transport master and
+   * this becomes `null` for a different and equally deliberate reason.
    */
-  transport: FRAMED ? {
-    onState: on('VIDEO'),
-    onJump: on('JUMP'),
-    onSpeedReport: on('SPEED'),
+  transport: HOSTED === false ? null : {
+    /**
+     * PUSH, NEVER POLL — a contract, not a taste. The deck follows transitions,
+     * and a poll misses every one that opens and closes between two samples.
+     * The payload is the source view preload's, relayed by
+     * `src/main/transport.js`: `{playing, currentTime, duration, ended,
+     * playbackRate, hasMedia, adShowing, seeking}`.
+     */
+    onState: on('video'),
+    onJump: on('jump'),
+    onSpeedReport: on('speed'),
 
     /**
-     * THE WRITE SET IS CLOSED HERE, at the seam, and that is the point of
-     * filtering rather than spreading. ADR 0001 decision 4 sets the transport's
-     * write side at `muted`, `currentTime` and `playbackRate`; L1 is what makes
-     * that a rule rather than a preference, because the same channel reaches a
-     * `<video>` on somebody else's page. Spreading the caller's object would
-     * make the write set whatever a call site happened to pass, and widening it
-     * would then be invisible in review. Three fields, named, and anything else
-     * in the patch is dropped on this side of the wire.
+     * THE WRITE SET IS CLOSED HERE, AT THE SEAM, and closing it by NAMING the
+     * three fields rather than by spreading the caller's object is the point:
+     * spreading would make the write set whatever a call site happened to pass,
+     * and widening it would then be invisible in review.
      *
-     * `seekTo` is this protocol's name for `currentTime`; `content.js` uses it
-     * to tell the deck's own seek from the user's, and it is not renamed there
-     * because `content.js` is not this slice's to edit.
+     * ADR 0001 decision 4 fixes it at `muted`, `currentTime`, `playbackRate`.
+     * `src/main/transport.js` filters again and the preload writes only those
+     * three (plus `preservesPitch`, which is the key-lock policy that must land
+     * on the same write as the rate). Three layers is right here: L1 is a
+     * security property and this channel reaches a `<video>` on somebody else's
+     * page.
      */
-    drive(patch) {
-      const p = patch || {};
-      const msg = { from: NS, type: 'VDRIVE' };
-      if (typeof p.muted === 'boolean') msg.muted = p.muted;
-      if (Number.isFinite(p.playbackRate)) msg.playbackRate = p.playbackRate;
-      if (Number.isFinite(p.currentTime)) msg.seekTo = p.currentTime;
-      post(msg);
+    drive: (patch) => {
+      const p = patch && typeof patch === 'object' ? patch : {};
+      const cmd = { c: 'drive' };
+      if (typeof p.muted === 'boolean') cmd.muted = p.muted;
+      if (typeof p.playbackRate === 'number' && Number.isFinite(p.playbackRate)) cmd.playbackRate = p.playbackRate;
+      if (typeof p.currentTime === 'number' && Number.isFinite(p.currentTime)) cmd.currentTime = p.currentTime;
+      bridge().pageSend(cmd);
     },
 
-    release() { post({ from: NS, type: 'VRELEASE' }); },
+    /**
+     * HAND THE PLAYER BACK THE WAY IT WAS FOUND. A muted 1.02x video left behind
+     * is a bug the user cannot explain and cannot undo, so a Host that drives
+     * must be able to undo it.
+     *
+     * NOTE WHICH MUTE THIS IS. `webContents.setAudioMuted(true)` on the source
+     * view is the product's silence guarantee and holds for that view's whole
+     * life; `drive({muted})` is the unit's clock lock on the ELEMENT, for the
+     * cached deck. `release()` restores only the second, and must not touch the
+     * first — the user must never hear the raw view.
+     */
+    release: () => { bridge().pageSend({ c: 'release' }); },
 
     /**
-     * The value is NOT filtered, unlike `drive`'s. A rate this host cannot
-     * apply is refused and reported back through `onSpeedReport` with a reason
-     * the deck prints — see `content.js`'s SPEED arm — and a silent drop here
-     * would replace an explained lockout with a control that looks fine and
-     * does nothing.
+     * THE USER'S SPEED, which is not `drive({playbackRate})` and must not be
+     * folded into it: it is a CLAIM with its own lifetime, re-asserted across an
+     * ad and dropped on a source swap, while a drive correction is a single
+     * value with its own dedupe against a 4 Hz loop.
+     *
+     * THE VALUE IS NOT FILTERED HERE, unlike `drive`'s. A rate the Host cannot
+     * apply is refused and REPORTED back through `onSpeedReport` — which is
+     * strictly better than a silent drop, and is why `resolveSpeed` in the
+     * vendored `speed.js` is the one gate on the range.
      */
-    requestSpeed(rate) { post({ from: NS, type: 'SPEED', rate }); },
-  } : null,
+    requestSpeed: (rate) => { bridge().pageSend({ c: 'requestSpeed', rate }); },
+  },
 
   /**
-   * THE PAGE THE DECK IS DRAWN INTO. Always present, even for a deck opened
-   * outside a frame: `window.parent` is then this window, the posts land on a
-   * listener that filters them by namespace, and nothing happens — which is
-   * exactly what happened before this seam existed. A deck that had to check
-   * whether it had a page before every height report would be one forgotten
-   * check away from a TypeError at a user gesture, which is the failure
-   * `assertHost` exists to move to boot.
+   * WHERE THE DECK IS DRAWN. Always present, even for a Host with no player at
+   * all: a deck still has to size itself and take its keys, which is why `page`
+   * and `transport` are two namespaces and not one.
    */
   page: {
-    onKey: on('KEY'),
-    onAutonav: on('AUTONAV'),
-    claimKeys(claim) { post({ from: NS, type: 'DECK', armed: claim.armed, keys: claim.keys }); },
-    setHeight(px) { post({ from: NS, type: 'HEIGHT', height: px }); },
-    ready() { post({ from: NS, type: 'READY' }); },
-    close() { post({ from: NS, type: 'CLOSE' }); },
+    /**
+     * A KEY THE HOST TOOK OUT OF ITS OWN PAGE'S HANDS. The source view's preload
+     * decides — it is the only context that can see which element has focus, and
+     * `typing` is deliberately not carried on this message because the host
+     * already checked its own document, which is the only one that had a focus
+     * target.
+     */
+    onKey: on('key'),
+    /** The Host's report on suppressing its page's autoplay-next. Advisory. */
+    onAutonav: on('autonav'),
+
+    /**
+     * WHICH KEY CODES ARE THE DECK'S RIGHT NOW, and whether a deck is armed at
+     * all. THE HOST MUST ACT ON IT: with no deck armed, `1`-`6` belong to
+     * YouTube and must reach it untouched — we are a guest there. The list is
+     * sent rather than duplicated host-side, because it is the unit that knows
+     * which keys this build has.
+     */
+    claimKeys: (claim) => {
+      const c = claim && typeof claim === 'object' ? claim : {};
+      bridge().pageSend({ c: 'claimKeys', armed: c.armed === true, keys: Array.isArray(c.keys) ? c.keys : [] });
+    },
+
+    /** How tall the deck has measured itself to be. Advice: main clamps it. */
+    setHeight: (px) => { bridge().pageSend({ c: 'height', px }); },
+
+    /**
+     * THE DECK HAS ITS HANDLERS UP, and the Host owes a RE-SEND of everything it
+     * reports on change — player state, speed, autoplay — because a deck mounted
+     * onto an already-playing video is the common case and "on change" would
+     * leave it blank until something moved.
+     */
+    ready: () => { bridge().pageSend({ c: 'ready' }); },
+
+    /**
+     * TAKE THE DECK OFF THE PAGE. THE AUDIO DOES NOT STOP: capture and
+     * separation live in the engine, which is a different process here, so what
+     * the extension keeps by convention this Host keeps structurally — hiding a
+     * view cannot reach it.
+     */
+    close: () => { bridge().pageSend({ c: 'close' }); },
   },
 };

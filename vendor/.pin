@@ -7,6 +7,7 @@
     "sha256": "f22ef12bf29f1c46061def6905095361712ec83cb693a232da2f9bc2cbc3962b"
   },
   "ours": [
-    "extension/offscreen/host.js"
+    "extension/offscreen/host.js",
+    "extension/ui/host.js"
   ]
 }
