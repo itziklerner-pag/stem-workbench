@@ -1,7 +1,7 @@
 {
   "tag": "v0.2.0",
   "steps": 12,
-  "assertions": 1156,
+  "assertions": 544,
   "archive": {
     "url": "https://github.com/itziklerner-pag/stem-splitter-live/archive/refs/tags/v0.2.0.tar.gz",
     "sha256": "f22ef12bf29f1c46061def6905095361712ec83cb693a232da2f9bc2cbc3962b"
@@ -9,5 +9,17 @@
   "ours": [
     "extension/offscreen/host.js",
     "extension/ui/host.js"
-  ]
+  ],
+  "hostSuite": {
+    "_": "READ THIS BEFORE YOU 'FIX' THE `vendor-unit` STEP. `node tools/verify.mjs --unit` inside the vendored copy runs twelve suites. Eleven of them are ordinary DSP and UI suites and they all pass; the twelfth, `unit`, runs the vendored `test.js`, and that file is TWO things at once — the unit's largest suite AND a conformance suite over the two hole modules a Host is required to supply. Vendored as-shipped, with the Chrome extension's own hole modules in place, `test.js` is 612 green. With THIS Host's hole modules in place (the two paths in `ours` above, which are the only files under vendor/ this repository is allowed to differ on) it does not fail, it CRASHES. The deck half of its `group('host')` installs a fake Chrome platform whose `chrome.runtime.onMessage.addListener` pushes into a local `listeners` array, calls `deckHost.onMessage(fn)`, asserts `listeners.length === 1`, CORRECTLY REPORTS THAT RED — and then dereferences `listeners[0]` on the very next line. Our `extension/ui/host.js` registers through `window.__wbDeck.onMessage`, an Electron preload bridge, so nothing is ever pushed into that array and no Host that is not a Chrome extension can get past that line. THAT IS AN UPSTREAM DESIGN GAP WITH A TICKET, NOT A LOCAL DECISION TO LOOK AWAY: stem-splitter-live#30 — a hole module that throws while it is being exercised should become a NAMED RED rather than crash `group('host')` and take the other eleven suites' verdict line with it. Its fix lands in that repository behind a later tag. It is not patched here: CONTRIBUTING.md rule V1 forbids editing anything under vendor/stem-splitter-live/ that is not in `ours`, and the `vendor-intact` step runs BEFORE this one and would go red the moment anybody tried. So the vendored runner exits 1 on every run, for ever, and the step would be permanently red — which AGENTS.md says a red must never become, because a red nobody can ever clear is a red everybody learns to skip. The step therefore pins the WHOLE post-swap report instead of demanding a green that cannot happen.",
+    "id": "unit",
+    "exitCode": 1,
+    "verdictLine": "RED — <n> failing assertions",
+    "passingSuites": 11,
+    "crashAt": "test.js:5833",
+    "crashMessage": "listeners[0] is not a function",
+    "bothWays": "THIS IS A TWO-WAY PIN AND NOT AN IGNORE-LIST, AND THE SECOND DIRECTION IS THE POINT. `assertions` above is no longer test.js's 612 plus the rest: it is 544, the total of the ELEVEN suites that still pass, and the step requires all eleven to PASS and to sum to exactly that. It ALSO requires `unit` to be the ONLY non-PASS row — so a GREEN `unit` FAILS this step. Post-swap a green `unit` cannot mean the unit got better; it can only mean the two files in `ours` are not this Host's any more, i.e. somebody restored the extension's. Watched red exactly that way, both directions, and both mutations are named in tools/verify.mjs beside the step. A CRASH IS ALSO NOT LAUNDERED INTO AN EXPECTED FAILURE: `unit` must still be a CRASH, with `crashMessage` at `crashAt`. A `unit` that asserts and fails cleanly, or one that crashes somewhere else, is different IN KIND from what is written here and fails the step rather than being absorbed by it — probably as good news, and in either case as something to come and read this block about. Two earlier prose descriptions of this same failure were already stale by the time anybody read them, which is why every number here is checked on every run rather than merely written down.",
+    "verdictFor_test_js": "NOT this step — the `conformance` step, which runs the same file, unedited, to completion under this Host's own platform (tools/suites/conformance.mjs, pinned by vendor/.conformance.json: 612 assertions, 593 passed, 19 failed, no crash, every red named and argued in docs/CONFORMANCE.md). Nothing measured there is lost here.",
+    "upstreamIssue": "https://github.com/itziklerner-pag/stem-splitter-live/issues/30"
+  }
 }

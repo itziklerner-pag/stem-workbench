@@ -85,7 +85,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # VENDORING.md §7. --tag alone is refused for that reason.
 DEF_TAG='v0.2.0'
 DEF_STEPS=12
-DEF_ASSERTIONS=1156
+# 544, NOT the 1156 a fresh copy reports, and the difference is `test.js`'s 612.
+# With this Host's hole modules in place `test.js` CRASHES rather than failing
+# (upstream stem-splitter-live#30), so `vendor-unit` pins the ELEVEN suites that
+# still pass — this number — and delegates the verdict for test.js to the
+# `conformance` step. `vendor/.pin`'s `hostSuite` block is the prose, and it is
+# carried across a re-vendor below for the same reason.
+DEF_ASSERTIONS=544
 # Observed 2026-08-26 on the tarball GitHub served for v0.2.0. Provenance, not a
 # gate — see the header.
 DEF_ARCHIVE_SHA='f22ef12bf29f1c46061def6905095361712ec83cb693a232da2f9bc2cbc3962b'
@@ -355,15 +361,27 @@ else
 fi
 
 # ------------------------------------------------------------------- the pin
+# `ours` AND `hostSuite` ARE CARRIED ACROSS, and neither is optional. `ours` is
+# which files this repository is allowed to differ on; `hostSuite` is what
+# `vendor-unit` holds a post-swap run to, in both directions. Dropping either
+# would leave the pin describing a copy nobody has: without `hostSuite` that step
+# has nothing to check and says so (tools/verify.mjs, and `--self-check` asserts
+# it). A NEW TAG STILL HAS TO RE-READ IT — the crash line in it is a line number
+# in someone else's file — which is what `--tag` refusing to travel alone is for.
 node -e '
 const fs = require("fs");
 const [file, tag, steps, assertions, archive, url] = process.argv.slice(1);
-let ours = [];
-try { ours = JSON.parse(fs.readFileSync(file, "utf8")).ours || []; } catch { }
+let ours = [], hostSuite = null;
+try {
+  const was = JSON.parse(fs.readFileSync(file, "utf8"));
+  ours = was.ours || [];
+  hostSuite = was.hostSuite || null;
+} catch { }
 fs.writeFileSync(file, JSON.stringify({
   tag, steps: Number(steps), assertions: Number(assertions),
   archive: { url, sha256: archive },
   ours,
+  ...(hostSuite ? { hostSuite } : {}),
 }, null, 2) + "\n");
 ' "$ROOT/$PIN_REL" "$TAG" "$STEPS" "$ASSERTIONS" "$GOT_ARCHIVE_SHA" \
   "https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
