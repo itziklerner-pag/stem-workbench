@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge one run's two meters into one record, and score it.
 
-  merge.py TAG PROBE.json SINK1.json [SINK2.json]
+  merge.py TAG PROBE.json SINK1.json [SINK2.json] [--provenance PROV.json]
 
 THE THRESHOLDS, and why they are these numbers:
 
@@ -18,6 +18,14 @@ THE THRESHOLDS, and why they are these numbers:
       wobble or a partly-warm window cannot drag a real capture under it, and
       far below any real music passage's RMS over a 4 s window.
 
+PROVENANCE. Every record carries who produced it and when. Without it,
+`16 passed, 0 failed` was a property of a DIRECTORY rather than of a run: a
+stale committed JSON and a freshly measured one were byte-indistinguishable, so
+`summarise.py` happily scored seven youtube.com rows as PASS in a session that
+never contacted youtube.com (write-up Limitation 8). `summarise.py` now refuses
+to score records from more than one run, which it can only do because of this
+block.
+
 A window is scored only if BOTH meters actually looked. rms.py exits non-zero
 when the recorder captured nothing, and host.html reports `ok:false` when the
 worklet never ran — an empty capture and a silent capture both have RMS 0, and
@@ -30,12 +38,18 @@ CAPTURE_FLOOR = 0.01
 
 
 def main(argv):
+    prov = None
+    if '--provenance' in argv:
+        i = argv.index('--provenance')
+        prov = json.load(open(argv[i + 1]))
+        argv = argv[:i] + argv[i + 2:]
     tag, probe_path = argv[1], argv[2]
     sinks = [json.load(open(p)) for p in argv[3:]]
     p = json.load(open(probe_path))
 
     rec = {
         'tag': tag,
+        'provenance': prov,
         'page': p.get('page'),
         'variant': p.get('variant'),
         'knobs': p.get('knobs'),

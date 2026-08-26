@@ -10,6 +10,9 @@ out/
 # recordings. The merged per-run JSON in spike/results/*.json IS committed.
 spike/results/*.probe.json
 spike/results/*.sink*.json
+spike/results/*.prov.json
+spike/results/*.links*.json
+spike/results/*.links.err
 spike/results/*.electron.log
 spike/results/.*.ready*
 spike/mutations/

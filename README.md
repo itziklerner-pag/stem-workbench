@@ -55,8 +55,8 @@ that decides what this product may become. The code itself is
 
 | | |
 |---|---|
-| step 1 — the capture/mute spike | **done on Linux, open on macOS** |
-| step 2 — the Host seam in `stem-splitter-live` | not started, and **not yet authorised** |
+| step 1 — the capture/mute spike | **done on Linux; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware** |
+| step 2 — the Host seam in `stem-splitter-live` | not started; **authorised** on the Linux evidence, by decision |
 | steps 3+ — the app itself | not started |
 
 ### The spike
@@ -71,10 +71,16 @@ stereo while the audio device the app is routed to reads bit-exact zero for the
 app's entire lifetime.
 
 **It is not settled.** The plan writes its kill criterion against **macOS**,
-which has not been run, and the write-up's Limitations section is longer than
-its results — three adversarial audits corrected one of the three variants from
-PASS to FAIL and rewrote the mechanism. Read that section before citing any
-number from it.
+which has not been run — there is no Mac and no audio hardware on the machine
+that produced this evidence — and the write-up's Limitations section is longer
+than its results: three adversarial audits corrected one of the three variants
+from PASS to FAIL and rewrote the mechanism. The plan proceeds on a **decision**
+that the Linux result is enough to justify the seam refactor, not on the
+criterion having been met. macOS is
+[#2](https://github.com/itziklerner-pag/stem-workbench/issues/2); the permanent
+gate, specified to fail loudly on a platform where the property does not hold,
+is [#3](https://github.com/itziklerner-pag/stem-workbench/issues/3). Read the
+Limitations section before citing any number from the write-up.
 
 `spike/` holds the throwaway app that produced the evidence. It is kept rather
 than deleted because the permanent capture-mute gate will be built from it — it
@@ -85,6 +91,7 @@ is **not** the product, and nothing should be built on top of it.
 ```
 docs/spike-capture-mute.md   step 1's findings, limitations, and the gate spec
 spike/                       the throwaway Electron app + every recorded run
+spike/harness/               the external speaker meter it is measured with
 NOTICE.md                    the non-commercial statement and attribution
 ```
 

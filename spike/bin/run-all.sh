@@ -3,11 +3,22 @@
 # sink, so two runs at once would each measure the other's audio.
 #
 # Usage: run-all.sh [local|youtube|both] [SECONDS] [RUNS]
+#
+# Every record produced here carries ONE run id, so the summary at the end is a
+# property of THIS run and not of whatever JSON happens to be in the directory
+# (write-up Limitation 8). Set RESULTS_DIR to score somewhere other than
+# spike/results and leave the committed evidence alone.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SPIKE="$(cd "$HERE/.." && pwd)"
 WHICH="${1:-both}"; SECS="${2:-4}"; RUNS="${3:-3}"
-HARNESS="${AUDIO_HARNESS:-/tmp/claude-1000/-home-claudia-dev-claudia-stem-stem-splitter-live/8ad91f84-871f-4e69-be73-c4704b074b63/scratchpad/audio-harness}"
+HARNESS="${AUDIO_HARNESS:-$SPIKE/harness}"
+export AUDIO_HARNESS="$HARNESS"
+RESULTS="${RESULTS_DIR:-$SPIKE/results}"
+export RESULTS_DIR="$RESULTS"
+export SPIKE_RUN_ID="${SPIKE_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$-$RANDOM}"
 
+echo "run id: $SPIKE_RUN_ID  ->  $RESULTS"
 "$HARNESS/bin/sink.sh" create
 "$HERE/make-fixture.sh" >/dev/null
 
@@ -27,4 +38,8 @@ for page in local youtube; do
   run "$page" b 1 "$SECS" reload
   [ "$page" = youtube ] && run youtube b 1 "$SECS" spa
 done
-python3 "$HERE/summarise.py" "$HERE/../results"
+
+# A partial matrix (run-all.sh local) leaves the other page's records behind
+# from an older run, and summarise.py will now refuse to mix the two rather
+# than printing youtube rows nobody measured.
+python3 "$HERE/summarise.py" "$RESULTS"

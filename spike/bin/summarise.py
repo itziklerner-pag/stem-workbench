@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Aggregate spike/results/*.json into the variant table, and apply the VOID rule.
 
-  summarise.py RESULTS_DIR
+  summarise.py RESULTS_DIR [--allow-mixed-runs]
 
-THE VOID RULE (audio-harness/README.md, tools/verify.mjs:421-425 one level down):
+THE VOID RULE (spike/harness/README.md, tools/verify.mjs:421-425 one level down):
 a "the speakers were silent" result is a finding only if the speaker meter has
 been shown able to hear this app. Two controls per page must hold:
 
@@ -19,10 +19,25 @@ been shown able to hear this app. Two controls per page must hold:
 If either control fails for a page, that page's a/b/c rows print VOID and carry
 no verdict.
 
+THE PROVENANCE RULE. `16 passed, 0 failed` used to be a property of a
+DIRECTORY, not of a run: this scorer globs whatever JSON is lying in the tree,
+and the reproducibility audit ran `run-all.sh local` — never contacting
+youtube.com — and still got all seven youtube rows printed as PASS, scored from
+committed files (write-up Limitation 8). So:
+
+  - every record scored is listed by name, with the run that produced it, when
+    it was produced, and the commit it was produced at;
+  - a directory holding records from MORE THAN ONE run is VOID, exit 2, unless
+    --allow-mixed-runs is passed (mutations.sh needs it: it deliberately mixes
+    one freshly mutated record into the committed ones);
+  - records produced before provenance stamping say so, loudly, every time.
+
 Prints one `PASS`/`FAIL`/`VOID` line per row and a `N passed, M failed` summary,
 so it can be wired as a verify.mjs step later (BRIEF.md 6.3).
 """
-import json, glob, os, sys, statistics
+import json, glob, os, sys, time, statistics
+
+UNSTAMPED = '(unstamped — produced before provenance stamping)'
 
 CAPTURE_FLOOR = 0.01
 SILENCE_CEILING = 0.0005
@@ -31,13 +46,57 @@ SILENCE_CEILING = 0.0005
 def load(d):
     out = []
     for p in sorted(glob.glob(os.path.join(d, '*.json'))):
-        if p.endswith('.probe.json') or p.endswith('.sink1.json') or p.endswith('.sink2.json'):
+        base = os.path.basename(p)
+        if any(base.endswith(x) for x in ('.probe.json', '.sink1.json', '.sink2.json',
+                                          '.prov.json', '.links1.json', '.links2.json')):
             continue
         try:
-            out.append(json.load(open(p)))
+            r = json.load(open(p))
         except Exception as e:
             print(f'  FAIL unreadable result  {p}: {e}')
+            continue
+        r['_path'] = p
+        r['_mtime'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(os.path.getmtime(p)))
+        out.append(r)
     return out
+
+
+def run_id(r):
+    return ((r.get('provenance') or {}).get('runId')) or UNSTAMPED
+
+
+def inventory(d, recs):
+    """Say out loud what is about to be scored. Returns the run-id -> records map."""
+    runs = {}
+    for r in recs:
+        runs.setdefault(run_id(r), []).append(r)
+    print(f'Scoring {len(recs)} record(s) in {d!r}, from {len(runs)} run(s):')
+    for rid in sorted(runs, key=lambda k: (k == UNSTAMPED, k)):
+        rs = runs[rid]
+        provs = [r.get('provenance') or {} for r in rs]
+        made = sorted({p.get('producedAt') for p in provs if p.get('producedAt')})
+        commits = sorted({(p.get('commit') or '?')[:9] + ('+dirty' if p.get('commitDirty') else '')
+                          for p in provs if p.get('commit')})
+        sinks = sorted({p.get('measuredSink') for p in provs if p.get('measuredSink')})
+        mtimes = sorted({r['_mtime'] for r in rs})
+        when = f'produced {made[0]}..{made[-1]}' if made else f'file mtimes {mtimes[0]}..{mtimes[-1]}'
+        print(f'  run {rid}')
+        print(f'    {len(rs)} record(s), {when}'
+              + (f', commit {"/".join(commits)}' if commits else '')
+              + (f', sink {"/".join(sinks)}' if sinks else ''))
+        for r in sorted(rs, key=lambda x: x['tag']):
+            p = r.get('provenance') or {}
+            print(f'      {r["tag"]:<28} {p.get("producedAt") or "produced ?":<21} '
+                  f'file {r["_mtime"]}  {os.path.basename(r["_path"])}')
+    if UNSTAMPED in runs:
+        print()
+        print(f'spike: WARNING — {len(runs[UNSTAMPED])} record(s) carry NO run id, commit or')
+        print( 'spike:           timestamp. Nothing ties them to a run that actually happened;')
+        print( 'spike:           they are whatever JSON is lying in the directory. The file')
+        print( 'spike:           mtimes above are the filesystem\'s word, not the run\'s.')
+        print( 'spike:           Re-run to stamp them.')
+    print()
+    return runs
 
 
 def fmt(v):
@@ -45,8 +104,20 @@ def fmt(v):
 
 
 def main(argv):
+    allow_mixed = '--allow-mixed-runs' in argv
+    argv = [a for a in argv if a != '--allow-mixed-runs']
     d = argv[1] if len(argv) > 1 else 'spike/results'
     recs = [r for r in load(d) if not r['tag'].endswith('run0')]  # run0 = smoke runs
+
+    runs = inventory(d, recs) if recs else {}
+    if len(runs) > 1 and not allow_mixed:
+        print(f'spike: VOID — {len(runs)} different runs in one directory.')
+        print( 'spike:        A verdict assembled from several runs is a property of the')
+        print( 'spike:        DIRECTORY, not of a run: that is how a local-only re-run once')
+        print( 'spike:        printed seven youtube.com rows as PASS. Re-run the whole matrix,')
+        print( 'spike:        or point RESULTS_DIR at a clean directory, or pass')
+        print( 'spike:        --allow-mixed-runs if you know exactly what you are mixing.')
+        return 2
     # The `run44k1` runs force the measuring AudioContext to 44 100 Hz. They are
     # scored on their own row rather than folded into a/b/c, so the a/b/c ranges
     # describe ONE configuration and not a mixture of two.
@@ -133,6 +204,23 @@ def main(argv):
                              f'track={(w2.get("trackAtWindow") or {}).get("readyState")} '
                              f'url={(r.get("navigation") or {}).get("urlAfter","?")[:70]}')
                 passed, failed = (passed + 1, failed) if ok else (passed, failed + 1)
+
+    # The measured sink is machine-global and any process may write into it, so
+    # a silence reading is only worth what the witness says. run-variant.sh
+    # samples pwlinks.py inside the window and stores it in the record.
+    witnessed = [r for r in recs if (r.get('provenance') or {}).get('sinkExclusive') is not None]
+    dirty = [r for r in recs if (r.get('provenance') or {}).get('foreignWriters')]
+    if dirty:
+        for r in dirty:
+            who = ', '.join(f'{w.get("name")}(pid {w.get("pid")})'
+                            for w in (r['provenance'] or {})['foreignWriters'])
+            lines.append(f'  FAIL provenance {r["tag"]}  another process wrote into '
+                         f'{r["provenance"].get("measuredSink")} during the window: {who}')
+            failed += 1
+    elif witnessed:
+        lines.append(f'  PASS control sink-exclusivity  {len(witnessed)} run(s) witnessed '
+                     f'mid-window, no foreign writer on the measured sink')
+        passed += 1
 
     print('\n'.join(lines))
     # The VOID rule applied to the scorer itself (BRIEF.md 6.3 rule 3,

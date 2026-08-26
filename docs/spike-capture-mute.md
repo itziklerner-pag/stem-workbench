@@ -22,9 +22,20 @@ Step 1 of `desktop-app-plan.md` (§3), issue
 > writes it against **macOS**, and marks Windows/Linux results explicitly
 > *"not blocking"*. Every run here reports `platform: linux`. This spike
 > produced a result on the axis the plan calls non-blocking and **zero evidence
-> on the axis that decides the program.** Issue #1 stays open until a Mac run
-> exists. Step 2 — the multi-week seam refactor in `stem-splitter-live` — is
-> **not** authorised by this document.
+> on the axis that decides the program.**
+>
+> **The plan proceeds anyway — by decision, not by evidence.** There is no Mac
+> and no audio hardware on this machine (`aplay -l`: *no soundcards found*), so
+> the criterion as worded was never *dischargeable* here: it is
+> hardware-blocked, not unanswered. The CEO ruled that the mechanism question is
+> answered on the only platform available and that step 2 — the seam refactor in
+> `stem-splitter-live` — is worth doing under either macOS outcome, so it is
+> authorised on that ruling. macOS is now a separate, hardware-blocked task
+> ([#2](https://github.com/itziklerner-pag/stem-workbench/issues/2)) rather than
+> a gate, and the permanent capture-mute gate
+> ([#3](https://github.com/itziklerner-pag/stem-workbench/issues/3)) is
+> specified to **fail loudly on macOS** if the property does not hold there.
+> Issue #1 is closed on that basis. **Nothing below is macOS evidence.**
 
 Everything below is what was measured, followed by what three adversarial
 audits did to it. Read [Limitations](#limitations) before citing any of it.
@@ -48,9 +59,10 @@ is audible. That is the property the product needs — a user must not hear a
 1.9 s burst of the original every time they arm the deck.
 
 The full assertion list the gate must carry is in
-[The permanent gate](#the-permanent-gate). It is **not** the four assertions
-this spike originally proposed; those four are individually satisfiable by a
-capture that is useless for stem separation (Limitation 6).
+[The permanent gate](#the-permanent-gate), and is tracked as
+[#3](https://github.com/itziklerner-pag/stem-workbench/issues/3). It is **not**
+the four assertions this spike originally proposed; those four are individually
+satisfiable by a capture that is useless for stem separation (Limitation 6).
 
 ---
 
@@ -61,7 +73,7 @@ Two independent meters over the same seconds, never by ear:
 | side | measures | where |
 |---|---|---|
 | capture | RMS of the `getDisplayMedia` `MediaStream` | **inside** the renderer, every sample of every 128-frame quantum, `spike/host.html` |
-| speaker | RMS of what the app wrote to its output device | **outside** the app, off the monitor of an isolated PipeWire null sink wired to no hardware |
+| speaker | RMS of what the app wrote to its output device | **outside** the app, off the monitor of an isolated PipeWire null sink wired to no hardware, `spike/harness/bin` |
 
 The app touches a ready-file at the instant its measurement window opens and the
 external recorder starts then, so the two windows overlap rather than being
@@ -270,15 +282,25 @@ review measured and the spike does not record.
 
 ### Watched failing
 
-`spike/bin/mutations.sh` routes the app to a decoy sink while the meter stays on
-the real one. The `nocapture` control goes red and a/b/c print
-`VOID — no verdict, the controls did not hold`, exit non-zero:
+`spike/bin/mutations.sh` scores the committed local records **unmutated first**
+— which must go green, or nothing after it means anything — then routes the app
+to a decoy sink while the meter stays on the real one and scores them again. The
+`nocapture` control goes red, a/b/c print `VOID`, the other two controls stay
+green, and the exit code is 1:
 
 ```
   FAIL control local/nocapture  speaker meter can hear this app
+  PASS control local/local-echo  speaker meter can hear the view DURING a capture
   FAIL local/a  VOID — no verdict, the controls did not hold
-  spike: 2 passed, 4 failed
+  FAIL local/b  VOID — no verdict, the controls did not hold
+  FAIL local/c  VOID — no verdict, the controls did not hold
+  PASS control local/silent-source  ...
+  PASS control sink-exclusivity  1 run(s) witnessed mid-window, no foreign writer
+  spike: 3 passed, 4 failed          exit 1
 ```
+
+Each of those lines is **asserted**, not printed. An exit code alone was the
+whole of the old assertion, and Limitation 9 shows a mutation that defeats it.
 
 One control also caught a real defect unprompted: the `silent` negative control
 read **0.350295** instead of 0 on its first outing, because
@@ -286,7 +308,9 @@ read **0.350295** instead of 0 on its first outing, because
 in `main.js`. That control earning its keep on its first run is the argument for
 keeping it.
 
-`mutations.sh` itself is weak, and Limitation 9 says how.
+`mutations.sh` used to assert only that exit code. Limitation 9 has what was
+wrong with that, the two mutations it is now watched failing against, and what
+it asserts instead.
 
 ---
 
@@ -489,6 +513,10 @@ precisely the mistake the plan's spike-first sequencing exists to prevent.
    flags. A mono or 48 kHz capture on macOS changes the engine's plumbing.
 5. Windows likewise, and likewise non-blocking.
 
+Tracked as [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2),
+carrying this list. It is blocked on hardware, and it is **not** a blocker for
+step 2 — see the ruling in the Verdict above.
+
 ### 2. Only the local variants were re-measured with the corrected instrument
 
 The whole-lifetime continuous recording was run for local (a), (b), (c), (d),
@@ -559,21 +587,29 @@ processing off. Every run recorded here passes `echoCancellation`,
 `noiseSuppression` and `autoGainControl` as `false`. Presence/absence survives
 AGC; any level claim does not.
 
-### 7. Half the instrument is not in this repository
+### 7. Half the instrument was not in this repository — **fixed**
 
-`sink.sh`, `measure.sh`, `rms.py`, `pwnode.py` and `env.sh` — the entire
-external speaker meter — live only in a session scratchpad under `/tmp`, and
-`spike/bin/run-variant.sh` **hardcodes that path as its `AUDIO_HARNESS`
-default**. The reproducibility audit reproduced only because that `/tmp` tree
-still happened to exist. **Once it is gone the committed evidence cannot be
-re-derived from this repository at all.**
+As originally written: `sink.sh`, `measure.sh`, `rms.py`, `pwnode.py` and
+`env.sh` — the entire external speaker meter — lived only in a session
+scratchpad under `/tmp`, and `spike/bin/run-variant.sh` **hardcoded that path as
+its `AUDIO_HARNESS` default**. The reproducibility audit reproduced only because
+that `/tmp` tree still happened to exist. Once it was gone the committed
+evidence could not have been re-derived from this repository at all.
 
-A gate that depends on a `/tmp` directory will VOID one day and be read as a
-pass by someone who is not looking carefully. **The sink and meter scripts must
-be vendored into this repository before the local-fixture gate becomes
-permanent.**
+**Fixed.** All five files are vendored at
+[`spike/harness/bin/`](../spike/harness/), every `spike/bin/*` script defaults to
+them, and no `/tmp` path survives anywhere in `spike/` or `docs/`.
+`AUDIO_HARNESS=` still overrides, so the original tree can be used if it happens
+to exist; nothing requires it to.
 
-### 8. `16 passed, 0 failed` is a property of a directory, not of a run
+**Watched, not assumed.** The `/tmp` tree was renamed aside and variant (b) was
+re-run end to end twice from the repository alone — see
+[Re-running](#re-running). Both runs reproduced the finding
+(`capturedRms` 0.349998 and 0.350573; `speakerRms` and `speakerPeak` bit-exactly
+0.0; `isAudioMuted()` true), and the `/tmp` tree was then restored. The check
+is that it *works without the scratchpad*, not that it works.
+
+### 8. `16 passed, 0 failed` was a property of a directory, not of a run — **fixed, with a residue**
 
 The reproducibility audit ran only `run-all.sh local 4 3` — `youtube.com` was
 never contacted — and the summary still printed all seven YouTube rows as PASS
@@ -589,10 +625,44 @@ the tree (file mtimes prove it). Worse:
   committed record in place** (one review run rewrote `local-b-run1.json` from
   0.350677 to 0.350522 with no signal at all).
 
-Any permanent gate built from this must stamp each record with a run id and
-refuse to score records it did not produce.
+**Fixed, with one residue.** `merge.py` now writes a `provenance` block into
+every record — `runId`, `producedAt`, the `commit` and whether the tree was
+dirty, the host, the **measured** sink and the sink the app was **routed to**,
+the harness directory, and the mid-window sink witness (Limitation 10).
+`run-all.sh` stamps one run id across the whole matrix; a standalone
+`run-variant.sh` stamps its own. `summarise.py` then:
 
-### 9. The scorer's own VOID gap — fixed here — and `mutations.sh`, which is not
+- **lists every record it is about to score** — tag, run id, when it was
+  produced, at which commit, on which sink, and the file's mtime — before it
+  scores anything;
+- **refuses a directory holding records from more than one run**, printing
+  `spike: VOID — N different runs in one directory` and exiting **2**. The
+  reproducibility audit's exact scenario — `run-all.sh local` re-measuring the
+  local rows while the youtube rows sit there from an older run — is now VOID
+  instead of `16 passed, 0 failed`. `--allow-mixed-runs` overrides it, loudly,
+  and `mutations.sh` is the one caller that needs it;
+- **says so, every time, when records carry no stamp at all.**
+
+`run-variant.sh` also announces an overwrite instead of performing it silently:
+it prints which run produced the record it is about to replace and when.
+`RESULTS_DIR=` re-runs into a clean directory and leaves the committed evidence
+alone.
+
+**The residue:** the 38 committed records in `spike/results/` were produced
+before any of this existed and are **not** stamped. They have not been
+back-filled — inventing a run id for records nobody can attribute would be worse
+than admitting they have none. `summarise.py spike/results` therefore still
+prints `16 passed, 0 failed` and exits 0, now preceded by an inventory and a
+five-line warning that nothing ties those numbers to a run that actually
+happened. It becomes VOID the moment anything is re-measured into that
+directory, which is the correct behaviour and also the reason the two
+post-vendoring re-runs were written to a scratch `RESULTS_DIR` instead.
+
+Watched failing: with one freshly stamped record dropped into a copy of
+`spike/results/`, `summarise.py` prints the VOID banner and exits 2; the same
+directory with `--allow-mixed-runs` scores and exits 0.
+
+### 9. The scorer's own VOID gap, and `mutations.sh` asserting only an exit code — **both fixed**
 
 `python3 spike/bin/summarise.py <empty dir>` printed `spike: 0 passed, 0 failed`
 and exited **0**. `BRIEF.md` §6.3 rule 3 names exactly that shape as VOID (*"a
@@ -602,24 +672,92 @@ commit**: it now prints `spike: VOID — scored nothing` and exits 2. Watched
 going red on the pre-fix bytes; `summarise.py spike/results` still prints
 `16 passed, 0 failed`, exit 0, unchanged.
 
-**Still broken: `mutations.sh` asserts only an exit code.** Its whole assertion
-is `if python3 summarise.py "$tmp"; then MUTATION NOT CAUGHT`, and its
-`cp … 2>/dev/null || true` swallows a failed copy. Run against a directory
+**`mutations.sh` asserted only an exit code — fixed.** Its whole assertion was
+`if python3 summarise.py "$tmp"; then MUTATION NOT CAUGHT`, and its
+`cp … 2>/dev/null || true` swallowed a failed copy. Run against a directory
 holding only the M1 `nocapture` record, `summarise.py` exits 1 with
 `0 passed, 2 failed` and **no a/b/c rows whatsoever** — and `mutations.sh` would
-still print `M1 asserted RED: 1 mutation caught`. The documented red it claims
-to assert (`2 passed, 4 failed`, a/b/c printing VOID) **is never checked**.
-`AGENTS.md` rule 7: make it fail when it cannot look.
+still have printed `M1 asserted RED: 1 mutation caught`. The documented red it
+claims to assert was never checked. `AGENTS.md` rule 7: make it fail when it
+cannot look.
 
-### 10. The measured sink is the machine's default sink, and is not exclusive
+It now asserts the **shape**, on both sides of the mutation:
 
-`default.audio.sink` is `harness_sink` for the whole user session, and
-`harness_decoy` from `mutations.sh` lingers (`object.linger=true`).
-`run-variant.sh` takes **no lock**, and runs from other sessions were observed
-on the same daemon during review. Contamination direction is usually toward a
-false FAIL, so it does not threaten the (b) result — but nothing asserts the app
-under test is the only writer, and **if the decoy ever became the default, a run
-where `PULSE_SINK` was ignored would read 0.0 and pass for the wrong reason.**
+1. every input record is copied with the copy **checked**, and the fixture
+   directory is counted — a missing input aborts rather than producing a red of
+   the wrong shape;
+2. the **unmutated** directory is scored first and must be **green**; a mutation
+   runner that is already red before it mutates has proved nothing;
+3. the mutated record must itself show the mutation took — `provenance.appSink`
+   is the decoy, `provenance.measuredSink` is the real sink, and the measured
+   sink read ≤ the silence ceiling;
+4. the mutated summary must print exactly the documented red — `FAIL control
+   local/nocapture`, `FAIL local/a|b|c  VOID — no verdict`, the `local-echo` and
+   `silent` controls **still PASS** (so the mutation is targeted rather than
+   general breakage), `4 failed`, no `PASS local/a|b|c` row anywhere, and exit
+   **1** rather than **2** (2 would be "VOID — scored nothing", a different red).
+
+Watched failing, twice:
+
+- against a directory holding only a `nocapture` record — the Limitation-9
+  scenario verbatim — it now aborts with `spike: missing input …local-a-run1.json`
+  instead of claiming a catch;
+- with `summarise.py`'s VOID rule deleted, `summarise.py` still exits non-zero
+  (the `nocapture` control is red), so the **old** assertion would still have
+  printed `M1 asserted RED`. The new one reports
+  `MUTATION NOT ASSERTED: 5 shape check(s) failed` and names each: a/b/c printed
+  PASS instead of VOID, the failure count was not 4, and a `PASS local/a` row was
+  present.
+
+The counts in the block above are the pre-fix ones. The current shape adds a
+`PASS control sink-exclusivity` row (Limitation 10), so M1 now reads
+`3 passed, 4 failed`; the assertion is written against the **rows**, and the only
+count it pins is `4 failed`.
+
+### 10. The measured sink was the machine's default sink, and was not exclusive — **mostly fixed**
+
+As originally written: `default.audio.sink` is `harness_sink` for the whole user
+session, and `harness_decoy` from `mutations.sh` lingers
+(`object.linger=true`). `run-variant.sh` took **no lock**, and runs from other
+sessions were observed on the same daemon during review. Contamination direction
+is usually toward a false FAIL, so it did not threaten the (b) result — but
+nothing asserted the app under test was the only writer, and if the decoy ever
+became the default, a run where `PULSE_SINK` was ignored would read 0.0 and pass
+for the wrong reason.
+
+**Three of the four are fixed:**
+
+- **Its own sink.** The default measured sink is now `stem_workbench_spike`, not
+  `harness_sink`. The old name is the machine's session default and is shared
+  with whatever else the box decided to play.
+- **A lock.** `spike/harness/bin/env.sh:harness_lock` takes an `flock` for the
+  life of the run, and `sink.sh create|destroy` takes it before touching a node
+  — so one run of this repo cannot destroy a sink another run is measuring.
+- **A witness.** `spike/harness/bin/pwlinks.py` is sampled **inside** the
+  measurement window and records every node linked into the sink's playback
+  ports, with pid, target and link state. It lands in the record as
+  `provenance.sinkWitness` / `foreignWriters` / `sinkExclusive`, and
+  `summarise.py` **fails** a run whose window had a foreign writer. That is the
+  second half of the gate's assertion 8.
+- **`mutations.sh` cleans up after itself.** Its decoy is now
+  `stem_workbench_spike_decoy` and it is destroyed on exit rather than left
+  lingering on the daemon.
+
+The witness also corroborates the corrected mechanism from an angle the spike
+did not have. In a post-vendoring variant (b) run it caught **exactly the two
+`Stream/Output/Audio` nodes** the mechanism section describes, both in the
+Electron pid: one `state=suspended` with its link `paused` (the view's own
+output), one `state=running` with its link `active` (the host page's zero-gain
+monitor path) — and no third-party writer.
+
+**What is NOT fixed, and cannot be by a lock:** a lock binds only runs that
+cooperate. Nothing stops an unrelated process from linking to the sink; the
+witness *records* that rather than preventing it. And the app's own node is
+still only recorded, never asserted — gate assertion 7 (*the app's own
+`Stream/Output/Audio` node exists, names this pid, and targets the measured
+sink*) is what actually closes "the app was never connected", and it is tracked
+in [#3](https://github.com/itziklerner-pag/stem-workbench/issues/3), not built
+here.
 
 Forced routing itself is *not* in the causal chain: review ran (b) with neither
 `PULSE_SINK` nor `PIPEWIRE_NODE` set, so the app used the system default device,
@@ -704,22 +842,58 @@ catch, and it is the reason assertion 5 exists.
 
 ## Re-running
 
+Everything needed is in this repository. Requires Linux + PipeWire
+(`pw-cli`, `pw-link`, `pw-record`, `pw-dump`), `python3` with `numpy`, `flock`,
+`ffmpeg`, and `xvfb-run`.
+
 ```bash
-AUDIO_HARNESS=/path/to/audio-harness   # the sink + external meter — NOT in this repo yet, see Limitation 7
 npm i -D electron
 spike/bin/make-fixture.sh              # 60 s tone, ffmpeg; md5 15c893ddfc606f988ae0b0659abcb5c1
 spike/bin/run-all.sh both 4 3          # the whole matrix -> "spike: 16 passed, 0 failed"
-spike/bin/mutations.sh                 # assert the controls can lose
+spike/bin/mutations.sh                 # assert the controls can lose, in the documented SHAPE
 python3 spike/bin/summarise.py spike/results
 ```
 
-All Electron runs must be wrapped in `xvfb-run -a -s "-screen 0 1280x1024x24"`
-and serialised — every run writes into the same isolated sink, so two at once
-measure each other.
+`spike/harness/` is the external speaker meter and is the default;
+`AUDIO_HARNESS=` overrides it. `run-all.sh` wraps every Electron run in
+`xvfb-run -a -s "-screen 0 1280x1024x24"` and serialises them — every run writes
+into the same isolated sink, so two at once measure each other — and
+`run-variant.sh` holds an `flock` on the sink for the life of each run.
 
-**A re-run overwrites the committed records in place** (Limitation 8). Copy
-`spike/results/` aside first if the committed numbers matter to you.
+**A re-run overwrites the committed records** (Limitation 8) — loudly now,
+naming the run it is replacing, but it still overwrites. Use a scratch
+directory if the committed numbers matter to you:
+
+```bash
+RESULTS_DIR=/tmp/spike-rerun spike/bin/run-all.sh local 4 3
+```
+
+Re-measuring only part of the matrix into `spike/results/` leaves records from
+two different runs in one directory, and `summarise.py` will VOID rather than
+score them. That is deliberate.
+
+### Re-derived from this repository alone
+
+The vendoring was checked the only way it can be: the `/tmp` scratchpad the old
+default pointed at was **renamed aside**, variant (b) was run end to end twice,
+and the scratchpad was then restored. Both runs, Electron 44.0.0 / Chromium
+152.0.7977.54, fixture analytic RMS 0.353553:
+
+| run | capturedRms | quanta | speakerRms | speakerPeak | `isAudioMuted()` | sink exclusive |
+|---|---|---|---|---|---|---|
+| 1 | 0.349998481 | 1500 | **0.0** | **0.0** | true | yes |
+| 2 | 0.350572714 | 1500 | **0.0** | **0.0** | true | yes |
+
+Both fall inside the committed (b) spread (0.349763–0.351382). The track read
+`sampleRate 44100`, `channelCount 2`, `readyState live`. `isCurrentlyAudible()`
+was **true** in both, as in every muted run ever recorded here — which is why
+the gate must not assert it false.
+
+These two runs were written to a scratch `RESULTS_DIR` and are **not** committed:
+dropping them into `spike/results/` would have mixed two runs in one directory,
+which is exactly what `summarise.py` now refuses.
 
 Raw per-run JSON: `spike/results/*.json` — one file per run. `*.probe.json` is
-the app's own output and `*.sink1.json` / `*.sink2.json` the external meter's;
-both are gitignored.
+the app's own output, `*.sink1.json` / `*.sink2.json` the external meter's,
+`*.prov.json` the provenance stamp and `*.links*.json` the sink witness; all of
+those are gitignored, and the merged record carries what matters from them.
