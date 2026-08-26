@@ -64,6 +64,15 @@ Remaster)*, 213.061 s.
    in 580 ms — the unit verified their SHA-256, and ORT built a session
    (`ep: wasm`, 4 threads, `adapter: null`). No `DECK_PREPARE` was involved: on
    the arm-first path the capture builds the session itself.
+
+   > **`engine.log` line 5 says `weights downloaded + hash verified in 580ms`,
+   > and NOTHING WAS DOWNLOADED.** The file is `models/htdemucs_6s.onnx` on local
+   > disk, read over this app's own `app://` origin; 580 ms is a disk read, and
+   > P1′ means this product asks exactly one host for anything and it is not
+   > this. The word is the unit's: a bundled-model Host answers
+   > `fromCache: false` — correctly, because asking again cannot improve an
+   > immutable file that shipped with the app — and `offscreen/engine.js` prints
+   > "downloaded" for that answer. Upstream **stem-splitter-live#28**.
 8. A **full page reload** did not take the capture with it: `recording` before
    and after, frame counter 1,449,984 → 1,978,368, still muted. The grant is
    bound to the `WebContents`, not to the document.
