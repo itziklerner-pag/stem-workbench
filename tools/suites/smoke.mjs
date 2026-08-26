@@ -149,8 +149,12 @@
  * WATCHED RED BY MUTATION — `tools/suites/smoke-mutations.sh`
  * ---------------------------------------------------------------------------
  * Every assertion below, with the edit that broke it. Run on 2026-08-26 against
- * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux. The right-hand column of
- * that script is what ACTUALLY went red, not what was expected to.
+ * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux: **19 of 19 caught, and
+ * `coverage.py` over the whole battery found all 18 assertions on a FAIL line.**
+ * The right-hand column of that script is what ACTUALLY went red, not what was
+ * expected to. Fifteen of the nineteen turn exactly one assertion red; the four
+ * with a wider blast radius are 4 (six — the deck never boots), 7 (three), and
+ * 1, 5 and 11 (two each).
  *
  *   1  main.js: never addChildView(source.view)           -> 1, the topology
  *   2  smoke.mjs: guard only OUR session                  -> 2, the guard itself
