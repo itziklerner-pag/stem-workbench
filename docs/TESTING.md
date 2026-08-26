@@ -1853,6 +1853,65 @@ exists**, the repository is claiming to have vendored a tag and a missing tree i
 a hard `FAIL`. That is what stops "skip because it is not there" from becoming
 permanent: it expires by itself, on the commit that creates the pin.
 
+### `vendor-unit` post-swap — a two-way pin, not an ignore-list
+
+**`--unit` runs the vendored `test.js` whole, and that file is two things at
+once**: the unit's largest DSP suite, and a conformance suite over the two hole
+modules a Host replaces. With the extension's holes it is 612 green — the
+`assertions: 1156` above. With **this Host's** holes it does not fail, it
+**crashes** (`TypeError: listeners[0] is not a function` at `test.js:5833`), so
+the vendored runner exits 1 on every run, for ever, and the step could only ever
+be red.
+
+**A step that can never be green again is worse than no step** — standing reds
+train everyone to distrust every red — and the crash is a known upstream defect
+with a ticket (`stem-splitter-live#30`) whose fix lands in that repository behind
+a later tag. It is not patched here: rule V1, and `vendor-intact` runs first and
+would say so.
+
+So the step declares the exit code it expects and pins the **whole report**, in
+`vendor/.pin`'s `hostSuite` block:
+
+| pinned | value |
+|---|---|
+| `exitCode` | 1 |
+| `passingSuites` | 11 |
+| `passingAssertions` | 544 |
+| `crashingSuite` | `unit` |
+| `crashAt` / `crashMessage` | `test.js:5833` / `listeners[0] is not a function` |
+
+**Three things fail this step, and the second is the one an ignore-list never
+has:**
+
+1. any of the eleven other suites stops passing, or their assertions stop
+   summing to 544;
+2. **`unit` PASSES** — post-swap that means the hole modules are not this Host's
+   any more, and the failure message names both paths;
+3. `unit` fails **without crashing**, or the crash **moves**. Asserting and
+   failing is different in kind from dying, and that difference has to stay
+   visible: two earlier descriptions of this failure were already stale by the
+   time they were read.
+
+**Watched red, both directions:**
+
+| direction | mutation | what went red |
+|---|---|---|
+| the eleven | `process.exit(1)` at the top of `extension/engine/chroma.js`, behind an env var, restored byte-identically after | `7 suites passed, vendor/.pin pins 11`; the assertion sum (214 vs 544); the non-PASS set; and the crash clause, because `unit` then failed without crashing |
+| **the other way** | `git show v0.2.0:extension/{offscreen,ui}/host.js` over both holes — the extension's Host, back | the run goes `GREEN (partial … 12 of 23 steps)` and the step FAILS, naming `vendor/stem-splitter-live/extension/offscreen/host.js` and `…/ui/host.js` as no longer this Host's |
+
+**`classify()` was changed in one place and narrowly.** A step may declare
+`expect.code`; only then is `expect` consulted on a non-zero exit, and exactly
+one step in the table declares it (asserted by `--self-check`). **The VOID rule
+is not relaxed**: a step that exits with its pinned code having asserted nothing
+is still VOID, because silence is not a pass at any exit code. That, a green
+`unit`, a clean red, a moved crash, a short plan and a different non-zero exit
+are six `--self-check` cases.
+
+**The verdict for `test.js` itself is the `conformance` step**, which runs the
+same file, unedited, to completion under this Host's own platform: 612
+assertions, 593 passed, 19 failed. Nothing this step loses is unmeasured; what it
+still gates is the other eleven suites.
+
 ### `vendor-intact` — rule V1, in 0.1 s and offline
 
 `bash tools/vendor-unit.sh --check`. Five assertions, no network:
