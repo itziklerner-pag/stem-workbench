@@ -204,9 +204,49 @@ export const STEPS = [
      * no browser, so it has nothing to protect from contention anyway.
      */
     precheck: vendorPrecheck,
+    /**
+     * ============================================================================
+     * THIS STEP IS RED WITH THIS HOST'S HOLE MODULES IN PLACE, AND THAT IS
+     * REPORTED RATHER THAN ARRANGED AWAY. READ THIS BEFORE "FIXING" IT.
+     * ============================================================================
+     * `--unit` runs the vendored `test.js` whole, and `test.js` is BOTH the
+     * unit's largest DSP suite AND a conformance suite over the two hole
+     * modules. With the extension's holes it is 612 green. With ours it does not
+     * fail, it CRASHES:
+     *
+     *     TypeError: listeners[0] is not a function   at test.js:5833
+     *
+     * The deck half asserts `listeners.length === 1`, correctly reports it RED,
+     * and dereferences `listeners[0]` on the next line. No Host that is not a
+     * Chrome extension can get past it. 11 of 12 suites still PASS (544
+     * assertions); step `unit` reports `CRASHED after start`.
+     *
+     * THREE THINGS WERE TRIED AND REJECTED, so that nobody re-derives them:
+     *
+     *   · PATCH `test.js`. Rule V1, and `vendor-intact` runs first and says so.
+     *     It is an upstream defect — a sibling of `stem-splitter-live#30` — and
+     *     its fix is a change in the other repository behind a later tag.
+     *   · RUN `--unit` MINUS THE `unit` STEP. The vendored runner asserts, both
+     *     ways, that `--unit`'s plan IS the suite list `unit.json` declares
+     *     (its `tools/verify.mjs:835`). There is no subset to ask for, and
+     *     building one here is the second runner T1 rejected.
+     *   · PUT `tools/conformance-platform.mjs` ON `NODE_OPTIONS` FOR THIS STEP.
+     *     It would stop the crash — and it would also hand a `window` global to
+     *     the eleven other suites, which is a change to what they measure. A
+     *     gate that alters its subject to keep itself green is worse than a red.
+     *
+     * THE VERDICT FOR `test.js` IS THE `conformance` STEP, which runs the same
+     * file, unedited, to completion under this Host's own platform: 612
+     * assertions, 593 passed, 19 failed, every red pinned by name in
+     * `vendor/.conformance.json` and argued in `docs/CONFORMANCE.md`. Nothing is
+     * lost here that is not measured there — this step's remaining value is the
+     * ELEVEN OTHER SUITES, and its red is a standing pointer at an upstream fix.
+     */
     expect: {
       re: /GREEN \(partial — the vendored unit's suites only; (\d+) of (\d+) steps\)/,
-      why: "the vendored runner's own verdict line for a --unit plan",
+      why: "the vendored runner's own verdict line for a --unit plan — WHICH THIS HOST'S HOLES MAKE "
+        + 'UNREACHABLE: test.js crashes at :5833 (see the block above and docs/CONFORMANCE.md §2). '
+        + 'The verdict for test.js is the `conformance` step; this one still gates the other eleven suites',
       /**
        * WHY AN `expect` AND NOT JUST THE EXIT CODE. `--unit` exits 0 on a green
        * plan and 2 on an EMPTY one — but an emptied `suites` list in
