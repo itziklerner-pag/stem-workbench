@@ -356,6 +356,30 @@ NOT RUN* on every run that leaves it out. It needs the network, the 109 MB
 weights and a site nobody here controls — and it is the only step anywhere that
 proves six stems come out of the engine inside this app.
 
+### Where the gate stands, as of this commit
+
+`node tools/verify.mjs` is **RED**, and both reds are known, named and not this
+step's:
+
+| step | | |
+|---|---|---|
+| `void-canary` | PASS | 21 passed |
+| `vendor-intact` | PASS | 5 passed |
+| `vendor-unit` | **FAIL** | 11 of 12 vendored suites pass (544 assertions); `unit` CRASHES at `test.js:5833` under any non-Chrome Host. Documented in `tools/verify.mjs` and [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md); the verdict for that file is the `conformance` step |
+| `deck-seam` | PASS | 49 passed |
+| `shell` | **FAIL** | 31 passed, 3 failed — the deck slot now loads the real vendored `embed.html`, so two probes that lived in `src/renderer/deck-placeholder.js` are no longer on that page. A measurement that lost its carrier, and it belongs in `src/preload/deck.cjs` |
+| `engine-host` | PASS | 37 passed |
+| `transport` | PASS | 63 passed |
+| `deck-host` | PASS | 27 passed |
+| `p1` | PASS | 19 passed |
+| `conformance` | PASS | 11 passed |
+| `smoke` | PASS | 18 passed |
+| `capture-mute` | PASS | 15 passed |
+| `youtube` | *manual* | **25 passed** — not on this plan; run it by hand |
+
+The runner never prints an unqualified `GREEN` over a partial plan, and it names
+every step that did not run.
+
 The engine and the deck are gated by **their own** suites, which travel with the
 vendored copy (`node tools/verify.mjs --unit --no-reap` inside `vendor/`, and
 step `vendor-unit` here); this repository
