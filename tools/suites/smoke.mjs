@@ -219,6 +219,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { UPDATE_HOST } from '../../src/main/update.js';
+
 const ID = 'smoke';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'out', ID);
@@ -616,26 +618,51 @@ const engineMsgs = A(await safe('engine bus', engineSaw));
 const capStart = engineMsgs.filter((m) => m.type === 'CAPTURE_START');
 const prepare = engineMsgs.filter((m) => m.type === 'DECK_PREPARE');
 
+/**
+ * THE COUNT IS NOT THE CLAIM, AND MAKING IT ONE IS A MEASURED FLAKE.
+ *
+ * This suite sends the two `SW_*` envelopes itself (see the header: the deck
+ * sends them only once the 109 MiB weights are on disk, and gating an always-on
+ * step on a file that is not in git would make it SKIP on a clean checkout). On
+ * a machine that DOES have the weights, the deck sends its own as well —
+ * `maybePrepare()` fires from the first `STATE` — so the engine sees TWO.
+ *
+ * Measured on 2026-08-26: two consecutive runs on this tree, one with a single
+ * `DECK_PREPARE` and one with two, differing only in whether the deck's own
+ * `maybePrepare()` landed inside the window. `prepare.length === 1` was
+ * therefore an assertion about the MACHINE and not about the Host.
+ *
+ * So the count is reported and every message is checked instead of the first:
+ * `every()` is STRICTLY stronger on the thing these assertions are named for —
+ * the address, the frozen shape, the omitted `deck` — and the only thing given
+ * up is a number that was never in any of their names. `AGENTS.md` forbids
+ * parking a flake on an expected-red list; this is the other repair, which is to
+ * stop asserting the part that was not the claim.
+ */
+const frozenStart = ['from', 'source', 'sourceToken', 'to', 'type', 'v'];
 ok('CAPTURE_START: the Host originates it to the engine, carrying a minted token and the Source  '
   + '[entry point: SW_CAPTURE_START in src/main/deck-host.js -> captureStart() in src/main/engine-messages.js]',
-  capStart.length === 1 && capStart[0].to === BUS.engine && capStart[0].from === BUS.host
-  && Number(capStart[0].token) > 0,
+  capStart.length >= 1
+  && capStart.every((m) => m.to === BUS.engine && m.from === BUS.host && Number(m.token) > 0),
   capStart.length ? `${capStart.length} to '${capStart[0].to}' from '${capStart[0].from}', `
-    + `sourceToken is ${capStart[0].token} chars` : 'NOTHING was originated');
+    + `sourceToken is ${capStart.map((m) => m.token).join('/')} chars` : 'NOTHING was originated');
 
 ok("...and its shape is the frozen one: `{sourceToken, source:{title,url}}`, no `deck` for the default deck and no `tabId`  "
   + '[entry point: createEngineMessages() in src/main/engine-messages.js]',
-  capStart.length === 1
-  && JSON.stringify(capStart[0].keys) === JSON.stringify(['from', 'source', 'sourceToken', 'to', 'type', 'v'])
-  && JSON.stringify(capStart[0].sourceKeys) === JSON.stringify(['title', 'url']),
-  capStart.length ? `keys ${JSON.stringify(capStart[0].keys)} · source keys ${JSON.stringify(capStart[0].sourceKeys)}`
+  capStart.length >= 1
+  && capStart.every((m) => JSON.stringify(m.keys) === JSON.stringify(frozenStart)
+    && JSON.stringify(m.sourceKeys) === JSON.stringify(['title', 'url'])),
+  capStart.length ? `${capStart.length} message(s), keys ${JSON.stringify(capStart[0].keys)} · `
+    + `source keys ${JSON.stringify(capStart[0].sourceKeys)}`
     : '(nothing to look at)');
 
 ok('DECK_PREPARE: the Host originates it to the engine, and omits `deck` for the default deck  '
   + '[entry point: SW_DECK_PREPARE in src/main/deck-host.js -> deckPrepare() in src/main/engine-messages.js]',
-  prepare.length === 1 && prepare[0].to === BUS.engine
-  && JSON.stringify(prepare[0].keys) === JSON.stringify(['from', 'to', 'type', 'v']),
-  prepare.length ? `${prepare.length} to '${prepare[0].to}', keys ${JSON.stringify(prepare[0].keys)}` : 'NOTHING was originated');
+  prepare.length >= 1
+  && prepare.every((m) => m.to === BUS.engine
+    && JSON.stringify(m.keys) === JSON.stringify(['from', 'to', 'type', 'v'])),
+  prepare.length ? `${prepare.length} to '${prepare[0].to}' (this suite sends one; the deck sends its own too `
+    + `when the weights are on disk), keys ${JSON.stringify(prepare[0].keys)}` : 'NOTHING was originated');
 
 // =========================================================================
 // 5. THE PLAYER, BOTH DIRECTIONS
@@ -839,12 +866,39 @@ ok(`the AudioContext the engine opened for the capture is at ${SR}, not the plat
  * L1 claim: no media field on the feed the DECK reads.
  */
 const reqs = A(await safe('requests', () => app.evaluate(() => globalThis.__smokeRequests)));
-const offBox = reqs.filter((r) => r.refused && !/smoke-guard-\w+\.invalid/.test(r.url));
-ok('the whole run stayed on the box: every request either session made was local  '
+/**
+ * THE ONE HOST P1' NAMES IS NOT AN ESCAPE HATCH, AND IT IS NOT A WANDER EITHER.
+ *
+ * `src/main/update.js` asks `api.github.com` once, at boot, for the latest
+ * release tag — the single outbound request this product is allowed to make, and
+ * the one `PRIVACY.md` discloses. It appears here because the guard sees every
+ * request on both sessions, and it was NOT here when this assertion was written:
+ * the update check landed later, and this suite went red for a feature working
+ * exactly as specified.
+ *
+ * So it is excluded BY HOST, from the product's own constant rather than from a
+ * string typed here, and the count is printed either way. THE CLAIM ABOUT THAT
+ * HOST IS `p1`'s, not this suite's: `tools/suites/p1.mjs` asserts that the app
+ * reaches it and NOTHING else, over a real launch, with the request forced onto
+ * a local server. This assertion is the cruder one it complements — *the run did
+ * not wander off the box* — and an update check is not wandering.
+ *
+ * WATCHED RED by pointing the product at a different host:
+ * `UPDATE_HOST = 'api.example.com'` in `src/main/update.js` turns this red
+ * naming that host, because the exclusion is keyed on the constant and the
+ * request is not.
+ */
+const updateOrigin = `https://${UPDATE_HOST}`;
+const toUpdateHost = reqs.filter((r) => String(r.url).startsWith(`${updateOrigin}/`));
+const offBox = reqs.filter((r) => r.refused
+  && !/smoke-guard-\w+\.invalid/.test(r.url)
+  && !String(r.url).startsWith(`${updateOrigin}/`));
+ok('the whole run stayed on the box: every request either session made was local, bar the ONE host P1\' names  '
   + '[entry point: the guard installed in §1, over both sessions, for the life of the run]',
   reqs.length >= 2 && offBox.length === 0,
   `${reqs.length} request(s) recorded, ${offBox.length} off-box beyond the two deliberate probes`
-  + `${offBox.length ? `: ${[...new Set(offBox.map((r) => r.url))].slice(0, 4).join(' ')}` : ''} · `
+  + `${offBox.length ? `: ${[...new Set(offBox.map((r) => r.url))].slice(0, 4).join(' ')}` : ''}`
+  + ` and ${toUpdateHost.length} to ${UPDATE_HOST} (the update check — p1 owns that claim) · `
   + `schemes seen: ${[...new Set(reqs.map((r) => (String(r.url).split(':')[0])))].join(' ')}`);
 
 console.log(`\n${ID}: app console ${path.relative(ROOT, path.join(OUT, 'app-console.log'))}`);
