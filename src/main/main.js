@@ -19,18 +19,24 @@
  * (§7), and `main` originates the three messages the engine is owed and mints
  * the one-shot capture claims they carry (§5).
  *
- * STILL NOT BUILT, and every one of them is named here rather than left to be
- * discovered:
- *   · THE DECK HALF. `vendor/…/ui/host.js` is still the extension's, so the
- *     deck view loads `embed.html` and its Host throws at module scope. The
- *     engine does not care — it has one correspondent and `main` is not it.
- *   · THE SIX MESSAGES ADDRESSED TO THE DECK, and the six the deck sends that a
- *     Host must ANSWER (`SW_*` — HOST-DESIGN.md §5.3, finding F1). `bus.js`
- *     warns on each one it drops, loudly, once per message.
- *   · THE ARM GESTURE (§6). The chrome bar's Arm button is present and
- *     disabled; there is no menu accelerator yet, so nothing a USER can touch
- *     calls `engineMessages.captureStart()`. The gate calls it, over the real
- *     path, which is the difference between "wired" and "reachable".
+ * AND SINCE THEN: the DECK half is in too (`vendor/…/ui/host.js` — ours,
+ * fourteen members), the six `SW_*` the deck boots by polling for are answered
+ * (`src/main/deck-host.js`, HOST-DESIGN.md §5.3 finding F1), and THE ARM
+ * GESTURE (§6) is reachable by two real gestures a user can make: `Source ->
+ * Arm this Source` with its accelerator, and the chrome bar's Arm button —
+ * which shipped `disabled` for a wave AFTER arming started working, while the
+ * product's own refusal text told the user to press it, and is live now
+ * (`ipcMain.handle('chrome:arm')` below). Both call the same `deckHost.arm()`.
+ *
+ * STILL NOT BUILT, and named here rather than left to be discovered:
+ *   · PACKAGING IS CONFIGURED AND HAS NEVER BEEN BUILT. `package.json`'s
+ *     `build` key and `.github/workflows/package.yml` exist; no installer has
+ *     been produced on this box and nothing has been signed or notarized.
+ *     README.md "What was verified, and what was only configured" is the list.
+ *   · THE LIVE SCHEDULER HAS NEVER KEPT UP ANYWHERE THIS HAS RUN. Six stems
+ *     come out of the separator in this app — `youtube` proves it — but on a
+ *     box with no WebGPU every chunk misses its 1.95 s hop. Nobody has yet seen
+ *     six live stems move. docs/evidence/step3-youtube/README.md §3.
  *
  * ---------------------------------------------------------------------------
  * ARGUMENTS — three, all for development and the gate
@@ -65,6 +71,18 @@
  * points the check at a fake host wearing `UPDATE_HOST`'s certificate rather
  * than at a different URL — so the URL under test is the shipping constant.
  */
+/**
+ * FIRST, AND THE ORDER IS THE POINT — rule P1'. `src/main/netguard.js` installs
+ * on import and takes the main process's unobservable transports away (`fetch`,
+ * `node:http`/`https`/`net`/`tls`/`dgram`/`http2`), so a request that would
+ * bypass the observer in `src/main/sessions.js` throws at the line that wrote
+ * it. ESM evaluates a module's dependencies in declaration order, so this line
+ * being first is what makes "before any of our code has a body" true.
+ * `tools/suites/p1.mjs` asserts the position from the source, and drives a real
+ * launch at a real local sink to prove the guard bites.
+ */
+import './netguard.js';
+
 import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -81,6 +99,7 @@ import { createStorage } from './storage.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
 import { createSessions } from './sessions.js';
 import { createUpdateCheck } from './update.js';
+import { report as netGuardReport } from './netguard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_ROOT = path.resolve(HERE, '..', '..');
@@ -238,6 +257,12 @@ const state = {
   engineBoot: null,      // filled from the engine's own probe, for the chrome bar
   sessions: null,        // the ONE session factory (src/main/sessions.js) — rule P1'
   update: null,          // the one host this app's own code talks to (src/main/update.js)
+  /**
+   * WHAT `src/main/netguard.js` TOOK, and every refusal it has issued. Read by
+   * `tools/gate/p1.mjs`; it is a function rather than a snapshot so the probe
+   * reads the ledger AFTER its own control attempts rather than before them.
+   */
+  netGuard: netGuardReport,
   updateCheck: null,     // the in-flight promise for the boot check, or null
   quitting: false,
 };
@@ -268,6 +293,14 @@ function pushStatus() {
     sourceUrl: state.source ? state.source.webContents.getURL() : null,
     deckVendored: deckVendored(),
     engine: state.engineBoot,
+    /**
+     * WHOSE ANSWER IT IS MATTERS. `deckHost` holds the arm epoch, so the bar
+     * follows the SESSION rather than its own last click — a bar that painted
+     * "Disarm" over an arm the Host refused would be lying about the one thing
+     * this control exists to say. It is read at push time and defaults to false
+     * before `installDeckHost()` has run.
+     */
+    armed: !!(state.deckHost && state.deckHost.armed()),
     refusals: state.refusals.slice(-4),
   });
 }
@@ -500,6 +533,31 @@ async function boot() {
   // channel, and an address is not something a renderer gets to claim.
   ipcMain.on('chrome:ready', (event) => {
     if (state.chrome && event.sender === state.chrome.webContents) pushStatus();
+  });
+
+  /**
+   * THE ARM GESTURE FROM OUR OWN BAR — HOST-DESIGN.md §6.4's primary surface.
+   *
+   * IT IS THE SAME FUNCTION THE MENU ITEM CALLS, not a second path to the same
+   * idea: `deckHost.arm()` mints the epoch, clears a stale refusal and sends
+   * SESSION, and a bar that re-implemented any of that would be a second arm
+   * gesture with its own bugs. `smoke` clicks BOTH and asserts they land on the
+   * same epoch.
+   *
+   * THE SENDER IS CHECKED, like every other channel in this file: a channel is
+   * reachable from any renderer whose preload names it, and arming decides that
+   * this app may open a capture on the source view.
+   */
+  ipcMain.handle('chrome:arm', (event, on) => {
+    if (!state.chrome || event.sender !== state.chrome.webContents) {
+      return { ok: false, armed: !!(state.deckHost && state.deckHost.armed()), kind: 'not-the-bar',
+        message: 'only the chrome bar may send the arm gesture' };
+    }
+    if (!state.deckHost) {
+      return { ok: false, armed: false, kind: 'no-host', message: 'the deck Host is not installed yet' };
+    }
+    const r = on === true ? state.deckHost.arm() : state.deckHost.disarm();
+    return { ...r, armed: state.deckHost.armed() };
   });
 
   // ----------------------------------------------------------------- load

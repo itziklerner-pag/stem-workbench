@@ -97,23 +97,30 @@ const ok = (name, cond, detail = '') => {
  * The suite table in `docs/TESTING.md` sits between two markers so this can read
  * it without parsing markdown. Ids are the backticked value in the first column.
  */
-function docIds() {
+function docRows() {
   const md = fs.readFileSync(DOC, 'utf8');
   const block = md.split('<!-- suites:begin -->')[1];
   if (block === undefined) throw new Error(`${DOC} has no <!-- suites:begin --> marker`);
   const body = block.split('<!-- suites:end -->')[0];
   if (body === block) throw new Error(`${DOC} has no <!-- suites:end --> marker`);
   return body.split('\n')
-    .map((l) => (l.match(/^\s*\|\s*`([\w-]+)`\s*\|/) || [])[1])
+    .map((l) => {
+      // `| \`id\` | file | flags | assertions | what it gates |`
+      const m = l.match(/^\s*\|\s*`([\w-]+)`\s*\|[^|]*\|[^|]*\|([^|]*)\|/);
+      if (!m) return null;
+      const n = m[2].trim().match(/^(\d+)$/);
+      return { id: m[1], assertions: n ? Number(n[1]) : null, raw: m[2].trim() };
+    })
     .filter(Boolean);
 }
 
 // A throw here would exit non-zero with no FAIL line, which the runner reports
 // as a hard failure — correct, but it names the exit code rather than the file.
 // Catch it and make it an assertion, so the red says which marker is missing.
-let ids = null, docErr = null;
-try { ids = docIds(); } catch (e) { docErr = e.message; }
-ok('docs/TESTING.md carries a machine-readable suite table  [entry point: docIds(), the <!-- suites:begin --> block]',
+let rows = null, docErr = null;
+try { rows = docRows(); } catch (e) { docErr = e.message; }
+const ids = rows ? rows.map((r) => r.id) : null;
+ok('docs/TESTING.md carries a machine-readable suite table  [entry point: docRows(), the <!-- suites:begin --> block]',
   ids !== null && ids.length > 0, docErr || `${ids ? ids.length : 0} ids: ${(ids || []).join(', ')}`);
 
 const stepIds = STEPS.map((s) => s.id);
@@ -125,6 +132,53 @@ ok('every suite docs/TESTING.md specifies has a step in the runner  [entry point
 ok('...and every step the runner has is specified in docs/TESTING.md',
   ids !== null && undocumented.length === 0,
   undocumented.length ? `STEP WITH NO SPEC: ${undocumented.join(', ')}` : `${stepIds.length} steps`);
+
+/**
+ * THE COUNT COLUMN, AGAINST THE STEPS TABLE. Two lists in two files that must
+ * not part company — the same shape as the id check above, one column across.
+ *
+ * `classify()` compares a step's `assertions` to what the suite actually
+ * printed, so this row is what stops the pin being moved in ONE place: an author
+ * who changes a suite and updates the runner but not the document leaves the
+ * document lying, and an author who updates neither is caught by `classify()`.
+ * `vendor-unit` is the one row with no number here and none in `STEPS`; its
+ * count is the vendored runner's and `vendor/.pin` pins it both ways instead.
+ */
+const docCounts = new Map((rows || []).map((r) => [r.id, r.assertions]));
+const mismatched = STEPS
+  .map((st) => ({ id: st.id, step: typeof st.assertions === 'number' ? st.assertions : null, doc: docCounts.has(st.id) ? docCounts.get(st.id) : undefined }))
+  .filter((r) => r.doc !== undefined && r.step !== r.doc);
+ok('...and every step\'s pinned assertion count is the one docs/TESTING.md prints  '
+  + '[entry point: STEPS[].assertions in tools/verify.mjs, and the count column in the suite table]',
+  rows !== null && mismatched.length === 0,
+  mismatched.length
+    ? `DISAGREE: ${mismatched.map((r) => `${r.id} steps=${r.step} doc=${r.doc}`).join(', ')}`
+    : `${STEPS.filter((st) => typeof st.assertions === 'number').length} of ${STEPS.length} steps carry a count, and the doc agrees with every one `
+      + `(vendor-unit has none here: its count is the vendored runner's, pinned in vendor/.pin)`);
+
+const pinned = STEPS.filter((st) => typeof st.assertions === 'number' && st.assertions > 0);
+ok('...and the counts are POSITIVE integers, so a pin of 0 cannot make the VOID rule unreachable  [entry point: STEPS]',
+  pinned.length === STEPS.filter((st) => 'assertions' in st).length
+  && pinned.every((st) => Number.isInteger(st.assertions)),
+  `${pinned.length} pinned: ${pinned.map((st) => `${st.id}=${st.assertions}`).join(' ')}`);
+
+/**
+ * ...AND THE CHECK CAN LOSE. `classify()` is the real function; these four
+ * transcripts are the shapes it will see. A count pin that only ever agreed with
+ * itself would be the tautology this whole file exists to refuse.
+ */
+{
+  const line = (n) => `ok  a thing  d\n\ndeck-seam: ${n} passed, 0 failed\n`;
+  const cl = (out, assertions) => classify({ id: 'deck-seam', code: 0, out, assertions }).verdict;
+  ok('the runner FAILS a suite that printed fewer assertions than its pin — the ABSENT-assertion failure  '
+    + '[entry point: classify() + countOf() in tools/verify.mjs]',
+    cl(line(32), 49) === 'FAIL' && cl(line(49), 49) === 'PASS',
+    `49 pinned: 32 -> ${cl(line(32), 49)}, 49 -> ${cl(line(49), 49)}`);
+  ok('...and MORE is a fail too, because a pin is not a floor', cl(line(50), 49) === 'FAIL', cl(line(50), 49));
+  ok('...and a step with no pin is judged exactly as it was before', cl(line(32), undefined) === 'PASS');
+  ok('...and a pinned step that printed no summary line at all is a FAIL, not a pass',
+    cl('ok  a thing  d\n', 49) === 'FAIL', cl('ok  a thing  d\n', 49));
+}
 
 // ------------------------------------------- 2. todo means NOT BUILT, exactly
 /**

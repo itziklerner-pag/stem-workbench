@@ -427,6 +427,41 @@ mutate_case 19 "open the AudioContext at the platform default" \
 # instead of keeping a second copy. Assertion 9 is this file's L1 claim and
 # case 12 is what turns it red.
 
+# THE DEFECT THE OLD GATE PINNED IN PLACE. `shell` used to ASSERT that the bar's
+# Arm button carried `disabled`, so the button being dead was a green. Putting
+# the attribute back must now cost two assertions here as well as one there.
+mutate_case 21 "put the chrome bar's Arm button back to \`disabled\`" \
+  "src/renderer/chrome.html" \
+  "THE ARM BUTTON IN THE CHROME BAR ARMS" \
+  -- src/renderer/chrome.html \
+'<button id="arm" title=' \
+'<button id="arm" disabled title='
+
+# THE LABEL MUST FOLLOW THE HOST, NOT THE CLICK. A handler that armed on every
+# press leaves a button that says "Disarm" over a session that is armed — and
+# the second press then does nothing a user can see.
+mutate_case 22 "the bar's gesture always arms, whichever way it was sent" \
+  "src/main/main.js" \
+  "...and clicking it again DISARMS" \
+  -- src/main/main.js \
+"    const r = on === true ? state.deckHost.arm() : state.deckHost.disarm();" \
+"    const r = state.deckHost.arm();"
+
+# THE TRANSPORT THE LEDGER CANNOT SEE. Case 3 above puts an off-box URL through
+# CHROMIUM and the ledger catches it. This one takes the guard away instead, and
+# only the assertion that reads the main process's own `fetch` moves — which is
+# the point: the two instruments answer different questions and neither covers
+# the other.
+mutate_case 23 "the main-process guard installs nothing" \
+  "src/main/netguard.js" \
+  "...and the transport that ledger CANNOT see is gone from the main process" \
+  -- src/main/netguard.js \
+"function take(holder, key, label) {
+  let had;" \
+"function take(holder, key, label) {
+  if (label) return false;
+  let had;"
+
 # ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #

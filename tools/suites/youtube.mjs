@@ -162,6 +162,20 @@ const RMS_FLOOR = 0.01;
  */
 const SUM_RESIDUAL_MAX = 0.5;
 const SUM_TOLERANCE = 1.5;
+/**
+ * THE PAIRWISE CORRELATION CEILING — the number the "six copies" claim actually
+ * rests on now.
+ *
+ * `stems_k = a_k * mix` with the `a_k` summing to 1 gives residual EXACTLY 0,
+ * sum ratio EXACTLY 1.0 and six DIFFERENT levels, so a fan-out of one mix used
+ * to pass the sum test, the distinctness test and the meters at once. Six scaled
+ * copies of one signal correlate at 1.000 with each other; a real separation
+ * does not. Measured on the recorded run: fifteen pairs from -0.020 to 0.433,
+ * the largest being `other`/`guitar`, which share a lot of spectrum and should.
+ * 0.8 sits well clear of both ends — it is not a tuned threshold, it is the gap
+ * between "correlated" and "the same signal".
+ */
+const CORR_MAX = 0.8;
 
 /** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
 const LOCK = BROWSER_LOCK;
@@ -568,16 +582,102 @@ ok('...and the audio it separated came off the muted view at 44 100 Hz, STEREO, 
 
 /**
  * SIX PLANE PAIRS, in the layout `shared/host.js` freezes for this interface:
- * `(k*2 + ch) * SEGMENT + i`, stem-major, left before right, `STEMS` order. The
- * indices are asserted, not just the count, because a backend that returned six
- * planes in another order would be six correct stems mislabelled.
+ * `(k*2 + ch) * SEGMENT + i`, stem-major, left before right, `STEMS` order.
+ *
+ * THIS IS THE SHAPE, AND ONLY THE SHAPE. It used to claim the ORDER as well —
+ * "six plane pairs, IN THE UNIT'S OWN ORDER" — by checking
+ * `perStem[i].stem === STEMS[i]`, and an auditor pointed out that the probe
+ * BUILDS that array with `STEMS.map((name, k) => …)`, so the check was true by
+ * construction. A backend that returned the six planes permuted would have
+ * passed it, which is exactly the failure the old comment said it caught.
+ * Nothing in the buffer carries a label; the order claim is the next assertion,
+ * and it is made out of the audio.
  */
-ok('SIX STEMS CAME BACK — six plane pairs, in the unit\'s own order, each with its own level  '
+ok('SIX STEMS CAME BACK — six plane pairs at the frozen layout, each with its own level  '
   + '[entry point: Backend.separate()\'s out buffer, laid out (k*2+ch)*SEGMENT]',
   perStem.length === STEMS.length
   && perStem.every((x, i) => O(x).stem === STEMS[i] && O(x).index === i)
   && perStem.every((x) => n(O(x).rmsL) !== null && n(O(x).rmsR) !== null),
   perStem.map((x) => `${O(x).stem} L ${f6(O(x).rmsL)} R ${f6(O(x).rmsR)} pk ${f6(O(x).peak)}`).join(' · '));
+
+/**
+ * ...AND THE ORDER, OUT OF THE AUDIO, because nothing else can say it.
+ *
+ * THREE ORDINAL FACTS ABOUT THE `bass` PLANE, and TWO RATIOS AGAINST THE MIX.
+ * No absolute band — §7 forbids one, and neither shape needs one:
+ *
+ *   · the plane at the `bass` index has the STRICTLY lowest spectral centroid;
+ *   · ...and STRICTLY the most of its energy below 500 Hz;
+ *   · ...and STRICTLY the most below 120 Hz;
+ *   · ...and at least twice the MIX's fraction below 120 Hz;
+ *   · the plane at the `vocals` index has at most a TWENTIETH of the mix's
+ *     fraction below 120 Hz — a sung fundamental does not live down there, and
+ *     the pair of ratios is the separator being seen to MOVE the low end out of
+ *     one plane and into another.
+ *
+ * STRICT, because a TIE is what six identical spectra look like — a fan-out of
+ * one mix satisfies a non-strict "lowest" for all six at once (watched: with
+ * `<=`, row `R24c` left this assertion green). The two RATIOS are the same
+ * defence from the other side, and they are also why the vocals half is not a
+ * rank.
+ *
+ * THE VOCALS HALF WAS A RANK, AND A REAL LIVE RUN BROKE IT. Row `L2` — a
+ * product mutation, a fresh launch, a different 7.8 s window — came back with
+ * `vocals` and `guitar` BOTH reading `0.0001` below 120 Hz, because the probe
+ * rounds these fractions to four decimals and two planes that both have
+ * essentially nothing down there are indistinguishable at that precision. The
+ * assertion went red for a reason that was not about the product, which is the
+ * flake `AGENTS.md` forbids. There is also no reason in the music why `vocals`
+ * should be strictly below `guitar` there. The ratio says the thing that is
+ * actually true and is not at the mercy of a fourth decimal.
+ *
+ * WHAT IT THEREFORE DOES NOT CATCH, said rather than implied: a `vocals`/`guitar`
+ * swap. Both planes are mid-band and both are ~0 below 120 Hz, so no spectral
+ * measure this cheap separates them. Every permutation that moves the BASS plane
+ * is caught, and that is what the assertion claims — no more.
+ *
+ * On the recorded run the margins are not marginal: bass 102 Hz against the
+ * next-lowest 447, 99.9% under 500 Hz against 52%, bass 10.0x the mix under
+ * 120 Hz and vocals 1/762nd of it. On L2's independent window: 90 Hz against
+ * 486, 99.9% against 78%, 6.1x and 1/1353rd.
+ */
+const spec = (name) => O(O(perStem.find((x) => O(x).stem === name)).spectrum);
+const cents = perStem.map((x) => n(O(O(x).spectrum).centroidHz));
+const u120 = perStem.map((x) => n(O(O(x).spectrum).under120));
+const u500 = perStem.map((x) => n(O(O(x).spectrum).under500));
+const complete = cents.every((v) => v !== null) && u120.every((v) => v !== null) && u500.every((v) => v !== null);
+/**
+ * STRICTLY, AND THAT IS NOT PEDANTRY. A non-strict `=== Math.min(...)` is
+ * satisfied by a TIE, and the degenerate case that matters here is six IDENTICAL
+ * spectra — a fan-out of one mix, where every plane has the mix's spectrum and
+ * "the lowest centroid" is true of all six at once. Watched: with `<=` the
+ * fan-out row (`youtube-mutations.mjs` R24c) left this assertion green.
+ *
+ * These two are used ONLY on the `bass` plane, whose margins are large. The
+ * vocals half is a RATIO for the reason in the block above: two planes that both
+ * have ~0 below 120 Hz tie at the probe's four decimals, and ranking them is a
+ * claim about rounding rather than about audio.
+ */
+const onlyLowest = (name, xs) => xs.filter((v) => v <= xs[STEMS.indexOf(name)]).length === 1;
+const onlyHighest = (name, xs) => xs.filter((v) => v >= xs[STEMS.indexOf(name)]).length === 1;
+/** How far the low end really moved: bass ABOVE the mix, vocals far BELOW it. */
+const BASS_LOW_OVER_MIX = 2;
+const VOCALS_LOW_UNDER_MIX = 20;
+const mixLow = n(O(off.mixSpectrum).under120);
+ok('...and the LABELS ARE THE SEPARATOR\'S, not this probe\'s `STEMS.map`: the `bass` plane has strictly the lowest '
+  + `centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds ${BASS_LOW_OVER_MIX}x the mix's `
+  + `low end while the \`vocals\` plane holds under a ${VOCALS_LOW_UNDER_MIX}th of it  `
+  + '[entry point: a 16-window spectrum per plane in tools/gate/youtube.mjs]',
+  complete && perStem.length === STEMS.length && mixLow > 0
+  && onlyLowest('bass', cents) && onlyHighest('bass', u500) && onlyHighest('bass', u120)
+  && spec('bass').under120 >= mixLow * BASS_LOW_OVER_MIX
+  && spec('vocals').under120 <= mixLow / VOCALS_LOW_UNDER_MIX,
+  complete
+    ? `${perStem.map((x) => `${O(x).stem} ${O(O(x).spectrum).centroidHz}Hz <120 ${O(O(x).spectrum).under120} `
+      + `<500 ${O(O(x).spectrum).under500}`).join(' · ')} · mix ${JSON.stringify(O(off.mixSpectrum))} · `
+      + `bass/mix low ${mixLow > 0 ? (spec('bass').under120 / mixLow).toFixed(1) : 'n/a'}x, `
+      + `vocals/mix low 1/${mixLow > 0 && spec('vocals').under120 > 0 ? Math.round(mixLow / spec('vocals').under120) : '∞'}`
+    : `the probe reported no spectrum for ${perStem.filter((x) => !O(O(x).spectrum).centroidHz).length} plane(s)`);
 
 /**
  * THE ARITHMETIC THAT CANNOT BE FAKED BY A METER. `htdemucs` is a masking
@@ -597,17 +697,43 @@ ok(`...and the six SUM BACK to the mix — residual under ${SUM_RESIDUAL_MAX}x t
   + `residual ${f6(sum.residualRms)} (${(sum.residualRms / (sum.mixRms || 1)).toFixed(3)}x)`);
 
 /**
- * SIX DIFFERENT STEMS, not six copies — the levels themselves, pairwise. A
- * fan-out of one mix gives six IDENTICAL numbers; a separation gives six that
- * differ, and the loudest-to-quietest spread is reported so a human can see how
- * far apart they are.
+ * SIX DIFFERENT SIGNALS, NOT SIX COPIES — and the levels were never enough to
+ * say so.
+ *
+ * This assertion used to count six DISTINCT RMS VALUES, and an auditor showed
+ * what that misses: `stems_k = a_k * mix` with the `a_k` summing to 1 gives
+ * residual EXACTLY 0, sum ratio EXACTLY 1.0 and six different levels — so a
+ * fan-out of one mix was green on the sum test, on this test and on the meters,
+ * all three, at once. AGENTS.md: an estimator must not saturate before the claim
+ * range begins, and "six numbers that differ" saturates immediately.
+ *
+ * PEARSON r OVER THE PLANES is the estimator that does not. Six scaled copies
+ * of one signal correlate at 1.000 with each other and there is nowhere to hide;
+ * a real separation on this run runs -0.020 to 0.433. `corrSelf` is the
+ * correlator's own control and must be exactly 1 — a broken correlator that
+ * returned small numbers would pass by being wrong in the safe direction.
+ *
+ * The distinctness and presence halves are kept, because they are the cheaper
+ * questions and losing them would trade one gap for another.
  */
 const distinctRms = new Set(perStem.map((x) => Number(O(x).rmsL).toFixed(9))).size;
 const lvls = perStem.map((x) => n(O(x).rmsL) || 0).filter((v) => v > 0);
-ok('...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING',
-  distinctRms === STEMS.length && perStem.length === STEMS.length
+const pairs = A(off.pairwise);
+const rs = pairs.map((x) => n(O(x).r)).filter((v) => v !== null);
+const worst = pairs.filter((x) => n(O(x).r) !== null)
+  .reduce((a, b) => (Math.abs(n(O(a).r)) > Math.abs(n(O(b).r)) ? a : b), pairs[0] || {});
+ok(`...and no two of them are the SAME SIGNAL — all ${(STEMS.length * (STEMS.length - 1)) / 2} pairwise correlations `
+  + `under ${CORR_MAX}, where six differently-scaled copies of one mix would every one be 1.000  `
+  + '[entry point: Pearson r over the returned planes, tools/gate/youtube.mjs]',
+  pairs.length === (STEMS.length * (STEMS.length - 1)) / 2 && rs.length === pairs.length
+  && rs.every((r) => Math.abs(r) <= CORR_MAX)
+  && n(off.corrSelf) !== null && Math.abs(n(off.corrSelf) - 1) < 1e-9
+  && distinctRms === STEMS.length && perStem.length === STEMS.length
   && perStem.every((x) => n(O(x).rmsL) > 0 && n(O(x).rmsR) > 0 && n(O(x).peak) > 0),
-  `${distinctRms} distinct left-channel rms values of ${perStem.length}; spread `
+  `${pairs.length} pairs, |r| from ${rs.length ? Math.min(...rs.map(Math.abs)).toFixed(3) : 'n/a'} to `
+  + `${rs.length ? Math.max(...rs.map(Math.abs)).toFixed(3) : 'n/a'} (worst ${O(worst).a}/${O(worst).b} `
+  + `${n(O(worst).r) === null ? 'n/a' : n(O(worst).r).toFixed(3)}); the correlator's own control r(x,x) = `
+  + `${off.corrSelf}; ${distinctRms} distinct left-channel rms values of ${perStem.length}; spread `
   + `${lvls.length ? (20 * Math.log10(Math.max(...lvls) / Math.min(...lvls))).toFixed(1) : 'n/a'} dB `
   + `(loudest ${perStem.length ? O(perStem.reduce((a, b) => (O(a).rmsL > O(b).rmsL ? a : b))).stem : '?'}, `
   + `quietest ${perStem.length ? O(perStem.reduce((a, b) => (O(a).rmsL < O(b).rmsL ? a : b))).stem : '?'})`);

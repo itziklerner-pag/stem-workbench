@@ -287,11 +287,21 @@ mutate_case 12 "turn nodeIntegration on for our renderers" \
 
 mutate_case 13 "delete the Arm control from the chrome bar" \
   "src/renderer/chrome.html" \
-  "the chrome bar painted, with its Arm control present and disabled" \
+  "the chrome bar painted, with its Arm control present, ENABLED and wired to a bridge" \
   -- src/renderer/chrome.html \
-'  <button id="arm" disabled title="not built yet — the arm gesture arrives with the Host duties">Arm</button>
+'  <button id="arm" title="Arm this Source — the same gesture as Source → Arm this Source">Arm</button>
 ' \
 ""
+
+# THE DEFECT THIS ASSERTION USED TO PIN IN PLACE. The button shipped `disabled`
+# for a wave after arming worked, and the old assertion REQUIRED that. Putting
+# the attribute back must now be red.
+mutate_case 13b "put the Arm control back to `disabled`" \
+  "src/renderer/chrome.html" \
+  "the chrome bar painted, with its Arm control present, ENABLED and wired to a bridge" \
+  -- src/renderer/chrome.html \
+'<button id="arm" title=' \
+'<button id="arm" disabled title='
 
 mutate_case 14 "do not write the gate report" \
   "tools/gate/probe.mjs" \
@@ -365,10 +375,8 @@ mutate_case 22 "expose a bridge to the page inside the source view" \
   "src/preload/youtube.cjs" \
   "the source view's page sees no bridge of ours" \
   -- src/preload/youtube.cjs \
-"watchVideo();
-up({ t: 'hello' });" \
-"watchVideo();
-up({ t: 'hello' });
+"up({ t: 'hello', have: !!el });" \
+"up({ t: 'hello', have: !!el });
 require('electron').contextBridge.exposeInMainWorld('__wbYouTube', { hello: () => 'leaked' });"
 
 mutate_case 23 "put the source view on OUR session instead of persist:youtube" \

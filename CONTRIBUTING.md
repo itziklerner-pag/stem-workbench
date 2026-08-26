@@ -60,7 +60,8 @@ the vendored deck and engine, the source view playing, the transport, the 109 MB
 model read through the Host — and asserts that the set of network origins the
 app's own sessions reached is exactly `{ https://api.github.com }`.
 
-Two things about it are worth knowing before you change anything near a session:
+Three things about it are worth knowing before you change anything near a session
+or reach for a network call:
 
 - **Every session the app creates goes through one factory**,
   `src/main/sessions.js`, and the suite scans every file under `src/` — comments
@@ -71,8 +72,34 @@ Two things about it are worth knowing before you change anything near a session:
 - **`webRequest.onBeforeRequest` takes one listener per session and replaces it
   silently.** Subscribe through the factory; do not register a second one. That
   is not a style rule — it is how the instrument goes blind with no symptom.
+- **THE MAIN PROCESS HAS NO NETWORK OF ITS OWN, and that is now enforced rather
+  than requested.** `session.webRequest` is a property of a CHROMIUM session, so
+  a `fetch()` or a `node:https.request()` in the main process is not merely
+  unobserved — it is *unobservable*. Two independent audits proved it by adding
+  one line to `src/main/main.js` and watching a real request reach a real host
+  while `p1` printed `19 passed, 0 failed`. Three things closed it:
 
-`docs/TESTING.md` §9 is the specification, the four controls and the 19
+  1. `src/main/netguard.js` — imported FIRST by `main.js`, it removes `fetch`,
+     `WebSocket`, `EventSource`, `XMLHttpRequest` and the `http`/`https`/`http2`/
+     `net`/`tls`/`dgram` entry points from this process. A bare `fetch()` in main
+     now THROWS at the line that wrote it. (A `net.Socket` to a PIPE still works;
+     Node's own child-process IPC needs it, and the guard is asserted not to
+     break it.)
+  2. A source scan in `tools/suites/p1.mjs`: no `node:http`/`https`/`net`/`tls`/
+     `dgram`/`http2` import anywhere under `src/`, and no bare `fetch(` or
+     `net.request(` under `src/main/`. The app has exactly ONE network transport
+     — `Session.fetch`, in `src/main/update.js` — and it is chosen for its
+     observability, not its convenience.
+  3. A dynamic control: the suite stands up a real HTTP sink on 127.0.0.1, hands
+     the port to the launch, has the probe attempt eleven transports at it, and
+     asserts that **the sink recorded exactly one connection and it was the
+     suite's own**. Mutation 21 in `tools/suites/p1-mutations.sh` neuters the
+     guard and the sink logs `GET /telemetry-from-main`, so the control can lose.
+
+  **If you need to talk to a host, you do not.** If you genuinely do, it is a
+  change to `PRIVACY.md`, to this rule, and to the assertion — in that order.
+
+`docs/TESTING.md` §9 is the specification, the five controls and the 24
 mutations.
 
 ### M1 — No remote code

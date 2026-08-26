@@ -175,6 +175,9 @@
  *  17  deck-host.js: disarm does not release the player   -> 15, the hand-back
  *  18  ui/embed.js: drop a stem from STEM_ORDER           -> 16, the six faders
  *  19  offscreen/engine.js: drop `sampleRate: SR`         -> 17, 44100
+ *  21  chrome.html: put `disabled` back on Arm           -> 3a and 3b, the bar
+ *  22  main.js: the bar's gesture always arms            -> 3b, the toggle
+ *  23  netguard.js: take() installs nothing              -> 19, the guard in main
  *
  * TWO OF THESE FOUND A DEFECT IN AN ASSERTION RATHER THAN IN THE APP, which is
  * what a battery is for and is why both are written down here.
@@ -655,6 +658,67 @@ ok('assertHost accepted both halves of the Host: the deck reached module scope a
  * are asserted one at a time, by name, so a red says WHICH one went missing.
  */
 
+// ------------------------------------- SESSION, by the BAR — the primary surface
+/**
+ * THE CHROME BAR'S ARM BUTTON, CLICKED THE WAY A USER CLICKS IT.
+ *
+ * `HOST-DESIGN.md` §6.4 makes this the primary arm gesture — a desktop app has
+ * no toolbar icon, so the 44 px bar is the first thing the owner touches — and
+ * `ARM_REFUSALS.NOT_ARMED` tells the user in as many words to press it. It
+ * nevertheless shipped `disabled` for a whole wave after arming started
+ * working, and every gate in this repository stayed green: `shell` ASSERTED the
+ * `disabled` attribute, so the defect was pinned in place rather than caught. An
+ * auditor found it by clicking the button on a real launch.
+ *
+ * So this clicks the real element in the real renderer, through the real
+ * preload bridge and the real `ipcMain.handle('chrome:arm')`, and asserts the
+ * DECK saw a SESSION — the arm is not "the bar changed its label", it is the
+ * Host's epoch reaching the surface that depends on it. Then it disarms the
+ * same way, because a button that can only arm is half a control.
+ */
+const barArm = await safe('bar arm', () => pages.chrome.evaluate(async () => {
+  const b = document.getElementById('arm');
+  const before = { text: b.textContent, armed: b.dataset.armed, disabled: b.disabled };
+  b.click();
+  // The click handler awaits an ipc round trip; give it one, then read the label.
+  await new Promise((r) => setTimeout(r, 600));
+  return { before, after: { text: b.textContent, armed: b.dataset.armed }, refusal: document.getElementById('refusal').textContent };
+}));
+await until('SESSION{armed:true} at the deck, from the bar',
+  async () => (await deckSaw()).some((m) => m.type === 'SESSION' && m.session && m.session.armed === true), 8000);
+const barSessions = (await deckSaw()).filter((m) => m.type === 'SESSION' && O(m.session).armed === true);
+ok('THE ARM BUTTON IN THE CHROME BAR ARMS: a real click on the bar\'s only control reaches the Host and the deck sees SESSION  '
+  + '[entry point: src/renderer/chrome.js click -> __wbChrome.arm -> ipcMain.handle(\'chrome:arm\') -> deckHost.arm()]',
+  O(O(barArm).before).disabled === false && O(O(barArm).before).armed === '0'
+  && O(O(barArm).after).armed === '1' && String(O(O(barArm).after).text).trim() === 'Disarm'
+  && barSessions.length >= 1,
+  `the button read ${JSON.stringify(O(O(barArm).before).text)} (disabled=${O(O(barArm).before).disabled}) `
+  + `and now reads ${JSON.stringify(O(O(barArm).after).text)}; ${barSessions.length} armed SESSION(s) at the deck; `
+  + `the bar's refusal line says ${JSON.stringify(O(barArm).refusal)}`);
+
+const barDisarm = await safe('bar disarm', () => pages.chrome.evaluate(async () => {
+  const b = document.getElementById('arm');
+  const wasArmed = b.dataset.armed;
+  b.click();
+  await new Promise((r) => setTimeout(r, 600));
+  return { wasArmed, text: b.textContent, armed: b.dataset.armed };
+}));
+/**
+ * THE PRECONDITION IS PART OF THE ASSERTION, and it is not padding. `armed:'0'`
+ * after a click is also what a button that never armed at all looks like — a
+ * `disabled` attribute back on the markup passes this by never having moved,
+ * which is exactly the defect this pair was written for. So the row requires
+ * that it WAS armed first, and that the deck saw the disarm on the wire.
+ */
+const barSessionTrail = (await deckSaw()).filter((m) => m.type === 'SESSION').map((m) => O(m.session).armed);
+ok('...and clicking it again DISARMS — the label follows the Host\'s epoch, not the last click  '
+  + '[entry point: the same path, with `on: false`]',
+  O(barDisarm).wasArmed === '1' && O(barDisarm).armed === '0'
+  && String(O(barDisarm).text).trim() === 'Arm'
+  && barSessionTrail.indexOf(true) >= 0 && barSessionTrail.lastIndexOf(false) > barSessionTrail.indexOf(true),
+  `${JSON.stringify(O(barDisarm).wasArmed)} -> back to ${JSON.stringify(O(barDisarm).text)} `
+  + `(data-armed=${O(barDisarm).armed}); the deck's SESSION trail is ${JSON.stringify(barSessionTrail)}`);
+
 // ------------------------------------------------------- SESSION, by the menu
 const armClick = await safe('menu arm', () => app.evaluate(({ Menu }) => {
   const item = Menu.getApplicationMenu() && Menu.getApplicationMenu().getMenuItemById('arm');
@@ -872,20 +936,32 @@ ok('...and NOTHING else did: `volume` and `evil` rode in the same patch and neve
 // =========================================================================
 // 6. CAPTURE_STOP AND THE HAND-BACK, by the menu
 // =========================================================================
+/**
+ * COUNTED FROM A BASELINE TAKEN HERE, not from zero. The chrome bar's arm/disarm
+ * pair in §4 is a real disarm and originates a real CAPTURE_STOP, so "how many
+ * has the engine ever seen" stopped being the number this assertion is about
+ * the moment that gesture became reachable. THE CLAIM IS "one click, one
+ * message" — a disarm that originated two, or none, is what it exists to catch,
+ * and that is a DELTA. Zeroing it would have been the easy way to keep a green.
+ */
+const stopsBefore = A(await safe('engine bus', engineSaw)).filter((m) => m.type === 'CAPTURE_STOP').length;
 const disarmClick = await safe('menu disarm', () => app.evaluate(({ Menu }) => {
   const item = Menu.getApplicationMenu() && Menu.getApplicationMenu().getMenuItemById('disarm');
   if (!item) return { clicked: false, why: 'no menu item with id `disarm`' };
   item.click();
   return { clicked: true, label: item.label };
 }));
-await until('CAPTURE_STOP at the engine', async () => (await engineSaw()).some((m) => m.type === 'CAPTURE_STOP'), 8000);
-const capStop = A(await safe('engine bus', engineSaw)).filter((m) => m.type === 'CAPTURE_STOP');
+await until('one more CAPTURE_STOP at the engine',
+  async () => A(await engineSaw()).filter((m) => m.type === 'CAPTURE_STOP').length > stopsBefore, 8000);
+const allStops = A(await safe('engine bus', engineSaw)).filter((m) => m.type === 'CAPTURE_STOP');
+const capStop = allStops.slice(stopsBefore);
 ok('CAPTURE_STOP: clicking `Disarm` originates it to the engine, with `deck` omitted for the default deck  '
   + '[entry point: Menu item `disarm` -> disarm() in src/main/deck-host.js -> captureStop()]',
   O(disarmClick).clicked === true && capStop.length === 1 && capStop[0].to === BUS.engine
   && JSON.stringify(capStop[0].keys) === JSON.stringify(['from', 'to', 'type', 'v']),
-  capStop.length ? `menu "${O(disarmClick).label}" · ${capStop.length} to '${capStop[0].to}', keys ${JSON.stringify(capStop[0].keys)}`
-    : 'NOTHING was originated');
+  capStop.length ? `menu "${O(disarmClick).label}" · ${capStop.length} new to '${capStop[0].to}' `
+    + `(${stopsBefore} before it, from the chrome bar's disarm in §4), keys ${JSON.stringify(capStop[0].keys)}`
+    : `NOTHING was originated (${stopsBefore} CAPTURE_STOP(s) before the click)`);
 
 await until('the player to be handed back', async () => {
   const e = O(await element());
@@ -972,6 +1048,34 @@ ok('the whole run stayed on the box: every request either session made was local
   + `${offBox.length ? `: ${[...new Set(offBox.map((r) => r.url))].slice(0, 4).join(' ')}` : ''}`
   + ` and ${toUpdateHost.length} to ${UPDATE_HOST} (the update check — p1 owns that claim) · `
   + `schemes seen: ${[...new Set(reqs.map((r) => (String(r.url).split(':')[0])))].join(' ')}`);
+
+/**
+ * ...AND THE TRANSPORT THAT LEDGER CANNOT SEE, NAMED RATHER THAN LEFT OUT.
+ *
+ * The ledger above is `session.webRequest`, which is a property of a CHROMIUM
+ * session. A `fetch()` in the MAIN process is undici, in-process, and never
+ * enters it — an auditor proved that by injecting one line into `main.js` and
+ * watching this suite report `18 passed, 0 failed` while a real request left the
+ * box. `src/main/netguard.js` takes those transports away at boot; `p1`'s §3.7
+ * owns the full claim (eleven transports, at a real loopback sink, with the sink
+ * as the second witness), and this is the one line that stops THIS suite's
+ * ledger from silently meaning less than it reads.
+ *
+ * PORT 9 IS THE DISCARD PORT and it is deliberate: with no guard the call fails
+ * anyway, with a `TypeError`. It is the ERROR'S NAME that separates "refused by
+ * us" from "refused by the kernel", so the assertion reads the name.
+ */
+const guard = await app.evaluate(async () => {
+  const row = { fetchName: typeof fetch === 'function' ? fetch.name : null, threw: false, name: null };
+  try { await fetch('http://127.0.0.1:9/smoke-guard-from-main'); }
+  catch (err) { row.threw = true; row.name = String((err && err.name) || ''); }
+  return row;
+});
+ok('...and the transport that ledger CANNOT see is gone from the main process: a bare fetch() there is refused by us, '
+  + 'by name  [entry point: src/main/netguard.js, imported first by src/main/main.js]',
+  guard.threw === true && guard.name === 'P1ViolationError' && guard.fetchName === 'refused',
+  `fetch is \`${guard.fetchName}\`, and calling it threw ${guard.name || '(nothing)'} — `
+  + 'a TypeError here would be the kernel refusing the connection, which is a different sentence');
 
 console.log(`\n${ID}: app console ${path.relative(ROOT, path.join(OUT, 'app-console.log'))}`);
 await done(app);

@@ -61,7 +61,7 @@
  * Run on 2026-08-26, Electron 44.0.0 / Chromium 152.0.7977.54, Linux, against
  * `https://www.youtube.com/watch?v=dQw4w9WgXcQ`:
  *
- *   REPORT ROWS   **41 rows, 41 caught, 0 failed. Coverage 25/25** — every
+ *   REPORT ROWS   **43 rows, 43 caught, 0 failed. Coverage 26/26** — every
  *       assertion in the suite was turned red by some row, and every row turned
  *       red exactly the set it declared.
  *   PRODUCT ROWS  three, each a real edit to `src/` and a real launch against
@@ -209,8 +209,8 @@ const REPORT_ROWS = [
   { id: 'R20', why: 'THE SEPARATOR THREW instead of separating — the one thing `Backend.separate` is allowed to do besides work',
     edit: (r) => { r.offline = { THREW: 'RuntimeError: memory access out of bounds' }; },
     expect: ['THE SEPARATOR RAN', '...and the audio it separated came off the muted view',
-      'SIX STEMS CAME BACK', '...and the six SUM BACK to the mix',
-      '...and no two of them are the same signal'] },
+      'SIX STEMS CAME BACK', '...and the LABELS ARE THE SEPARATOR', '...and the six SUM BACK to the mix',
+      '...and no two of them are the SAME SIGNAL'] },
 
   { id: 'R20b', why: 'THE SEGMENT NEVER FILLED: the separator ran over a partly-empty buffer',
     edit: (r) => { r.offline.captured = 1024; },
@@ -238,11 +238,15 @@ const REPORT_ROWS = [
 
   { id: 'R22', why: 'FIVE STEMS CAME BACK, NOT SIX',
     edit: (r) => { r.offline.perStem = r.offline.perStem.slice(0, 5); },
-    expect: ['SIX STEMS CAME BACK', '...and no two of them are the same signal'] },
+    expect: ['SIX STEMS CAME BACK', '...and the LABELS ARE THE SEPARATOR',
+      '...and no two of them are the SAME SIGNAL'] },
 
+  // Swaps two whole ENTRIES, names and all. It is caught TWICE now, and by two
+  // different claims: the shape row sees `stem !== STEMS[i]`, and the label row
+  // sees that the plane sitting at the `bass` index is a drum kit.
   { id: 'R22b', why: 'THE PLANES ARE IN THE WRONG ORDER: six correct stems, mislabelled at the buffer layout',
     edit: (r) => { const a = r.offline.perStem; r.offline.perStem = [a[1], a[0], ...a.slice(2)]; },
-    expect: ['SIX STEMS CAME BACK'] },
+    expect: ['SIX STEMS CAME BACK', '...and the LABELS ARE THE SEPARATOR'] },
 
   { id: 'R23', why: 'SIX COPIES OF THE MIX: the fan-out a stalled separator publishes — it sums to six times the input',
     edit: (r) => { r.offline.sum.sumRms = r.offline.sum.mixRms * 6;
@@ -255,11 +259,54 @@ const REPORT_ROWS = [
 
   { id: 'R24', why: 'SIX IDENTICAL STEMS: the same signal six times, which every level check but this one calls a pass',
     edit: (r) => { const v = r.offline.perStem[0]; r.offline.perStem = r.offline.perStem.map((x) => ({ ...x, rmsL: v.rmsL, rmsR: v.rmsR })); },
-    expect: ['...and no two of them are the same signal'] },
+    expect: ['...and no two of them are the SAME SIGNAL'] },
 
   { id: 'R24b', why: 'ONE STEM IS DIGITAL SILENCE — a plane the separator never wrote',
     edit: (r) => { r.offline.perStem[4] = { ...r.offline.perStem[4], rmsL: 0, rmsR: 0, peak: 0 }; },
-    expect: ['...and no two of them are the same signal'] },
+    expect: ['...and no two of them are the SAME SIGNAL'] },
+
+  /**
+   * THE AUDIT'S OWN COUNTEREXAMPLE, AS A ROW. `stems_k = a_k * mix` with the
+   * `a_k` summing to 1: residual EXACTLY 0, sum ratio EXACTLY 1.0, six DIFFERENT
+   * levels, and six planes that are the same signal. Before the correlation
+   * assertion this report was green on all three of the tests that were supposed
+   * to catch it — which is why this row expects EXACTLY ONE red, and why that
+   * one red is the point of the repair.
+   */
+  { id: 'R24c', why: 'SIX SCALED COPIES OF THE MIX: residual 0, sum ratio 1.0, six distinct levels — and one signal',
+    edit: (r) => {
+      const a = [0.35, 0.25, 0.18, 0.12, 0.07, 0.03];
+      r.offline.sum.residualRms = 0;
+      r.offline.sum.sumRms = r.offline.sum.mixRms;
+      r.offline.perStem = r.offline.perStem.map((x, k) => ({
+        ...x,
+        rmsL: r.offline.mixRms.l * a[k],
+        rmsR: r.offline.mixRms.r * a[k],
+        peak: 0.9 * a[k],
+        // ...and every plane keeps the MIX's spectrum, because a scaled copy has it.
+        spectrum: { ...r.offline.mixSpectrum },
+      }));
+      r.offline.pairwise = r.offline.pairwise.map((x) => ({ ...x, r: 1 }));
+    },
+    expect: ['...and the LABELS ARE THE SEPARATOR', '...and no two of them are the SAME SIGNAL'] },
+
+  /**
+   * THE PERMUTATION THE OLD ORDER CHECK COULD NOT SEE. `R22b` swaps whole
+   * ENTRIES, names and all, which is a mislabelled REPORT. This one leaves the
+   * six names exactly where they are and rotates the NUMBERS under them, which
+   * is what a backend writing its planes in another order would produce — and
+   * `perStem[i].stem === STEMS[i]` is still true, because the probe wrote those
+   * names itself.
+   */
+  { id: 'R22c', why: 'THE BACKEND WROTE ITS PLANES IN ANOTHER ORDER: the six names stay put and the audio under them rotates',
+    edit: (r) => {
+      const a = r.offline.perStem;
+      const rot = a.map((_, i) => a[(i + 1) % a.length]);
+      r.offline.perStem = a.map((x, i) => ({
+        ...x, rmsL: rot[i].rmsL, rmsR: rot[i].rmsR, peak: rot[i].peak, spectrum: rot[i].spectrum,
+      }));
+    },
+    expect: ['...and the LABELS ARE THE SEPARATOR'] },
 
   { id: 'R25', why: 'THE DECK IS BLANK: a photograph of a view that painted one colour',
     edit: (r) => { r.shot.deck.colours = 1; },

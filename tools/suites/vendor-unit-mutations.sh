@@ -202,6 +202,27 @@ mutate_case() {
 
 ONLY=("$@")
 
+# ---------------------- 0a. A LEFTOVER FROM A KILLED RUN IS NOT THIS RUN'S RED
+#
+# THE TRAP ALONE WAS NOT ENOUGH, and it cost a run: `restore_all` was reachable
+# only from the INT/TERM/HUP trap, so a SIGKILL, a `timeout`-killed battery or a
+# crashed shell left a MUTATED UNIT FILE on the working tree — case A's
+# `bpmtap.js` edit stood there and the next agent found it as a `vendor-intact`
+# red they had not caused.
+#
+# THE SENTINEL IS THE FIX AND IT IS NOT THIS FILE'S: `tools/lib/mutation-guard.sh`
+# is sourced above, `mg_claim` writes a file under `out/.mutating/` naming every
+# (file, backup) pair BEFORE the first edit, and `mg_release` removes it only
+# after the restore has been byte-verified. Every suite refuses to start while
+# one of those is on disk (`tools/lib/tree-guard.mjs`), so a stranded mutation
+# becomes a NAMED refusal that says how to undo it —
+# `node tools/lib/tree-guard.mjs restore-all` — rather than a mystery red three
+# steps away. That is strictly better than this battery quietly self-healing,
+# because a human gets told.
+#
+# `$OUT/<case>.paths` is this battery's own older bookkeeping and is kept: it is
+# what the trap's `restore_all` reads, and the two are not alternatives.
+
 # ------------------------------------------------- 0. green before mutating
 echo "${C_D}=== baseline — the step must be GREEN before anything is broken${C_X}"
 if ! run_step "$OUT/baseline.log"; then

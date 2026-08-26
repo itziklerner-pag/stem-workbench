@@ -51,11 +51,12 @@ weights, a different contract, and no shared engine — a different product.
 | code licence | MIT |
 | **weights licence** | **CC BY-NC 4.0 — non-commercial** |
 | attribution | Meta Platforms, Inc. / the Demucs authors |
-| **redistributed here?** | **Yes — bundled in the installer** (seed §15, option M2) |
+| **redistributed here?** | **Not yet, and by design it will be: bundled in the installer** (seed §15, option M2). **There is no installer today** — `package.json`'s `build` key declares the `extraResources` entry that will carry the file, `*.onnx` is in `.gitignore`, and this repository therefore redistributes nothing at the time of writing. `models/htdemucs_6s.onnx` is a development-only file the vendoring script fetches. The non-commercial term below binds anyway, because it binds the artifact this project intends to ship and there is no version of it that does not carry these weights |
 | source | a third-party ONNX **re-export** on Hugging Face, pinned by commit SHA |
-| pin | URL, SHA-256 and byte count in the vendored unit's `shared/config.js` — the single source of truth every script derives from |
+| pin | SHA-256 and byte count in the vendored unit's `shared/config.js` (`MODEL`); the **URL** is in `extension/offscreen/host-pin.js`, which `config.js` :297-305 documents as a deliberate split. Both files are vendored, byte-identical to the tag, and gated by `vendor/upstream.sha256`. *(An earlier version of this row sent readers to `config.js` for the URL, which is not there.)* |
+| the URL, in full | `https://huggingface.co/arjune123/demucs-onnx/resolve/0168b73c5fbf38462be79c051b003844a4820e7a/htdemucs_6s.onnx` — pinned by a 40-hex commit, so the bytes cannot move under the pin. **stem-workbench never resolves it**: the app serves the file over its own `app://` origin, and rule P1′ binds this app's own code to exactly one host, which is not this one |
 | size | 114,559,139 bytes (109 MiB) |
-| integrity | the SHA-256 check runs on every load, against the bundled file |
+| integrity | the SHA-256 check runs on **every load**, in the vendored unit, over whatever the Host hands it — measured, not described: flipping one byte at offset 50,000,000 (byte count unchanged, so only the hash can catch it) makes the engine refuse with the computed digest. The Host cannot skip it: `modelBytes()` in our hole module verifies nothing, and the verification lives in `shared/modelcache.js`, which is vendored and gated |
 
 > The Demucs **code** is MIT. The **pretrained weights** are not. Meta's
 > position is that the weights are released under CC BY-NC 4.0 and provided for
@@ -90,10 +91,11 @@ same holder.
 
 | | |
 |---|---|
-| what | [ONNX Runtime Web](https://onnxruntime.ai/), WebGPU + threaded-WASM build |
+| what | [ONNX Runtime Web](https://onnxruntime.ai/), WebGPU + threaded-WASM build, at **1.27.0** |
 | origin | Microsoft |
 | licence | MIT |
-| how | vendored at build time and hash-verified, as `tools/fetch-vendor.sh` does today |
+| how | fetched from npm at vendor time by the unit's own `tools/fetch-vendor.sh`, into a gitignored directory (~27 MB of wasm plus ~928 KB of glue) |
+| pinned by whom | **the unit pins two of the four artefacts and copies the other two with no hash at all** — `ort.all.bundle.min.mjs` and `ort-wasm-simd-threaded.jsep.wasm` have `verify` lines in that script; `ort-wasm-simd-threaded.mjs` and `ort-wasm-simd-threaded.jsep.mjs` do not, and the script's own comment records that the glue `.mjs` is loaded and run. That is an upstream gap and rule V1 forbids fixing it inside `vendor/`. **This repository pins all five files itself**, in `vendor/.pin`'s `ort` block, and `bash tools/vendor-unit.sh --check` re-hashes every one of them offline on every gate run |
 
 ## Electron and Chromium
 

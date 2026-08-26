@@ -292,6 +292,46 @@ The receive half of the postMessage wire, red for exactly the reason its own ins
 
 ---
 
+## 6b. Other findings for `stem-splitter-live`, recorded rather than patched
+
+Rule V1 forbids editing anything under `vendor/stem-splitter-live/` that is not
+one of the two holes, and `vendor-intact` goes red the moment anyone tries. These
+are therefore findings for the OTHER repository, behind a later tag, and they are
+written down here because a finding nobody wrote down is a finding nobody has.
+
+### F-ORT — two of the four ONNX Runtime artefacts are fetched and never hashed
+
+`extension/tools/fetch-vendor.sh` pins `ort.all.bundle.min.mjs` and
+`ort-wasm-simd-threaded.jsep.wasm` with `verify` lines. It copies
+`ort-wasm-simd-threaded.mjs` (24,180 B) and `ort-wasm-simd-threaded.jsep.mjs`
+(46,614 B) with **no hash at all** — and its own comment records that the glue
+`.mjs` *"is still fetched dynamically in some paths"*, i.e. it is loaded and run,
+inside the cross-origin-isolated `app://` origin that also holds the capture ring
+and the verified weights, under a CSP that grants `'wasm-unsafe-eval'`. **M1 is
+"no remote code"; this is where the remote code actually is.**
+
+Nothing is wrong with today's drop — every one of the five files has been hashed
+by hand and by the gate. What was wrong is that nothing would have noticed if it
+were. **Closed locally**: `vendor/.pin` now carries an `ort` block with all five
+SHA-256s and the version, `tools/vendor-unit.sh` writes it when §6 fetches, and
+`bash tools/vendor-unit.sh --check` re-hashes the whole directory offline on
+every `vendor-intact` run — including a set comparison, so a file ADDED to that
+directory is red too. Watched red both ways: append one byte to the unpinned
+glue, and drop an extra file in.
+
+The upstream fix is two more `verify` lines in that script.
+
+### F-TOOLBAR — the deck tells a desktop user to click a toolbar icon
+
+With nothing armed, `ui/embed.js` prints *"Click the Stem Splitter Live toolbar
+icon on this tab to arm it, or press Ctrl+Shift+A"* (`:1142`). There is no
+toolbar icon in this product and there are no tabs. `docs/VENDORING.md` already
+names this as the one English sentence a second Host must patch, and the
+accelerator half of it is answered correctly by `DeckHost.armShortcut()`. It is
+visible in [`docs/evidence/step3-youtube/npm-start.png`](evidence/step3-youtube/npm-start.png).
+
+The upstream fix is a Host-supplied noun, the way the chord already is.
+
 ## 7. What this step does not say
 
 - **It is not `vendor-unit`.** That step asks whether the unit still works; this

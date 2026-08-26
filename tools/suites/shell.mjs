@@ -479,9 +479,29 @@ ok('...and the refusal is visible in the chrome bar, not silently swallowed  [en
   JSON.stringify(O(R.chromeDom).refusal));
 
 // -------------------------------------------------------- 2.7 what it drew
-ok('the chrome bar painted, with its Arm control present and disabled  [entry point: src/renderer/chrome.html]',
-  O(R.chromeDom).arm === true && O(R.chromeDom).armDisabled === true && /coi=true/.test(String(O(R.chromeDom).engine)),
-  `arm=${O(R.chromeDom).arm} disabled=${O(R.chromeDom).armDisabled} engine="${O(R.chromeDom).engine}" deck="${O(R.chromeDom).deck}"`);
+/**
+ * THE ARM CONTROL IS LIVE, AND THAT IS A CORRECTION.
+ *
+ * This assertion used to require `disabled === true`, and it was green for a
+ * whole wave after arming started working — while `src/main/deck-host.js`'s own
+ * refusal text told the user *"Arm this Source first, from the Source menu or
+ * the Arm button"* and `HOST-DESIGN.md` §6.4 called this button the first thing
+ * the owner touches. An auditor clicked it on a real launch and nothing
+ * happened. A gate that pins a defect in place is worse than no gate: it makes
+ * fixing the defect look like a regression.
+ *
+ * The BEHAVIOUR — that clicking it really arms — is `smoke`'s, over the real
+ * ipc path with the real Host. Here it is the markup and the bridge: present,
+ * enabled, labelled `Arm`, and with a `__wbChrome.arm` to call.
+ */
+ok('the chrome bar painted, with its Arm control present, ENABLED and wired to a bridge  '
+  + '[entry point: src/renderer/chrome.html + src/preload/chrome.cjs]',
+  O(R.chromeDom).arm === true && O(R.chromeDom).armDisabled === false
+  && String(O(R.chromeDom).armText).trim() === 'Arm' && O(R.chromeDom).armedAttr === '0'
+  && O(R.chromeDom).bridgeArm === 'function' && /coi=true/.test(String(O(R.chromeDom).engine)),
+  `arm=${O(R.chromeDom).arm} disabled=${O(R.chromeDom).armDisabled} text="${O(R.chromeDom).armText}" `
+  + `data-armed=${O(R.chromeDom).armedAttr} bridge.arm=${O(R.chromeDom).bridgeArm} `
+  + `engine="${O(R.chromeDom).engine}" deck="${O(R.chromeDom).deck}"`);
 
 const drew = Object.entries(O(R.screenshots)).filter(([, s]) => O(s).ok && O(s).colours > 1);
 ok('...and all three views drew something — a blank view and a painted one are both a PNG',

@@ -27,8 +27,14 @@
 # holding the lock for four minutes does not turn into "the app did not start".
 #
 # RECORDED RUN — 2026-08-26, Electron 44.0.0 / Linux, in a worktree of its own:
-# 19 of 19 caught, and `coverage.py` reports all 19 assertions watched red.
+# 24 of 24 caught, and `coverage.py` reports all 24 assertions watched red.
 # The per-case blast radius is in the table at the top of `tools/suites/p1.mjs`.
+#
+# CASES 20-24 ARE THE AUDIT'S OWN MUTATIONS. Two independent reviewers defeated
+# this suite with one line of `fetch()` in `src/main/main.js` and watched it
+# reach a real host through a green gate. Case 21 reproduces that exactly — with
+# the guard in `src/main/netguard.js` neutered, the sink logs
+# `GET /telemetry-from-main` and three assertions go red over it.
 #
 # ---------------------------------------------------------------------------
 # THREE THINGS THIS SCRIPT DOES BECAUSE THE HOST WAVE LOST WORK WITHOUT THEM
@@ -400,6 +406,71 @@ mutate_case 19 "relax connect-src to any https origin" \
   -- src/main/assets.js \
 "  \"connect-src 'self'\"," \
 "  \"connect-src 'self' https:\","
+
+# ==========================================================================
+# 20-24  THE TRANSPORTS THAT NEVER ENTER CHROMIUM
+# ==========================================================================
+# CASE 20 IS THE AUDIT'S OWN MUTATION, RE-RUN AS A GATE. Two independent
+# reviewers added one line of `fetch()` to `src/main/main.js`, watched it reach a
+# real host — a local sink logged `GET /telemetry-from-main`, and example.com
+# answered 404 — and watched `p1` report `19 passed, 0 failed` over it. That is
+# the exact edit below, against a sink this battery owns. It must now turn FOUR
+# assertions red, and the sink's own counter is one of them: the app really does
+# put a byte on a wire in this case, and the suite really does see it.
+mutate_case 20 "the auditors' mutation: a bare fetch to a second host from main" \
+  "src/main/main.js" \
+  "...and no file under src/main/ calls a bare" \
+  -- src/main/main.js \
+"async function boot() {" \
+"async function boot() {
+  await fetch(\`\${process.env.STEM_WORKBENCH_P1_SINK}telemetry-from-main\`).catch(() => {});"
+
+# ...AND THE SAME EDIT WITH THE GUARD NEUTERED, which is what the auditors
+# actually had. `take()` returning early installs nothing, so every transport is
+# the platform's again: the `fetch` above really leaves the process, the eleven
+# control attempts really open sockets, and THE SINK IN THE SUITE'S PROCESS
+# RECORDS THEM. Four assertions red, and the sink's counter is the one that is
+# evidence from outside the app.
+mutate_case 21 "the guard installs nothing, and the same fetch really leaves" \
+  "src/main/netguard.js,src/main/main.js" \
+  "the main process's unobservable transports are POISONED at boot|...and every one of them THROWS when the app calls it|...and the sink in THIS process recorded exactly one connection|...and no file under src/main/ calls a bare" \
+  -- src/main/netguard.js \
+"function take(holder, key, label) {
+  let had;" \
+"function take(holder, key, label) {
+  if (label) return false;
+  let had;" \
+  src/main/main.js \
+"async function boot() {" \
+"async function boot() {
+  await fetch(\`\${process.env.STEM_WORKBENCH_P1_SINK}telemetry-from-main\`).catch(() => {});"
+
+mutate_case 22 "a src/ file imports node:https" \
+  "src/main/storage.js" \
+  "NO file under src/ imports a node network module" \
+  -- src/main/storage.js \
+"import fs from 'node:fs';" \
+"import fs from 'node:fs';
+import https from 'node:https';"
+
+mutate_case 23 "a bare fetch( appears in src/main, and is never called" \
+  "src/main/storage.js" \
+  "...and no file under src/main/ calls a bare" \
+  -- src/main/storage.js \
+"import fs from 'node:fs';" \
+"import fs from 'node:fs';
+const unused = () => fetch('https://telemetry.invalid/x');"
+
+# THE GUARD CAN ALSO BE TOO WIDE, and that failure is silent in the worst way:
+# Node's own child-process IPC connects a `net.Socket` to a PIPE, so a blanket
+# refusal breaks machinery nobody would connect back to this file. The pipe row
+# is asserted NOT to throw, and this is that assertion's mutation.
+mutate_case 24 "the guard stops distinguishing a pipe from a TCP port" \
+  "src/main/netguard.js" \
+  "...and every one of them THROWS when the app calls it" \
+  -- src/main/netguard.js \
+"      const tcp = typeof a === 'number'" \
+"      const tcp = true || typeof a === 'number'"
 
 # ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.

@@ -1,0 +1,110 @@
+# ---------------------------------------------------------------------------
+# GATE — the steps a GitHub runner can honestly answer, and no others.
+# ---------------------------------------------------------------------------
+#
+# THIS WORKFLOW HAS NEVER RUN EITHER. It is written with the same discipline as
+# the suites it runs, and the discipline here is one line:
+#
+#     EVERY STEP CARRIES `--strict`, so a step that SKIPS fails the job.
+#
+# That is not decoration. An auditor showed what its absence buys: with
+# `xvfb-run` off PATH, `node tools/verify.mjs --only shell` printed
+# `shell SKIPPED — xvfb-run is not on PATH`, the verdict `GREEN (partial)`, and
+# EXIT 0. On a fresh runner — no display, no PipeWire, no 109 MB of weights —
+# most of the plan skips, and the first `run: node tools/verify.mjs` would have
+# reported success having measured almost nothing. `--strict` exits 2 on a skip
+# (and 1 on a red, which are different problems and get different codes), and it
+# is deliberately silent about `--quick`/`--only`, which are a human choosing a
+# question rather than a machine declining one.
+#
+# ---------------------------------------------------------------------------
+# WHICH STEPS ARE HERE, AND WHY THE OTHERS ARE NOT
+# ---------------------------------------------------------------------------
+# `offline` runs what needs nothing but node. `windowed` installs xvfb and runs
+# the launch suites. NOT HERE, and named so the absence is on the record:
+#
+#   engine-host   needs the 109 MB of weights. It would be honest to fetch them
+#                 (`tools/vendor-unit.sh --model`) and this job should grow that
+#                 when somebody is prepared to pay ~2 minutes a run for it.
+#   capture-mute  needs PipeWire and an exclusive null sink. A GitHub runner has
+#                 no audio device at all, so the one gate that proves the view is
+#                 SILENT while it is captured cannot run in CI, ever. It is the
+#                 permanent gate and it is a LOCAL one: docs/TESTING.md §4.
+#   youtube       is `manual` and needs the real site. A gate that depends on
+#                 somebody else's DOM must never block a build.
+#
+# So a green tick here is NOT the full plan, and nothing in this file pretends
+# otherwise: the job names are what ran, and `docs/TESTING.md` is the plan.
+# ---------------------------------------------------------------------------
+name: gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: offline — the runner, the pin, and the seams
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+
+      # THE RUNNER'S OWN LOGIC FIRST. `--self-check` spawns nothing and asserts
+      # the classifier, the verdict and the exit codes; if it is wrong, every
+      # green below is a green nobody can read.
+      - run: node tools/verify.mjs --self-check
+
+      # THE ONNX RUNTIME DROP IS GITIGNORED and `vendor-intact` now hashes it,
+      # so it has to be on disk before that step can answer. The UNIT's own
+      # script is called directly: `tools/vendor-unit.sh` with no flag would
+      # re-vendor from the network and REWRITE the `ort` block the very next
+      # step verifies, which is the gate checking its own homework.
+      - name: fetch ONNX Runtime at the committed pin
+        run: bash vendor/stem-splitter-live/tools/fetch-vendor.sh
+
+      - run: node tools/verify.mjs --only void-canary --strict
+      - run: node tools/verify.mjs --only vendor-intact --strict
+      - run: node tools/verify.mjs --only vendor-unit --strict
+      - run: node tools/verify.mjs --only deck-seam --strict
+      - run: node tools/verify.mjs --only conformance --strict
+
+  windowed:
+    name: windowed — one real Electron launch per question
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+
+      # The suites take the shared browser mutex themselves and each spawns its
+      # own `xvfb-run -a`; the runner only has to supply the binaries.
+      - name: xvfb and the libraries Electron needs headless
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libgtk-3-0 libgbm1 libasound2t64
+
+      - name: fetch ONNX Runtime at the committed pin
+        run: bash vendor/stem-splitter-live/tools/fetch-vendor.sh
+
+      - run: node tools/verify.mjs --only shell --strict
+      - run: node tools/verify.mjs --only transport --strict
+      - run: node tools/verify.mjs --only deck-host --strict
+      - run: node tools/verify.mjs --only p1 --strict
+      - run: node tools/verify.mjs --only smoke --strict
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-logs
+          if-no-files-found: ignore
+          retention-days: 7
+          path: out/**/*.log

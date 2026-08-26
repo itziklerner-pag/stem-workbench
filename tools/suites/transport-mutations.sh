@@ -157,11 +157,23 @@ T=src/main/transport.js
 G=tools/gate/transport.mjs
 
 # =========================================================================
-# L1 — the three instruments
+# L1 — the four instruments
 # =========================================================================
 mutate_case 1 static "the preload reads currentSrc" "$P" \
   "every property it touches at all is on the enumerated allow-list|none of the names L1 forbids" -- \
   "$P" "const isSelfSeek = ()" "const _l1 = () => el && el.currentSrc;
+const isSelfSeek = ()"
+
+# THE AUDITOR'S OWN MUTATION, verbatim. Two lines, and before this repair every
+# one of the three L1 instruments reported green over them: `transport: 63
+# passed, 0 failed`, with the allow-list row saying "44 distinct properties, all
+# listed". A member scan that requires a literal dot cannot see a bracket, the
+# blacklist runs after string literals have been blanked, and reading a property
+# makes no request for the runtime witness to see.
+mutate_case 1b static "the preload reads currentSrc and buffered THROUGH A STRING KEY" "$P" \
+  "it contains NO COMPUTED MEMBER ACCESS at all" -- \
+  "$P" "const isSelfSeek = ()" "const leakUrl = () => (el ? el['currentSrc'] : null);
+const leakBuffered = () => (el ? el['buffered'] : null);
 const isSelfSeek = ()"
 
 mutate_case 2 static "the preload writes a fourth property" "$P" \

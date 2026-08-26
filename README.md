@@ -1,19 +1,23 @@
 # stem-workbench
 
 **Pre-alpha. There is nothing to install** — no installer, no signed build, no
-release. There IS an application, and it works end to end: `npm start` opens a
-window with `youtube.com` in it, you press play, you arm it from the menu, and
-the app captures the page — muted, so you hear nothing of it — and separates
-what it captured into **six stems with the real 109 MB weights**. That whole
-chain is verified on Linux by one manual gate, `node tools/verify.mjs --only
-youtube`: **25 assertions, 0 failed.**
+release, and none has ever been produced. There IS an application, and it works
+end to end: `npm start` opens a window with `youtube.com` in it, you press play,
+you arm it from the bar or the menu, and the app captures the page — muted, so
+you hear nothing of it — and separates what it captured into **six stems with
+the real 109 MB weights**. That whole chain is verified on Linux by one manual
+gate, `node tools/verify.mjs --only youtube`: **26 assertions, 0 failed.**
 
-**One step of it this machine could not show:** live separation needs about 4x
-real time and this box has no reachable GPU, so the six faders do not move here —
-the deck plays the passthrough mix and says *Starving*, which is what it is
-designed to do. The separator itself was measured with the clock taken away and
-returns six real stems. [Run it on this machine](#run-it-on-this-machine) has
-both halves, with numbers.
+**THE ONE THING THIS PRODUCT IS FOR HAS NEVER BEEN SEEN WORKING.** Six stems
+moving live while the video plays needs about 4x real time; this box has no
+reachable GPU and does about 1.4x, so every chunk is dropped, the deck plays the
+passthrough mix and says *Starving*, and the six faders sit still. That is true
+of every machine this has ever run on — the author's and an independent
+auditor's. The SEPARATOR is verified, with the clock taken away, and returns six
+real stems; the LIVE SCHEDULER is a prediction.
+[Run it on this machine](#run-it-on-this-machine) has both halves, with numbers,
+and [What was verified, and what was only
+configured](#what-was-verified-and-what-was-only-configured) draws the line.
 
 ---
 
@@ -69,9 +73,9 @@ that decides what this product may become. The code itself is
 |---|---|
 | step 1 — the capture/mute spike | **done on Linux**; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware |
 | step 2 — the Host seam in `stem-splitter-live` | **done** — Host interface v1, frozen at `v0.2.0` |
-| step 3 — desktop host v0, the YouTube Live source | **it runs end to end on Linux.** A real `youtube.com` watch page in the window, armed from the application menu, captured while the view is muted, and **six stems out of the engine with the real 109 MB weights**. `node tools/verify.mjs --only youtube` — **25 assertions, 0 failed** |
+| step 3 — desktop host v0, the YouTube Live source | **it runs end to end on Linux.** A real `youtube.com` watch page in the window, armed from the bar or the application menu, captured while the view is muted, and **six stems out of the engine with the real 109 MB weights**. `node tools/verify.mjs --only youtube` — **26 assertions, 0 failed**. Packaging for macOS and Windows is **written and never built** — see [What was verified, and what was only configured](#what-was-verified-and-what-was-only-configured) |
 | step 3, the vendored unit | **landed** — 50 files at `v0.2.0`, byte-verified twice, plus ONNX Runtime at its pin |
-| step 3, what is NOT done | the File source, stem export, packaging/installers, and macOS — none of them started |
+| step 3, what is NOT done | the File source and stem export — neither started. **Packaging is configured and has never been built**; **macOS has never run any of it**; **six stems moving live has never been observed on any machine** |
 
 ## Run it on this machine
 
@@ -188,56 +192,86 @@ YOUTUBE_REPORT=docs/evidence/step3-youtube/report.json node tools/suites/youtube
 
 | | |
 |---|---|
-| the page | `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, duration **213.061 s**. No pre-roll before arming; the page **reload** later brought one, and the run pressed YouTube's own **Skip** once and waited 1.1 s before measuring anything. The playhead was then moved to 48 s through the deck's own `drive` — it landed at **50.39 s**, `adShowing: false` — so the segment is the song's chorus and not an advertisement |
-| the capture | `channelCount: 2`, `sampleRate: 44100`, `autoGainControl / echoCancellation / noiseSuppression` all **false**, `local_echo=false`; the segment's own rms **L 0.1636 / R 0.1651**, and the deck's ring at **1,425,408 frames / 32.3 s**, peak **[0.608, 0.594]**, 0 dropped — while the view is muted |
-| the weights | **114,559,139 bytes** — every one of them — through `modelBytes()` in **580 ms**, hash-verified by the unit, ORT session built |
-| the separator | `separate()` **5485 ms** for a 7.8 s segment on `ep: wasm`, 4 threads (prep 92 · infer 4870 · post 522) |
-| **the six stems** | rms per stem, in the model's own `STEMS` order — see below |
-| the sum | mix **0.164336**, Σstems **0.159585** (**0.971x**), residual **0.017901** (**0.109x**) |
-| the live pipeline | 11 chunks, **11 drops**, p95 **5676.8 ms** against a 1950 ms hop — **did not keep up on this box** |
+| the page | `https://www.youtube.com/watch?v=dQw4w9WgXcQ`, duration **213.061 s**. A pre-roll was waited out before anything was measured. The playhead was then moved to 48 s through the deck's own `drive` — it landed at **50.403 s**, `adShowing: false` — so the segment is the song's chorus and not an advertisement |
+| the capture | `channelCount: 2`, `sampleRate: 44100`, `autoGainControl / echoCancellation / noiseSuppression` all **false**, `local_echo=false`; the segment's own rms **L 0.1636 / R 0.1651**, and the deck's ring at **540,672 frames / 12.26 s**, peak **[0.506, 0.482]**, 0 dropped — while the view is muted |
+| the weights | **114,559,139 bytes** — every one of them — through `modelBytes()` in **517 ms**, hash-verified by the unit, ORT session built |
+| the separator | `separate()` **5560 ms** for a 7.8 s segment on `ep: wasm`, 4 threads (prep 93 · infer 4929 · post 537) |
+| **the six stems** | rms and spectrum per stem, in the model's own `STEMS` order — see below |
+| the sum | mix **0.164340**, Σstems **0.158697** (**0.966x**), residual **0.019203** (**0.117x**) |
+| the correlations | 15 pairs, \|r\| from **0.004 to 0.433**; the correlator's own control r(x,x) = **1** |
+| the live pipeline | 11 chunks, **11 drops**, p95 **5666.8 ms** against a 1950 ms hop, sustained RTF **2.89** — **did not keep up on this box, and has not kept up on any box** |
+
+Every figure in that table is one an assertion in `tools/suites/youtube.mjs`
+reads. The report also carries a `captureFinal` of 1,413,120 frames / 32.0 s that
+**no assertion reads**, and this sentence exists because an earlier version of
+this section quoted it here without saying so.
 
 ```
-drums    L 0.066890   R 0.058397   peak 0.566612
-bass     L 0.037113   R 0.026569   peak 0.167636
-other    L 0.030644   R 0.036382   peak 0.211143
-vocals   L 0.122456   R 0.126314   peak 0.622599
-guitar   L 0.002328   R 0.002366   peak 0.019544
-piano    L 0.000175   R 0.000187   peak 0.001546
+             rms L      rms R      peak      centroid   <120Hz   <500Hz
+drums      0.066817   0.058511   0.568174     1795 Hz    19.1%    64.3%
+bass       0.037203   0.026606   0.161932      102 Hz    76.4%    99.9%
+other      0.027363   0.032976   0.205921     1345 Hz     0.1%    38.3%
+vocals     0.122347   0.126175   0.620616     1723 Hz    0.01%    18.9%
+guitar     0.004745   0.004980   0.050094      447 Hz     0.1%    52.4%
+piano      0.000184   0.000200   0.001550     4265 Hz     0.8%    31.1%
+(the mix)  0.163564   0.165112       —        1493 Hz     7.6%    33.9%
 ```
 
 Read them as a human would: 50 s into that song is a full chorus, so **vocals
-loudest**, drums right behind, bass and the residual "other" present, guitar
-barely there, and **piano essentially silent — because that song has no piano.**
-Six distinct signals, 56.9 dB from the loudest to the quietest.
+loudest**, drums right behind, bass and the residual "other" present, guitar and
+piano quiet. Six distinct signals, 56.4 dB from the loudest to the quietest.
+**The quiet stems do not replicate run to run** — `guitar` has come back anywhere
+from 0.0023 to 0.0271 across four runs of the same seek, because a 7.8 s window
+either does or does not contain the guitar figure — which is why the suite
+asserts no level band on any stem. The loud four are stable to three digits.
 
-**The sum is the line that cannot be faked by a meter.** `htdemucs` is a masking
-separator: its six stems add back to the input. They do — Σstems is 0.971x the
-mix and the residual is 0.109x of it. Six *copies* of one mix would sum to six
-times it. That single row is what separates "six stems" from "one mix fanned out
-into six planes", which is exactly what the passthrough path publishes and what
-a careless level check calls a pass.
+**Three rows carry the "six stems" claim, and one of them was not enough.**
+
+- **The sum.** `htdemucs` is a masking separator: its six stems add back to the
+  input. They do — Σstems is 0.966x the mix and the residual is 0.117x of it. Six
+  *copies* of one mix would sum to six times it.
+- **The correlations.** An audit showed the sum alone can be beaten: for
+  `stems_k = a_k · mix` with the `a_k` summing to 1, the residual is exactly 0,
+  the sum ratio is exactly 1.0, and six differently-scaled copies of one mix pass
+  the sum test, the "six distinct levels" test and the meters at once. Pearson r
+  between every pair of planes is the row that cannot be beaten that way: six
+  scaled copies correlate at 1.000, and this run's fifteen pairs top out at 0.433.
+- **The spectra.** Nothing in the returned buffer carries a name — the seam
+  freezes the LAYOUT and the meaning of the index is convention — so the suite
+  now asserts the ORDER out of the audio: the `bass` plane has the strictly
+  lowest centroid and the strictly most energy under 500 Hz and under 120 Hz, and
+  the `vocals` plane has the strictly least under 120 Hz. The old check compared
+  the labels the probe had itself written, and a permuted buffer passed it.
 
 ### What does not work yet
 
 - **Real-time live separation without a GPU.** Above, in full.
 - **The File source.** Not started. The deck has no way to open a file yet.
 - **Stem export.** Not started, and it is the line this product exists to cross.
-- **Packaging.** There is no `electron-builder` configuration and no installer:
-  `npm start` from a checkout is the only way to run this today. The CI and the
-  signing story for macOS and Windows are **not written**, and nothing here has
-  been built or signed on either.
+- **Packaging: configured, never built.** `package.json`'s `build` key,
+  `build/entitlements.mac.plist` and `.github/workflows/package.yml` are written
+  — dmg + zip for macOS (hardened runtime, notarization on), NSIS for Windows
+  (unsigned; there is no certificate), AppImage + deb for Linux. **No installer
+  has ever been produced from any of it, on any machine, and nothing has been
+  signed or notarized.** `npm start` from a checkout is still the only way anyone
+  has run this. See [What was verified, and what was only
+  configured](#what-was-verified-and-what-was-only-configured).
 - **The deck still speaks the extension's language in one sentence.** With
   nothing armed it prints *"Click the Stem Splitter Live toolbar icon on this
   tab to arm it, or press Ctrl+Shift+A"*. There is no toolbar icon and there are
   no tabs. `docs/VENDORING.md` names this as the one string a second Host must
   patch; the accelerator half is already ours.
-- **Turning YouTube's autoplay-next off does not take.** The Host finds the
-  toggle and clicks it and the control does not change, so the next video may
-  still start; the deck raises *"Couldn't turn off YouTube's autoplay — their
-  control didn't respond"* rather than failing quietly. The selector was measured
-  against the site on 2026-08-15 and the page has moved since. It is a YouTube-side
-  drift, which is the class of thing the manual `youtube` step exists to catch —
-  the `transport` suite is green about a local fixture whose toggle does respond.
+- **Turning YouTube's autoplay-next off does not take, on a watch page.** The
+  Host finds the toggle and clicks it and the control does not change, so the
+  next video may still start; the deck raises *"Couldn't turn off YouTube's
+  autoplay — their control didn't respond"* rather than failing quietly. The
+  selector was measured against the site on 2026-08-15 and the page has moved
+  since. It is a YouTube-side drift, which is the class of thing the manual
+  `youtube` step exists to catch — the `transport` suite is green about a local
+  fixture whose toggle does respond. (It no longer fires on the DEFAULT landing
+  page: youtube.com's home page has no player, so the Host no longer hunts for a
+  control that page never has, and a cold start no longer opens with a failure
+  banner about a page nobody asked about.)
 - **One suite in the vendored gate CRASHES rather than runs, and the crash is
   pinned rather than hidden.** The vendored `test.js` is both the unit's largest
   suite and a conformance suite over the two hole modules; with a non-Chrome Host
@@ -249,6 +283,29 @@ a careless level check calls a pass.
   593 passed, 19 failed, every red pinned by name and argued in
   [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). The fix is upstream
   (`stem-splitter-live#30`), not here: rule V1.
+
+### What was verified, and what was only configured
+
+The standing ruling for this phase is that **Linux is the verification
+platform**: the plan asks for a notarized macOS pre-release and there is no Mac
+and no Apple credential on this machine, so the substitute pass condition is *a
+runnable Linux app the owner can start and arm, proven by an automated smoke,
+plus electron-builder configuration and CI for macOS and Windows that is written
+but never built or signed here.* This table is that ruling, kept honest.
+
+| | | |
+|---|---|---|
+| the app starts and arms, on Linux | **VERIFIED** | `npm start` — photographed in [`docs/evidence/step3-youtube/npm-start.png`](docs/evidence/step3-youtube/npm-start.png); `smoke` clicks the bar's **Arm** and the menu's **Arm this Source** and requires the deck to see a `SESSION`; an auditor also armed it with a real `xdotool key ctrl+shift+a` |
+| the view is captured while the speakers stay silent | **VERIFIED** | `capture-mute`, on a PipeWire sink this repository owns, with a control process that IS heard |
+| six stems out of the real weights, inside this app | **VERIFIED** | `youtube`, against the real site — the sum, fifteen pairwise correlations, and the per-plane spectra |
+| **six stems moving LIVE** | **NEVER OBSERVED** | every chunk is dropped on every machine this has run on. It is a prediction from an arithmetic, not a measurement. §*Step 5 is the one this box could not show you* |
+| macOS / Windows packaging | **CONFIGURED, NEVER BUILT** | `package.json` `build` (its prose is in a sibling `buildNotes`, because electron-builder rejects unknown properties and a config that cannot run is not a configured one), `build/entitlements.mac.plist`, `.github/workflows/package.yml`. No installer exists. Nothing is signed. Nothing is notarized. The workflow has never run |
+| CI | **WRITTEN, NEVER RUN** | `.github/workflows/gate.yml`. Every step in it carries `--strict`, so a step that SKIPS fails the job — without that, a runner with no display and no PipeWire would have reported success having measured almost nothing |
+| the update check reaches exactly one host | **VERIFIED** | `p1`, over a real launch, against a fake TLS host wearing GitHub's name AND a loopback sink that the main process's own transports are refused at |
+
+Anything not in the left column has not been done. The two "never" rows are the
+phase's known gaps and they are the CEO's call, not something this evidence can
+settle.
 
 ### The spike
 
@@ -317,12 +374,18 @@ docs/CONFORMANCE.md          the unit's own group('host') over this Host's holes
 docs/evidence/               what a real run produced — pictures and numbers
 src/main/                    the main process: the window, app://, the bus, the
                              capture grant, the source view's short list
+src/main/netguard.js         P1' with teeth: main.js's FIRST import, and it
+                             removes fetch/http/https/net/tls/dgram/http2 from
+                             this process. A transport that leaves Chromium
+                             leaves the observer
 src/preload/                 four preloads: engine, deck, chrome — and youtube,
                              which exposes nothing on `window`, by design
 src/renderer/                our own pages: the chrome bar, the engine's page
 vendor/stem-splitter-live/   the vendored unit at v0.2.0 — 50 files, NEVER edited
-vendor/.pin                  the pin: tag, expected counts, `ours`
-vendor/upstream.sha256       what the 50 copied files were at the tag
+vendor/.pin                  the pin: tag, expected counts, `ours`, and the
+                             SHA-256 of every ONNX Runtime file (the gitignored
+                             27 MB nothing else hashes)
+vendor/upstream.sha256       what the 48 gated copied files were at the tag
 tools/vendor-unit.sh         vendors it, and `--check`s it. One command
 tools/verify.mjs             the gate. `node tools/verify.mjs`
 tools/suites/                the host suites — all built, plus their mutation
@@ -339,6 +402,11 @@ tools/gate/probe.mjs         what `--gate` reads out of a real launch — a flag
 tools/fixture/player.html    the local source page every automated suite uses
 spike/                       the throwaway Electron app + every recorded run
 spike/harness/               the external speaker meter it is measured with
+.github/workflows/           WRITTEN, NEVER RUN — `package.yml` (installers for
+                             three platforms, `--publish never`, no Release ever)
+                             and `gate.yml` (every step under `--strict`)
+build/entitlements.mac.plist macOS hardened-runtime entitlements. No microphone
+                             entitlement: this product never opens an input
 CONTEXT.md                   the glossary
 NOTICE.md                    the non-commercial statement and attribution
 ```
@@ -351,8 +419,9 @@ node tools/verify.mjs --quick          # ...minus anything that opens a window o
 node tools/verify.mjs --self-check     # the runner's own classifier, ~0 s
 node tools/verify.mjs --only shell     # one real launch of `electron .`, ~2 s
 node tools/verify.mjs --only youtube   # MANUAL: the real site, end to end, ~5 min
-tools/suites/shell-mutations.sh        # watch all 34 of its assertions go red
-node tools/suites/youtube-mutations.mjs        # 41 rows over a recorded run, ~10 s
+node tools/verify.mjs --strict         # ...and a step that SKIPPED fails the run (exit 2)
+tools/suites/shell-mutations.sh        # watch every one of its assertions go red
+node tools/suites/youtube-mutations.mjs        # 43 rows over a recorded run, ~10 s
 node tools/suites/youtube-mutations.mjs --live # ...and three real edits to src/, one launch each
 ```
 
@@ -367,26 +436,30 @@ proves six stems come out of the engine inside this app.
 
 | step | | |
 |---|---|---|
-| `void-canary` | PASS | 21 passed, 0 failed |
-| `vendor-intact` | PASS | 5 passed, 0 failed |
+| `void-canary` | PASS | 35 passed, 0 failed |
+| `vendor-intact` | PASS | 6 passed, 0 failed |
 | `vendor-unit` | PASS | 11 suites PASS, **544 assertions**; `unit` CRASHES at `test.js:5833` **as pinned** — 17 reds before it dies, upstream `stem-splitter-live#30`. The verdict for that file is `conformance` |
 | `deck-seam` | PASS | 49 passed, 0 failed |
 | `shell` | PASS | 35 passed, 0 failed |
 | `engine-host` | PASS | 37 passed, 0 failed |
-| `transport` | PASS | 63 passed, 0 failed |
+| `transport` | PASS | 64 passed, 0 failed |
 | `deck-host` | PASS | 27 passed, 0 failed |
-| `p1` | PASS | 19 passed, 0 failed |
+| `p1` | PASS | 24 passed, 0 failed |
 | `conformance` | PASS | 11 passed, 0 failed |
-| `smoke` | PASS | 18 passed, 0 failed |
+| `smoke` | PASS | 21 passed, 0 failed |
 | `capture-mute` | PASS | 15 passed, 0 failed |
-| `youtube` | *manual* | **25 passed, 0 failed** — run by hand; never on a default plan |
+| `youtube` | *manual* | **26 passed, 0 failed** — run by hand; never on a default plan |
 
 **`GREEN (partial — 12 of 13 steps ran)`**, and the word *partial* is the point:
 the thirteenth step is `youtube`, the only one that proves six stems come out of
 the engine, and the runner names it under *WHAT DID NOT RUN* every single time.
 
 The runner never prints an unqualified `GREEN` over a partial plan, and it names
-every step that did not run.
+every step that did not run. **Every step also pins its own assertion COUNT**, in
+`tools/verify.mjs` and in `docs/TESTING.md`'s suite table, checked exactly and
+against each other: a suite that quietly stops running part of itself is red
+rather than green. And `--strict` turns a SKIP into **exit 2** — a step the
+machine declined is a question nobody answered, which is what CI passes.
 
 The engine and the deck are gated by **their own** suites, which travel with the
 vendored copy (`node tools/verify.mjs --unit --no-reap` inside `vendor/`, and

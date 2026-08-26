@@ -15,6 +15,9 @@ body {
   border: 1px solid #2f6f4f; background: #1d3a2c; color: #a9e5c3; cursor: pointer;
 }
 #arm[disabled] { opacity: .45; cursor: not-allowed; border-color: #313d4a; background: #1a222c; color: #8595a6; }
+/* ARMED IS A DIFFERENT BUTTON, not a different colour on the same word: the
+   control toggles, so the label has to say which way it goes next. */
+#arm[data-armed="1"] { border-color: #7a4a2f; background: #3a271d; color: #f0c39a; }
 .field { display: flex; gap: 5px; align-items: baseline; min-width: 0; }
 .k { color: #6f8296; }
 .v { color: #cfe0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch; }

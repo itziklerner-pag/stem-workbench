@@ -1,0 +1,114 @@
+# ---------------------------------------------------------------------------
+# PACKAGE — macOS, Windows and Linux installers from `package.json`'s `build`.
+# ---------------------------------------------------------------------------
+#
+# THIS WORKFLOW HAS NEVER RUN. Nothing in this repository has been packaged,
+# signed or notarized on any machine. It exists because the phase's pass
+# condition has two halves and this is the second one: a runnable Linux app
+# (proven — `npm start`, and `node tools/verify.mjs`), plus electron-builder
+# configuration and CI for macOS and Windows WRITTEN BUT NEVER BUILT OR SIGNED
+# HERE. README.md "What was verified, and what was only configured" says the same
+# thing where a reader will find it.
+#
+# It is `workflow_dispatch` and tag-only on purpose. A packaging job that ran on
+# every push would burn a macOS runner on every commit and would put an
+# unreviewed artifact behind a green tick; and this project NEVER publishes a
+# GitHub Release from CI — `--publish never` is on every electron-builder
+# invocation and `package.json`'s `build.publish` is `null`.
+#
+# ---------------------------------------------------------------------------
+# WHAT IT WILL DO THE FIRST TIME SOMEBODY RUNS IT, AND WHAT IT WILL NOT
+# ---------------------------------------------------------------------------
+#   · THE WEIGHTS ARE FETCHED, NOT COMMITTED. `models/*.onnx` is gitignored (109
+#     MB, CC BY-NC 4.0 — NOTICE.md). `tools/vendor-unit.sh --model-only` runs the
+#     unit's own `fetch-model.sh`, which verifies the SHA-256 and the byte count
+#     before the file is moved into place. The unit verifies them AGAIN on every
+#     load at runtime (rule M1), so the installer cannot launder a bad copy.
+#   · ONNX RUNTIME IS FETCHED TOO, for the same reason, and `--check` re-hashes
+#     the drop against `vendor/.pin`'s `ort` block before anything is packaged.
+#   · macOS SIGNING AND NOTARIZATION NEED FOUR SECRETS THIS REPOSITORY DOES NOT
+#     HAVE. They are named below and the job fails loudly without them rather
+#     than quietly producing an unsigned dmg that Gatekeeper will refuse on the
+#     user's machine. Windows is UNSIGNED and says so.
+# ---------------------------------------------------------------------------
+name: package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022, ubuntu-24.04]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: install
+        run: npm ci
+
+      # THE VENDORED UNIT IS IN GIT; ITS ONNX RUNTIME DROP IS NOT (~27 MB,
+      # gitignored, reproducible from a pin) and neither are the weights.
+      #
+      # THE UNIT'S OWN SCRIPTS ARE CALLED DIRECTLY, and `tools/vendor-unit.sh`
+      # is NOT re-run without a flag here. That would RE-VENDOR the tree from
+      # the network and REWRITE `vendor/.pin` — including the `ort` block the
+      # next step is about to check — which is the gate checking its own
+      # homework. The pin is committed; CI fetches and CI verifies against what
+      # is committed, in that order.
+      - name: fetch ONNX Runtime at the committed pin
+        shell: bash
+        run: bash vendor/stem-splitter-live/tools/fetch-vendor.sh
+
+      - name: fetch the model weights, hash-verified by the unit's own script
+        shell: bash
+        run: bash tools/vendor-unit.sh --model-only
+
+      # ...AND THE PIN IS RE-CHECKED AFTER THE FETCH, before a byte is packaged.
+      # An installer built over a drifted vendor tree is the failure ADR 0001
+      # exists to prevent, and the cheapest place to catch it is here.
+      - name: the unit is still what the pin says
+        shell: bash
+        run: node tools/verify.mjs --only vendor-intact --strict
+
+      - name: package
+        shell: bash
+        env:
+          # macOS only. ABSENT IN THIS REPOSITORY — see the header. With no
+          # CSC_LINK the job fails at the signing step, which is the intended
+          # outcome: an unsigned, unnotarized macOS build is not a deliverable.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist
+
+      # ARTIFACTS, NOT A RELEASE. Standing ruling: this project never creates a
+      # GitHub Release from automation. Somebody downloads these, runs them, and
+      # decides.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stem-workbench-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb

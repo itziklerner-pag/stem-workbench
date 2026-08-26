@@ -191,6 +191,13 @@ answers `armShortcut()` with a real menu chord, so the deck prints the chord
 beside the toolbar sentence and the half the user can act on is the half that is
 true (`docs/HOST-DESIGN.md` §8.3).
 
+**The two gestures a user of THIS product has** are `Source → Arm this Source`
+with `Ctrl+Shift+A` (`Command+Shift+A` on macOS), and the **Arm button in the
+chrome bar** — `HOST-DESIGN.md` §6.4's "first thing the owner touches", because
+a desktop app has no toolbar icon to click. That button shipped `disabled` for a
+wave after arming worked, with `shell` asserting the attribute that made it dead;
+both gestures are live and both are gated by `smoke` now.
+
 **Capture claim**:
 What a **`sourceToken`** IS in this product: a one-shot, expiring permission to
 open exactly one capture, minted by `main` in the **arm** path and spent by the
@@ -351,4 +358,11 @@ vendors, `v0.2.0`** — not on its `main`, which moves.
 - **"Beta", "pre-release" and "release" are not interchangeable, and nothing has
   been any of them.** Nothing is built, signed, notarized or published. See
   ADR 0001 decision 6 for what the words are reserved to mean and
-  `docs/ARCHITECTURE.md` for what has actually been verified.
+  `docs/ARCHITECTURE.md` for what has actually been verified. **"Configured" is
+  now a third word and it is not a fourth kind of build**: `package.json`'s
+  `build` key and `.github/workflows/package.yml` exist and have never been run.
+- **"It works" and "it keeps up" are two claims, and only the first is
+  measured.** Six stems really do come out of the separator in this app; **six
+  stems moving LIVE, while the video plays, has never been observed by anybody**
+  — every machine this has run on drops every chunk. Do not let the two share a
+  sentence. `docs/evidence/step3-youtube/README.md` §3.

@@ -190,9 +190,15 @@ is verified against, twice: once against the downloaded archive and once against
 the copy on disk, because those two fail for different reasons.
 
 `vendor/` also gets ONNX Runtime Web, ~27 MB at `onnxruntime-web@1.27.0`,
-fetched by the unit's own `tools/fetch-vendor.sh` and verified against two
-SHA-256s recorded inside that script. **We run the script; we do not copy
-anyone's drop.**
+fetched by the unit's own `tools/fetch-vendor.sh`. **We run the script; we do not
+copy anyone's drop.** That script verifies TWO of the four artefacts against
+SHA-256s recorded inside itself and copies the other two — including the
+Emscripten glue `.mjs` its own comment says is loaded and run — with no hash at
+all. Rule V1 forbids fixing that here (`docs/CONFORMANCE.md` §6b, finding
+F-ORT), so this repository pins **all five files** itself in `vendor/.pin`'s
+`ort` block, and `bash tools/vendor-unit.sh --check` re-hashes the directory
+offline on every `vendor-intact` run — set comparison included, so a file added
+to it is red too.
 
 **The vendored copy is not edited. Ever.** If the unit is wrong, that is a
 finding to report upstream and a change behind a new tag there — not a patch
@@ -369,7 +375,7 @@ transport.
 | **licence** | **CC BY-NC 4.0 — non-commercial.** See `NOTICE.md`; it decides what this product may become |
 | **where** | inside the installer, as an **`extraResources`** file at `process.resourcesPath/model/` — served to the engine over `app://`. Seed §15 said `asarUnpack`; both put a plain file on disk and the difference is how you *find* it. `asarUnpack` leaves it under `…/app.asar.unpacked/…`, a path derived by string surgery on `app.getAppPath()` that is correct until somebody renames the asar. Differential updates are unaffected either way |
 | **verified** | SHA-256 and byte count, **by the unit, on every load**, over whatever this Host hands it |
-| **runtime** | ONNX Runtime Web 1.27.0, WebGPU with the threaded-WASM fallback, fetched at build time by the unit's `tools/fetch-vendor.sh` and hash-verified there |
+| **runtime** | ONNX Runtime Web 1.27.0, WebGPU with the threaded-WASM fallback, fetched at vendor time by the unit's `tools/fetch-vendor.sh` — which pins two of its four artefacts — and hash-verified in full by `vendor/.pin`'s `ort` block on every `vendor-intact` run (§2) |
 
 Bundling is what removes the first-run download and the third-party single point
 of failure — and it is also what makes this product a redistributor of
@@ -401,7 +407,7 @@ partition, and it is not the app's code talking. `PRIVACY.md` says so in those
 words; saying it any other way would be a lie by omission.
 
 **Held by an acceptance test** ported from the extension's P1 test —
-`tools/suites/p1.mjs`, step `p1`, 19 assertions over one real launch. It boots
+`tools/suites/p1.mjs`, step `p1`, 24 assertions over one real launch. It boots
 the app behind a local TLS server wearing `api.github.com`'s certificate, drives
 a full session (the vendored deck and engine, the source view playing, the
 transport, the 109 MB model read through the Host), and asserts the set of
@@ -423,7 +429,7 @@ Three structural things make that a measurement rather than a silence:
   server is hit is a RED, and it is the only shape that catches an observer that
   has quietly stopped being installed.
 
-`docs/TESTING.md` §9 is the specification and the 19 mutations.
+`docs/TESTING.md` §9 is the specification and the 24 mutations.
 
 ---
 
@@ -440,10 +446,11 @@ The substituted pass condition, and the honest labels for it:
 | | claim | what backs it |
 |---|---|---|
 | **VERIFIED** | the capture/mute mechanism | Linux, Electron 44.0.0 / Chromium 152.0.7977.54, an external out-of-process meter, ~40 recorded runs, three adversarial audits, one of which refuted part of the original claim |
-| **VERIFIED** | a runnable Linux app the owner can **start** on this box | `tools/suites/shell.mjs` — 35 assertions over one real launch of `electron .`: the window and its three views, every renderer's isolation flags, `crossOriginIsolated === true` with `SharedArrayBuffer` in the document and in a module worker, the capture grant naming the source view's frame, the mute landing before the first load, the allowlist refusing. Every one watched red by a named mutation (`tools/suites/shell-mutations.sh`, 32 cases), and the tables are in `docs/TESTING.md` §5 |
-| **VERIFIED** | **P1′ — the app's own code reaches one host and nothing else** | `tools/suites/p1.mjs` — 19 assertions over one real launch behind a local TLS server wearing the update host's certificate: the set of network origins is exactly `{ https://api.github.com }`, the `persist:youtube` exclusion is exercised with the same URL through both sessions with opposite verdicts, and the fake host's own hit counter is half of two assertions so that a blind observer is a red. 19 of 19 watched red by `tools/suites/p1-mutations.sh`; `docs/TESTING.md` §9 |
-| **NOT YET** (target) | ...and **arm** it | the deck, the engine and the 32 duties are not in this tree. There is nothing to arm |
-| **CONFIGURED, NEVER BUILT** (target) | electron-builder and CI for macOS and Windows | configuration files and a workflow. **Nothing is compiled, signed or notarized here.** A green CI file is not a green build |
+| **VERIFIED** | a runnable Linux app the owner can **start** on this box | `tools/suites/shell.mjs` — 35 assertions over one real launch of `electron .`: the window and its three views, every renderer's isolation flags, `crossOriginIsolated === true` with `SharedArrayBuffer` in the document and in a module worker, the capture grant naming the source view's frame, the mute landing before the first load, the allowlist refusing. Every one watched red by a named mutation (`tools/suites/shell-mutations.sh`, 33 cases), and the tables are in `docs/TESTING.md` §5 |
+| **VERIFIED** | **P1′ — the app's own code reaches one host and nothing else** | `tools/suites/p1.mjs` — 24 assertions over one real launch behind a local TLS server wearing the update host's certificate: the set of network origins is exactly `{ https://api.github.com }`, the `persist:youtube` exclusion is exercised with the same URL through both sessions with opposite verdicts, and the fake host's own hit counter is half of two assertions so that a blind observer is a red. **Since two audits defeated it with one line of `fetch()` in the main process**, it also covers the transports that never enter Chromium: `src/main/netguard.js` takes them away at boot, a source scan forbids the imports, and a real loopback sink in the suite's own process is the witness the app cannot fake. 24 of 24 watched red by `tools/suites/p1-mutations.sh`; `docs/TESTING.md` §9 |
+| **VERIFIED** | ...and **arm** it, by two real gestures | `smoke` clicks the chrome bar's **Arm** button in the real renderer and the menu's **Arm this Source**, and requires the deck to see a `SESSION` for each; `youtube` does it against the real site and gets six stems out of the far end |
+| **NEVER OBSERVED** | six stems moving **live**, while the video plays | nothing. Every machine this has run on drops every chunk — it needs ~4x real time and gets ~1.4x without a GPU. `docs/evidence/step3-youtube/README.md` §3. **It is a prediction, and this table exists so that it is never read as anything else.** |
+| **CONFIGURED, NEVER BUILT** | electron-builder and CI for macOS and Windows | `package.json` `build`, `build/entitlements.mac.plist`, `.github/workflows/package.yml` and `.github/workflows/gate.yml`. **Nothing is compiled, signed or notarized here, and neither workflow has ever run.** A green CI file is not a green build |
 | **WRITTEN DOWN ONLY** | everything about macOS behaviour | nothing. See §3 and issue #2 |
 
 Every document in this repository is expected to say which of those four a claim

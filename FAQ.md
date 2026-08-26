@@ -205,6 +205,15 @@ The embedded YouTube view's traffic is your own browsing and behaves like
 YouTube in any browser. [`PRIVACY.md`](PRIVACY.md) separates the two carefully
 and says what is stored on your disk and where.
 
+**That is an automated test, not a promise** — and the test itself had a hole
+that two reviewers found and that is now closed. It watched Chromium's network
+stack, so it could not have seen a request the app made from its own main
+process, outside Chromium. No such request has ever been in this app; the point
+is that "we would have noticed" was not true. The app now removes those
+transports from its main process at start-up, so a line of code that tried would
+throw rather than send, and the test stands up a listening socket on your own
+machine and requires that nothing arrives at it.
+
 ### What is the difference between Export and Bounce?
 
 - **Export** — the six raw model outputs, at unity, as 32-bit-float WAV. Nothing

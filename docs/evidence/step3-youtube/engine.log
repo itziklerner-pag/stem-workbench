@@ -1,27 +1,23 @@
-0.31s offscreen up · SAB true · crossOriginIsolated true
-0.36s deck A backend ready · wasm threads 4
-3.21s deck A capture started · track 44100 Hz -> ctx 44100 Hz
-3.35s [A] not caching this listen — the video is already 1.8 s in
-3.79s weights downloaded + hash verified in 580ms
-4.11s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag "--enable-unsafe-webgpu" if you are using Chrome.) — falling back to wasm
-11.54s deck A session wasm created in 1200ms · warmup 6227ms
-11.57s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
-15.51s [A] backpressure: chunk 0 -> passthrough (1 total)
-15.51s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)
-32.98s [A] backpressure: chunk 9 -> passthrough (10 total)
-36.33s [A] live stop · 11 chunks, 11 drops, 0 underruns
-37.93s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
-37.94s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
-38.32s [A] live stop · 0 chunks, 0 drops, 0 underruns
-38.32s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
-38.33s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
-38.33s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
-42.26s [A] backpressure: chunk 0 -> passthrough (1 total)
-42.26s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)
-48.26s [A] prime discarded — the prime was interrupted
-48.26s [A] live stop · 4 chunks, 4 drops, 0 underruns
-48.26s [A] not caching this listen — the page reports no duration
-48.27s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
-48.27s [A] not caching this listen — the page reports no duration
-51.72s [A] live stop · 0 chunks, 0 drops, 0 underruns
-51.72s deck A capture stopped · 48.55 s (2141184 frames), dropped 0
+0.35s offscreen up · SAB true · crossOriginIsolated true
+0.40s deck A backend ready · wasm threads 4
+15.46s deck A capture started · track 44100 Hz -> ctx 44100 Hz
+15.54s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
+15.98s weights downloaded + hash verified in 517ms
+16.29s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag "--enable-unsafe-webgpu" if you are using Chrome.) — falling back to wasm
+23.47s deck A session wasm created in 1160ms · warmup 6012ms
+23.49s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
+27.40s [A] backpressure: chunk 0 -> passthrough (1 total)
+27.40s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)
+44.85s [A] backpressure: chunk 9 -> passthrough (10 total)
+48.30s [A] live stop · 11 chunks, 11 drops, 0 underruns
+49.83s [A] not caching this listen — the page reports no duration
+49.84s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
+50.77s [A] live stop · 0 chunks, 0 drops, 0 underruns
+50.77s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
+50.78s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)
+50.78s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L
+54.71s [A] backpressure: chunk 0 -> passthrough (1 total)
+54.71s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)
+61.93s [A] prime discarded — the prime was interrupted
+61.93s [A] live stop · 4 chunks, 4 drops, 0 underruns
+61.93s deck A capture stopped · 46.51 s (2051072 frames), dropped 0

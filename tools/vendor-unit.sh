@@ -10,8 +10,8 @@
 #   bash tools/vendor-unit.sh --tag v0.3.0 --steps 13 --assertions 1204
 #
 # This is `stem-splitter-live/docs/VENDORING.md` §1-§7 with nothing added to the
-# mechanism and three things added around it — the sums file for the fifteen
-# copied paths that `unit.sha256` does not cover, the `ours` manifest, and the
+# mechanism and four things added around it — the sums file for the copied paths
+# that `unit.sha256` does not cover, the `ours` manifest, the ORT pin, and the
 # final call into this repository's own gate. Each section below prints the §
 # it is executing so the transcript can be read next to the document:
 #
@@ -33,13 +33,24 @@
 #   copy on disk. They fail for different reasons, which is why the document
 #   asks for both.
 #
-# GATED — `vendor/upstream.sha256`, all 50 copied paths. `unit.sha256` covers 35
-#   of them; the other fifteen are the reference Host and the harness, which
-#   travel and are ours to re-aim. Nothing upstream hashes those, so this
-#   repository does: the file is written once, in the vendoring commit, where the
-#   50 files are visible in the same diff, and it is a gate on every run after
-#   that. It is the check that answers "did somebody edit a file under vendor/
-#   that is not in unit.sha256".
+# GATED — `vendor/upstream.sha256`, 48 of the 50 copied paths. `unit.sha256`
+#   covers 35 of them; the other thirteen are the reference Host and the
+#   harness, which travel and are ours to re-aim. (Thirteen, not fifteen: the
+#   two holes in `ours` are this repository's own files and are excluded.)
+#   Nothing upstream hashes those, so this repository does: the file is written
+#   once, in the vendoring commit, where the files are visible in the same diff,
+#   and it is a gate on every run after that. It is the check that answers "did
+#   somebody edit a file under vendor/ that is not in unit.sha256".
+#
+# GATED — `vendor/.pin`'s `ort` block, all five files of the ONNX Runtime drop.
+#   That directory is gitignored (it is fetched, not copied) and neither sums
+#   file covers it, so for a whole phase 27 MB of executable wasm plus ~928 KB of
+#   glue — the single largest blob of code this product loads, inside the
+#   cross-origin-isolated `app://` origin — was verified by NOTHING on any gate
+#   plan. `--check` re-hashes it offline now. The unit's own `fetch-vendor.sh`
+#   pins two of the four artefacts and copies the other two with no hash at all;
+#   that is an upstream finding (rule V1 forbids fixing it here) and `.pin`'s
+#   `ort.upstreamPins` says which two.
 #
 # NOT GATED — the archive's own SHA-256. It is recorded in `vendor/.pin` as
 #   provenance and compared on every run, but a mismatch is a NOTE and not a
@@ -50,14 +61,18 @@
 #   gate that gets switched off.
 #
 # ---------------------------------------------------------------------------
-# `ours` — THE THREE FILES INSIDE vendor/ THAT ARE NOT VENDORED
+# `ours` — THE TWO FILES INSIDE vendor/ THAT ARE NOT VENDORED
 # ---------------------------------------------------------------------------
 #
 # `extension/offscreen/host.js` and `extension/ui/host.js` are HOLES: the unit
 # imports them and does not supply them, and this Host's own modules live at
-# those paths, inside `vendor/`, on purpose. `extension/offscreen/host-pin.js`
-# is ours for a blunter reason — the vendored runner imports four names from it
-# at module scope. None of the three is in `unit.sha256` and none ever was.
+# those paths, inside `vendor/`, on purpose. Neither is in `unit.sha256` and
+# neither ever was.
+#
+# `extension/offscreen/host-pin.js` IS NOT ONE OF THEM, whatever an older
+# version of this header said. It is upstream's, it is byte-identical to the
+# tag, it IS gated by `upstream.sha256`, and editing it turns assertion 3 red.
+# It is not in `.pin`'s `ours`, which has exactly two entries.
 #
 # `vendor/.pin`'s `ours` array names them. This script BACKS THEM UP before it
 # wipes the tree, RESTORES them after the copy, and EXCLUDES them from
@@ -65,9 +80,8 @@
 # the extension's reference implementation, and so "did somebody edit the unit"
 # and "did somebody edit our Host" stay two separately answerable questions.
 #
-# IT IS EMPTY TODAY, and that is the honest value: this Host has not written its
-# hole modules yet, so all 50 files are upstream's and all 50 are gated. The
-# commit that writes the first hole adds its path here, in the same commit.
+# BOTH HOLES ARE WRITTEN NOW: 48 of the 50 copied files are upstream's and
+# gated, and the two above are this repository's.
 #
 # Two guard rails on the array, because a typo in it protects nothing and says
 # nothing: every entry must be one of the 50 copied paths, and no entry may be a
@@ -172,6 +186,15 @@ SRC="$WORK/stem-splitter-live-${TAG#v}"
 #   echo '// x' >> vendor/stem-splitter-live/test.js                      -> assertion 3 RED  (test.js is not in unit.sha256)
 #   touch vendor/stem-splitter-live/extension/shared/oops.js              -> assertion 5 RED
 #   jq '.ours=["extension/shared/wav.js"]' vendor/.pin                    -> assertion 4 RED
+#   printf '//x' >> .../extension/vendor/ort/ort-wasm-simd-threaded.mjs   -> assertion 6 RED
+#   rm .../extension/vendor/ort/VERSION                                   -> assertion 6 RED
+#
+# `tools/suites/vendor-unit-mutations.sh` runs all of them and re-verifies the
+# restore. Assertion 2's COUNT is pinned in `vendor/.pin` (`unitFiles`) rather
+# than read out of the file it is describing: a `unit.sha256` that lost a line
+# used to print "the 34 unit files are byte-identical ... nobody edited the
+# unit" and stay green, and a count that comes from the artefact it testifies
+# about cannot testify about it.
 #
 if [ "$DO_CHECK" = 1 ]; then
   ID='vendor-intact'
@@ -190,13 +213,26 @@ if [ "$DO_CHECK" = 1 ]; then
   PIN_TAG=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).tag||""))' "$ROOT/$PIN_REL" 2>/dev/null || true)
   OURS=$(node -e 'console.log((JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).ours||[]).join("\n"))' "$ROOT/$PIN_REL" 2>/dev/null || true)
 
+  PIN_UNIT_FILES=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).unitFiles||0))' "$ROOT/$PIN_REL" 2>/dev/null || echo 0)
+  GOT_UNIT_FILES=$(grep -c . "$DEST/extension/unit.sha256")
   st=0; ( cd "$DEST" && SHA_C extension/unit.sha256 ) >"$WORK/c1" 2>&1 || st=1
   [ "$st" = 0 ] || grep -v ': OK$' "$WORK/c1" >&2 || true
-  chk "the $(grep -c . "$DEST/extension/unit.sha256") unit files are byte-identical to $PIN_TAG — nobody edited the unit  [entry point: $DEST_REL/extension/unit.sha256]" $st
+  # THE COUNT IS THE PIN'S, NOT THE FILE'S. Read out of `unit.sha256` it was a
+  # number describing the artefact it came from: drop a line and the sentence
+  # printed "the 34 unit files are byte-identical" and stayed green.
+  [ "$GOT_UNIT_FILES" = "$PIN_UNIT_FILES" ] || { st=1
+    echo "  unit.sha256 lists $GOT_UNIT_FILES paths; $PIN_REL pins unitFiles=$PIN_UNIT_FILES" >&2; }
+  chk "the $PIN_UNIT_FILES unit files pinned at $PIN_TAG are all there and byte-identical — nobody edited the unit, and nobody shortened its sums file  [entry point: $DEST_REL/extension/unit.sha256 + $PIN_REL .unitFiles]" $st
 
+  PIN_GATED=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).gatedPaths||0))' "$ROOT/$PIN_REL" 2>/dev/null || echo 0)
+  GOT_GATED=$(grep -c . "$ROOT/$SUMS_REL")
   st=0; ( cd "$DEST" && SHA_C "$ROOT/$SUMS_REL" ) >"$WORK/c2" 2>&1 || st=1
   [ "$st" = 0 ] || grep -v ': OK$' "$WORK/c2" >&2 || true
-  chk "...and so are all $(grep -c . "$ROOT/$SUMS_REL") copied paths, including the $(( $(grep -c . "$ROOT/$SUMS_REL") - $(grep -c . "$DEST/extension/unit.sha256") )) that unit.sha256 does not cover — the reference Host and the harness  [entry point: $SUMS_REL]" $st
+  # Pinned for the same reason as `unitFiles`: a sums file that lost a line
+  # cannot be the witness to its own completeness.
+  [ "$GOT_GATED" = "$PIN_GATED" ] || { st=1
+    echo "  $SUMS_REL lists $GOT_GATED paths; $PIN_REL pins gatedPaths=$PIN_GATED" >&2; }
+  chk "...and so are all $PIN_GATED gated paths, including the $(( PIN_GATED - PIN_UNIT_FILES )) that unit.sha256 does not cover — the reference Host and the harness  [entry point: $SUMS_REL + $PIN_REL .gatedPaths]" $st
 
   # `ours` is the ONE place a file under vendor/ may legitimately differ from
   # upstream, so it is also the one place a fork could be declared legal. Both
@@ -221,6 +257,50 @@ if [ "$DO_CHECK" = 1 ]; then
   st=0; diff "$WORK/recorded" "$WORK/actual" > "$WORK/extra" || st=1
   [ "$st" = 0 ] || { echo "  < recorded   > actually on disk" >&2; cat "$WORK/extra" >&2; }
   chk "no file was added to or removed from $DEST_REL behind the sums file  [entry point: $SUMS_REL + .ours]" $st
+
+  # =====================================================================
+  # 6. THE ONNX RUNTIME DROP — the biggest blob of executable code we load,
+  #    and until this assertion existed nothing on any gate plan hashed it.
+  # =====================================================================
+  # `extension/vendor/ort/` is gitignored and is FETCHED rather than copied, so
+  # it is outside both sums files and outside the set comparison above (which
+  # excludes the prefix by name). That left ~27 MB of wasm and ~928 KB of .mjs
+  # glue — running inside the cross-origin-isolated `app://` origin, under a CSP
+  # that grants 'wasm-unsafe-eval' — as the one class of vendored drift with no
+  # instrument on it and no diff a reviewer could see.
+  #
+  # `vendor/.pin`'s `ort.files` is the pin, written by §6 from the drop the
+  # unit's own pinned fetch script produced. This re-hashes every file offline.
+  ORT_REL='extension/vendor/ort'
+  ORT_DIR="$DEST/$ORT_REL"
+  node -e '
+const fs = require("fs");
+const pin = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const files = (pin.ort && pin.ort.files) || {};
+const names = Object.keys(files).sort();
+if (!names.length) { process.stderr.write("no `ort` block in the pin\n"); process.exit(3); }
+process.stdout.write(names.map((n) => `${files[n]}  ${n}`).join("\n") + "\n");
+' "$ROOT/$PIN_REL" > "$WORK/ort.sha256" 2>"$WORK/ort.err" || true
+
+  st=0; BAD=''
+  ORT_N=$(grep -c . "$WORK/ort.sha256" 2>/dev/null || echo 0)
+  ORT_V=$(node -e 'const p=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String((p.ort&&p.ort.version)||""))' "$ROOT/$PIN_REL" 2>/dev/null || true)
+  if [ "$ORT_N" = 0 ]; then
+    st=1; BAD="$PIN_REL has no \`ort\` block — $(cat "$WORK/ort.err" 2>/dev/null)"
+  elif [ ! -d "$ORT_DIR" ]; then
+    st=1; BAD="$ORT_REL is not there. Run \`bash tools/vendor-unit.sh\` (or its §6) to fetch ONNX Runtime $ORT_V."
+  else
+    ( cd "$ORT_DIR" && SHA_C "$WORK/ort.sha256" ) >"$WORK/c6" 2>&1 || { st=1; BAD='the drop does not match the pin'; }
+    [ "$st" = 0 ] || grep -v ': OK$' "$WORK/c6" >&2 || true
+    # ...and nothing was ADDED to it, which a checksum list cannot see.
+    find "$ORT_DIR" -type f | sed "s|^$ORT_DIR/||" | sort > "$WORK/ort.actual"
+    cut -c67- "$WORK/ort.sha256" | sort > "$WORK/ort.recorded"
+    if ! diff "$WORK/ort.recorded" "$WORK/ort.actual" > "$WORK/ort.extra"; then
+      st=1; BAD="${BAD:+$BAD; }the file set differs"; echo "  < pinned   > actually on disk" >&2; cat "$WORK/ort.extra" >&2
+    fi
+  fi
+  [ -z "$BAD" ] || printf '  %b\n' "$BAD" >&2
+  chk "...and the $ORT_N-file ONNX Runtime $ORT_V drop matches $PIN_REL's \`ort\` block — the gitignored 27 MB nothing else hashes  [entry point: $PIN_REL .ort.files]" $st
 
   printf '\n%s: %s passed, %s failed\n' "$ID" "$P" "$F"
   [ "$F" = 0 ] || exit 1
@@ -318,7 +398,7 @@ say "§5  verify the copy"
   || { grep -v ': OK$' "$WORK/check2.txt" >&2 || true; die "the copy does not match extension/unit.sha256"; }
 note "$(grep -c ': OK$' "$WORK/check2.txt") of $WANT_UNIT unit files OK"
 
-# ...and the fifteen paths unit.sha256 does not cover.
+# ...and the thirteen gated paths unit.sha256 does not cover.
 ( cd "$DEST" && SHA_SUM $(tr '\n' ' ' < "$WORK/list.txt") ) | sort -k2 > "$WORK/sums.txt"
 cp "$WORK/sums.txt" "$WORK/gated.txt"
 if [ -n "$OURS" ]; then
@@ -353,11 +433,31 @@ if [ -n "$OURS" ] && [ -d "$WORK/ours" ]; then
 fi
 
 # ------------------------------------------------------------ §6  ONNX Runtime
+ORT_JSON=''
 if [ "$DO_ORT" = 1 ]; then
   say "§6  fetch ONNX Runtime with the unit's own tools/fetch-vendor.sh"
   ( cd "$DEST" && bash tools/fetch-vendor.sh ) || die "tools/fetch-vendor.sh failed"
+  # ...AND PIN WHAT IT PRODUCED. The unit's script verifies two of the four
+  # artefacts against hashes inside itself and copies the other two with no hash
+  # at all — its own comment says the glue .mjs "is still fetched dynamically in
+  # some paths", i.e. it is loaded and run. That is an upstream finding (V1: not
+  # fixable here). What IS fixable here is that the drop stops being unpinned
+  # the moment it lands, so `--check` can answer for it offline for ever after.
+  ORT_JSON=$(node -e '
+const fs = require("fs"), path = require("path"), crypto = require("crypto");
+const dir = process.argv[1];
+const files = {};
+for (const n of fs.readdirSync(dir).sort()) {
+  const f = path.join(dir, n);
+  if (fs.statSync(f).isFile()) files[n] = crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
+}
+let version = "";
+try { version = fs.readFileSync(path.join(dir, "VERSION"), "utf8").trim(); } catch { }
+process.stdout.write(JSON.stringify({ version, files }));
+' "$DEST/extension/vendor/ort") || die "could not hash the ONNX Runtime drop"
+  note "ort: $(node -e 'process.stdout.write(String(Object.keys(JSON.parse(process.argv[1]).files).length))' "$ORT_JSON") files pinned into $PIN_REL"
 else
-  say "§6  ONNX Runtime — SKIPPED (--no-ort)"
+  say "§6  ONNX Runtime — SKIPPED (--no-ort); the \`ort\` block already in $PIN_REL is carried across"
 fi
 
 # ------------------------------------------------------------------- the pin
@@ -370,21 +470,30 @@ fi
 # in someone else's file — which is what `--tag` refusing to travel alone is for.
 node -e '
 const fs = require("fs");
-const [file, tag, steps, assertions, archive, url] = process.argv.slice(1);
-let ours = [], hostSuite = null;
+const [file, tag, steps, assertions, archive, url, unitFiles, ortJson] = process.argv.slice(1);
+let ours = [], hostSuite = null, ort = null;
 try {
   const was = JSON.parse(fs.readFileSync(file, "utf8"));
   ours = was.ours || [];
   hostSuite = was.hostSuite || null;
+  ort = was.ort || null;
 } catch { }
+if (ortJson) {
+  // The prose in the block is the standing explanation and is carried across;
+  // only the measured half is replaced.
+  const fresh = JSON.parse(ortJson);
+  ort = { ...(ort || {}), ...fresh };
+}
 fs.writeFileSync(file, JSON.stringify({
   tag, steps: Number(steps), assertions: Number(assertions),
   archive: { url, sha256: archive },
+  unitFiles: Number(unitFiles),
   ours,
   ...(hostSuite ? { hostSuite } : {}),
+  ...(ort ? { ort } : {}),
 }, null, 2) + "\n");
 ' "$ROOT/$PIN_REL" "$TAG" "$STEPS" "$ASSERTIONS" "$GOT_ARCHIVE_SHA" \
-  "https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz"
+  "https://github.com/$REPO/archive/refs/tags/$TAG.tar.gz" "$WANT_UNIT" "$ORT_JSON"
 say "pin  $PIN_REL -> $TAG, $STEPS steps, $ASSERTIONS assertions"
 fi   # DO_VENDOR
 

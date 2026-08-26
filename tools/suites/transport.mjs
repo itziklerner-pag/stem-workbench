@@ -34,7 +34,7 @@
  *     THIS SUITE CANNOT REPLACE IT.
  *
  * ---------------------------------------------------------------------------
- * HOW L1 IS PROVED — three instruments, none of them sufficient alone
+ * HOW L1 IS PROVED — four instruments, none of them sufficient alone
  * ---------------------------------------------------------------------------
  * 1. THE WRITE SET IS ENUMERATED, not filtered. With comments and string
  *    literals stripped, the COMPLETE set of member assignments in
@@ -47,10 +47,22 @@
  * 3. IT ASKED FOR NOTHING. `main` records every request the source view's
  *    session made across the whole exercise; the fixture's media is a `blob:`
  *    built in the page, so a non-`file:`/`blob:` request is one this Host caused.
+ * 4. THERE IS NO COMPUTED MEMBER ACCESS IN THE FILE AT ALL — no `x[…]`.
  *
  * (1) and (2) are static and see code that never ran. (3) is dynamic and sees
  * code no scanner could read — a `new Function` or a property name assembled at
  * run time. Neither half is the claim.
+ *
+ * (4) EXISTS BECAUSE AN AUDITOR WALKED PAST THE OTHER THREE AT ONCE. Two lines
+ * in a private tree — `const leakUrl = () => (el ? el['currentSrc'] : null);`
+ * and the same for `buffered` — and this suite printed `63 passed, 0 failed`
+ * with the allow-list row reporting "44 distinct properties, all listed". (2)
+ * needs a literal dot and a bracket has none; the blacklist runs AFTER string
+ * literals have been blanked to `''`, so the name it hunts is gone; and (3)
+ * watches the network, while reading a property is the FIRST step of a ripper
+ * rather than the last. Three instruments, three different reasons, one blind
+ * spot. The rule is "no computed access", not "no forbidden name inside one":
+ * a blacklist inside the brackets loses to `el[['current','Src'].join('')]`.
  *
  * ---------------------------------------------------------------------------
  * WATCHED RED BY MUTATION — `tools/suites/transport-mutations.sh`
@@ -330,6 +342,47 @@ function strippedPreload() {
   ok('`play()` never appears in the preload — starting is the user\'s, always  [entry point: src/preload/youtube.cjs]',
     !/\.\s*play\s*\(/.test(src) && /\.\s*pause\s*\(/.test(src),
     'pause() on `ended` under suppression is the only transport call it makes');
+
+  /**
+   * =======================================================================
+   * ...AND NOT ONE OF THE THREE INSTRUMENTS ABOVE COULD SEE `el['currentSrc']`
+   * =======================================================================
+   * An auditor put two lines into this file in a private tree —
+   * `const leakUrl = () => (el ? el['currentSrc'] : null);` and the same for
+   * `buffered` — and watched `transport: 63 passed, 0 failed`, with the
+   * allow-list row cheerfully reporting *"44 distinct properties, all listed"*.
+   *
+   * ALL THREE INSTRUMENTS MISS IT, for three different reasons, and that is
+   * why a fourth is needed rather than a wider regex on one of them:
+   *   · the ALLOW-LIST scans for a literal dot, and a computed read has none;
+   *   · the BLACKLIST runs after `strippedPreload()` has replaced every string
+   *     literal with `''`, so the name it is looking for is gone;
+   *   · the RUNTIME witness watches the network, and reading a property makes
+   *     no request — it is the FIRST step of a ripper, not the last.
+   *
+   * This is the file that runs inside youtube.com's page. `CONTRIBUTING.md` L1
+   * is about what it may touch, and `AGENTS.md` forbids an estimator that
+   * saturates before the claim range begins.
+   *
+   * THE RULE IS "NO COMPUTED MEMBER ACCESS AT ALL", not "no forbidden name in
+   * one". A blacklist inside brackets would be the same losing shape one level
+   * in: `el[['current', 'Src'].join('')]` defeats it, and the preload has no
+   * legitimate use for the syntax — it is 528 lines with array literals and no
+   * indexing. So the syntax is refused outright and a future need for it is a
+   * conversation, which is the cost this assertion is meant to have.
+   */
+  const KEYWORDS = new Set(['of', 'in', 'return', 'typeof', 'new', 'case', 'do', 'else', 'yield',
+    'await', 'delete', 'void', 'instanceof', 'throw']);
+  const computed = [];
+  for (const m of src.matchAll(/(?:([A-Za-z_$][\w$]*)|(\))|(\]))\s*\[/g)) {
+    if (m[1] && KEYWORDS.has(m[1])) continue;            // `of [0, 300, 900]` is an array literal
+    computed.push(`${(m[1] || m[2] || m[3])}[ …`);
+  }
+  ok('...and it contains NO COMPUTED MEMBER ACCESS at all, so the allow-list above cannot be walked around with a string  '
+    + '[entry point: src/preload/youtube.cjs, the same stripped source]',
+    computed.length === 0,
+    computed.length ? `FOUND ${computed.length}: ${computed.slice(0, 6).join(' ')}`
+      : `0 of the form \`x[…]\`, \`)[…]\` or \`][…]\` — the three dot-blind instruments above are not the only ones now`);
 }
 
 // ==========================================================================

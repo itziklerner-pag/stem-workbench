@@ -131,23 +131,35 @@ node tools/verify.mjs --list         # the steps table
 
 <!-- suites:begin -->
 
-| step | file | flags | what it gates |
-|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | the runner's own VOID rule, and the steps table against this document |
-| `vendor-intact` | `tools/vendor-unit.sh --check` | — | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
-| `vendor-unit` | *(the vendored runner)* | — | the unit's 12 suites over the exact tag we pinned |
-| `deck-seam` | `tools/suites/deck-seam.mjs` | — | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
-| `shell` | `tools/suites/shell.mjs` | window | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
-| `engine-host` | `tools/suites/engine-host.mjs` | window | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
-| `transport` | `tools/suites/transport.mjs` | window | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
-| `deck-host` | `tools/suites/deck-host.mjs` | window | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
-| `p1` | `tools/suites/p1.mjs` | window | **P1′** — every session the app creates reaches the update host and nothing else |
-| `conformance` | `tools/suites/conformance.mjs` | — | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
-| `smoke` | `tools/suites/smoke.mjs` | window | boot, the Host seam, the transport, the deck — against a **local fake player** |
-| `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | **the permanent gate** — the view is captured at full level while the audio device stays silent |
-| `youtube` | `tools/suites/youtube.mjs` | window, **manual** | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
+| step | file | flags | assertions | what it gates |
+|---|---|---|---|---|
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 35 | the runner's own VOID rule, and the steps table against this document |
+| `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
+| `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
+| `deck-seam` | `tools/suites/deck-seam.mjs` | — | 49 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
+| `shell` | `tools/suites/shell.mjs` | window | 35 | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
+| `engine-host` | `tools/suites/engine-host.mjs` | window | 37 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
+| `transport` | `tools/suites/transport.mjs` | window | 64 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
+| `deck-host` | `tools/suites/deck-host.mjs` | window | 27 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
+| `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
+| `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
+| `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
+| `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
+| `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
 
 <!-- suites:end -->
+
+**THE `assertions` COLUMN IS A PIN, IN BOTH DIRECTIONS.** `tools/verify.mjs`
+carries the same number on each step and `classify()` compares it EXACTLY to what
+the suite printed; `tools/suites/void-canary.mjs` compares this table to that
+table. Neither can be moved on its own, and a suite that quietly stops running
+part of itself is red rather than green — the ABSENT-assertion failure, which
+`vendor/.pin` and `vendor/.conformance.json` already guard for the vendored side
+and which this repository's own suites had no guard for at all until an audit
+made `deck-seam` print `32 passed, 0 failed` instead of 49 and watched the runner
+call it PASS. **Changing a suite means changing both numbers, in the same
+commit.** `vendor-unit`'s count is somebody else's runner's and is pinned in
+`vendor/.pin` in both directions instead.
 
 `void-canary` asserts this table against `STEPS` in `tools/verify.mjs`, **in both
 directions**. A suite specified here with no step, and a step with no
@@ -192,8 +204,8 @@ runner, so it cannot be written around by the assertion that checks it.
 
 | | |
 |---|---|
-| `PASS` | exit 0, with assertions, and any `expect` clause satisfied |
-| `FAIL` | non-zero exit, or exit 0 without the `expect` clause — the failing assertion is named |
+| `PASS` | exit 0, with assertions, any `expect` clause satisfied, and the count EXACTLY the step's pinned `assertions` |
+| `FAIL` | non-zero exit; or exit 0 without the `expect` clause; or exit 0 with the wrong number of assertions — the failing assertion, or the count, is named |
 | `VOID` | exit 0, no assertions. **Red.** |
 | `SKIP` | the suite printed `SKIPPED — <reason>` and exited 0. **Not green** — it is named in the verdict and downgrades the run |
 
@@ -201,6 +213,32 @@ runner, so it cannot be written around by the assertion that checks it.
 of a human re-reading print statements: **the runner never prints an unqualified
 `GREEN` over a partial plan.** A step that was filtered out, declined, manual, or
 declared-and-not-built is named under `WHAT DID NOT RUN`.
+
+### The exit codes, and `--strict`
+
+| | |
+|---|---|
+| `0` | GREEN, or GREEN (partial) without `--strict` |
+| `1` | RED — something failed, or was VOID |
+| `2` | `--strict`, and a planned step SKIPPED or is declared-and-not-built |
+
+**`GREEN (partial)` used to exit 0, identically to a full green**, and an audit
+showed what that buys: with `xvfb-run` off PATH,
+`node tools/verify.mjs --only shell` printed `shell SKIPPED — xvfb-run is not on
+PATH`, the verdict `GREEN (partial — 1 of 13 steps ran)`, and **exit 0**. The
+words were honest; the status was not, and the status is what CI reads. This
+document already said *"Exit 0 alone is not enough"* about the vendored runner;
+`--strict` is the host runner acting on it.
+
+**`--strict` refuses SKIPs and `todo`s. It is deliberately silent about
+filtering.** `--quick` and `--only` are a human choosing which question to ask,
+and a runner that called that a failure is a runner people stop passing
+`--strict` to. A SKIP is the MACHINE declining a question that WAS asked. Those
+two read the same from outside and only one of them is a problem.
+
+`exitFor(verdict, strict)` is a pure function and `--self-check` asserts all four
+cases, including that a filtered plan under `--strict` is still 0. Every step in
+`.github/workflows/gate.yml` carries the flag.
 
 ### What was deliberately not copied from the extension's runner
 
@@ -393,6 +431,16 @@ failing for a reason that is not the timeout — is a broken harness and is hard
   (assertion 8 below) instead of trusting the lock.
 - The suite takes its own locks. The runner does not, because `--only` and a
   nightly must behave the same way.
+- **LOSING THE QUEUE IS A SKIP, NOT A FAIL** — `tools/lib/locks.mjs`'s
+  `lockSkip`. `flock -w 900` expiring means a sibling has the machine-global
+  sink, which is a fact about the box and not about the code (rule 8 in §3, and
+  this file's own *"a gate whose verdict changes on code that did not change is
+  measuring the machine"*). It used to emit one failing assertion and take the
+  whole run RED; an auditor sat the full 900 s in that queue on a box with three
+  concurrent runs and got exactly that red, which costs an investigation to
+  discover is not a bug. It is a loud SKIP now — named under *WHAT DID NOT RUN*,
+  and **`--strict` (§2) refuses to call such a run green**, which is the half
+  that stops a skip from reading as a pass in CI.
 
 ---
 
@@ -449,7 +497,7 @@ Six of them are pure functions with no launch at all; the rest read one report.
 | 24–27 | the capture grant answers the engine with the **source view's frame** (`deviceId` names its `processId:routingId`), one stereo 44 100 track with AGC/EC/NS all `false`; the deck may not capture; a page **inside** the source view may not capture | the `deviceId`, both frames, the settings |
 | 28 | the source view is muted **before it loads anything**, and no navigation ever starts unmuted | `mutedAtCreate`, the per-load samples, the unmuted-navigation count |
 | 29–31 | a renderer-initiated navigation off the allowlist is refused and the view does not move; `window.open` is denied; **the refusal is visible in the chrome bar** | the refused URLs, the bar's text |
-| 32–33 | the chrome bar painted with its Arm control present and disabled; all three views drew more than one distinct colour | the bar's fields; per-view size and colour count |
+| 32–33 | the chrome bar painted with its Arm control present, **ENABLED**, labelled `Arm`, and wired to a `__wbChrome.arm` bridge; all three views drew more than one distinct colour | the bar's fields; per-view size and colour count. *(This row used to assert the `disabled` attribute, and was green for a whole wave while the product's own refusal text told the user to press that button. A gate that pins a defect in place makes fixing it look like a regression — `smoke` clicks the real element now.)* |
 | 34 | the deck slot loads the vendored deck when it is present and our placeholder when it is not | which branch ran, and the URL |
 
 **Assertion 33 is not decoration.** A blank view and a painted one are both a
@@ -530,8 +578,13 @@ left eleven of the 34 assertions with no mutation of their own. That is not
 visible from inside a green run, so `tools/suites/coverage.py` now makes it
 mechanical: after a full battery it compares every assertion name in the baseline
 log against every name that ever appeared on a `FAIL` line, and the script exits
-non-zero if any assertion has never been seen red. **Current state: 28 of 28
-mutations caught, 34 of 34 assertions watched red.**
+non-zero if any assertion has never been seen red. **Current state: 33 of 33
+mutations caught, 35 of 35 assertions watched red.**
+
+Case **13b** is the newest and it is a correction rather than an addition: the
+Arm control's row used to assert the `disabled` attribute, so putting that
+attribute BACK is now a red where it used to be the pinned truth. A gate that
+pins a defect in place makes fixing the defect look like a regression.
 
 **Case 27 found a defect in the suite rather than in the app.** Pointing the deck
 slot at the wrong page removed `window.__wbBusLog`, the probe returned
@@ -744,13 +797,27 @@ report channels in arrival order, and it writes `report.json`. Every judgement i
 in the suite, which is a separate process and can be run against a report from a
 mutated build.
 
-### How L1 is proved — three instruments, none sufficient alone
+### How L1 is proved — four instruments, none sufficient alone
 
 | # | instrument | what it can see | what it cannot |
 |---|---|---|---|
 | 1 | **the write set, ENUMERATED** — with comments and string literals stripped, the *complete* set of member assignments in the preload is compared against the closed write set | any new write, including one nobody thought to forbid | a write built at run time |
-| 2 | **the read set, ALLOW-LISTED** — every property the file touches at all, against an enumerated list | a new `el.videoWidth`; it is red until somebody widens the list on purpose | the same |
-| 3 | **it asked for nothing** — `main` records every request the source view's session made across the whole exercise | code no scanner could read: a `new Function`, a property name assembled from pieces | anything that resolves a URL without fetching it |
+| 2 | **the read set, ALLOW-LISTED** — every property the file touches at all, against an enumerated list | a new `el.videoWidth`; it is red until somebody widens the list on purpose | **a COMPUTED read**: the regex needs a literal dot |
+| 3 | **it asked for nothing** — `main` records every request the source view's session made across the whole exercise | code no scanner could read: a `new Function`, a property name assembled from pieces | anything that resolves a URL without fetching it — and reading a property is not a request |
+| 4 | **NO COMPUTED MEMBER ACCESS AT ALL** — no `x[…]`, `)[…]` or `][…]` anywhere in the preload, keywords excluded so an array literal after `of` is not a false positive | `el['currentSrc']`, and every relative of it | nothing this file needs: it is 528 lines with array literals and no indexing |
+
+> **INSTRUMENT 4 EXISTS BECAUSE AN AUDITOR WALKED PAST THE FIRST THREE.** Two
+> lines in a private tree — `const leakUrl = () => (el ? el['currentSrc'] : null);`
+> and the same for `buffered` — and the suite printed `transport: 63 passed, 0
+> failed`, with the allow-list row cheerfully reporting *"44 distinct properties,
+> all listed"*. All three missed it for three different reasons: (2) scans for a
+> literal dot and a bracket has none; the blacklist below runs AFTER string
+> literals have been blanked to `''`, so the name it is hunting is gone; and (3)
+> watches the network, while reading a property is the FIRST step of a ripper,
+> not the last. **The rule is "no computed access", not "no forbidden name inside
+> one"** — a blacklist inside the brackets loses to
+> `el[['current','Src'].join('')]`, which is the same losing shape one level in.
+> Watched red: `tools/suites/transport-mutations.sh 1b`, the auditor's own edit.
 
 A forbidden-token blacklist answers *"is this one bad thing absent"*. (1) answers
 *"is anything else present"*, which is the question. The blacklist is kept anyway,
@@ -766,9 +833,9 @@ the header's own prose (which says `src`, `currentSrc` and `captureStream` out
 loud).
 
 Measured: **6 164 bytes** of code after stripping, **4** distinct member
-assignments — `muted`, `currentTime`, `playbackRate`, `preservesPitch` — and
-**2 requests** over the whole run, both the fixture document itself, both
-`mainFrame`, zero off-scheme.
+assignments — `muted`, `currentTime`, `playbackRate`, `preservesPitch` —
+**0 computed accesses**, and **2 requests** over the whole run, both the fixture
+document itself, both `mainFrame`, zero off-scheme.
 
 ### The pin, and why this Host executes `speed.js` instead of porting it
 
@@ -1034,8 +1101,8 @@ launch half cannot test late binding at all.
 
 ## 6. `smoke` — Playwright-for-Electron against a local fake player
 
-**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Measured:** 18
-assertions, ~40 s. **Falsified by:** `tools/suites/smoke-mutations.sh`, 19 cases.
+**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Measured:** 21
+assertions, ~40 s. **Falsified by:** `tools/suites/smoke-mutations.sh`, 22 cases.
 
 Playwright drives Electron through its `_electron` API:
 
@@ -1139,6 +1206,8 @@ empty.
 | 1 | the app launches and opens **one visible window with its three views attached**, beside the **hidden engine `BrowserWindow`**, and all four renderers are reachable as Playwright pages | the child `webContents` ids, the source view's id, the Electron/Chromium versions |
 | 2 | the network guard is live on **both** sessions — it saw two deliberate off-box navigations and refused them | which probes were recorded, how many came back `ERR_BLOCKED_BY_CLIENT` |
 | 3 | `assertHost` accepted **both** halves of the Host: the deck reached module scope (`window.__embed`) and the engine answered `STATUS` with a `STATE` | the members `ui/host.js` exports, the two duty counts |
+| 3a | **THE ARM BUTTON IN THE CHROME BAR ARMS** — a real click on the bar's only control, in the real renderer, through the real preload bridge and `ipcMain.handle('chrome:arm')`, and the DECK sees a `SESSION`. It shipped `disabled` for a wave after arming worked, while `shell` ASSERTED that attribute | the button's label and `data-armed` before and after, and the deck's armed SESSIONs |
+| 3b | …and clicking it again **DISARMS** — the label follows the HOST's epoch, not the last click. The precondition (it WAS armed) is part of the row: `armed:'0'` after a click is also what a button that never armed looks like | the label transition and the deck's whole SESSION trail |
 | 4 | **`SESSION`** — clicking `Arm this Source` in the application menu originates it to `BUS.deck` with `{armed,title,url,armedAt}`, and the deck stops painting its not-armed hint | the menu label and accelerator, the session keys, the hint before and after |
 | 5 | **`CAPTURE_START`** is originated to `BUS.engine`, carrying a minted token — checked over **every** message rather than the first, because the COUNT is the machine's (see below) | the address it went to, the token's length |
 | 6 | …and its shape is the frozen one — `{sourceToken, source:{title,url}}`, no `deck` for the default deck and **no `tabId`** | the observed key sets |
@@ -1164,6 +1233,12 @@ only a number that was in none of their names.
 | 16 | the deck painted **one fader per stem** — six `[data-stem]` strips, six `role="slider"` faders, each a stem the unit declares | the painted order and `STEMS` |
 | 17 | the `AudioContext` the engine opened for the capture is at **44100**, not the platform default | `STATE.boot.sampleRate`, over how many snapshots |
 | 18 | the whole run stayed on the box: every request either session made was local, **bar the one host P1′ names** — the update check, excluded from `src/main/update.js`'s own constant and counted on the line. The claim ABOUT that host is `p1`'s (§9); this is the cruder complement, and an update check is not wandering | the request count, any off-box URL, the count to the update host, the schemes seen |
+| 19 | …and **the transport that ledger CANNOT see is gone from the main process**: a bare `fetch()` there is refused BY US, by name. Assertion 18's instrument is `session.webRequest`, a property of a Chromium session; undici in main never enters it, and an auditor proved that by injecting one line and watching this suite print `18 passed, 0 failed`. Port 9 is the discard port, so the ERROR'S NAME is what separates "refused by us" (`P1ViolationError`) from "refused by the kernel" (`TypeError`). `p1` §3.7 owns the full claim | the name `globalThis.fetch` now has, and what calling it threw |
+
+(3a and 3b run BEFORE the menu's arm, which is why they are lettered rather than
+renumbered: every number in this table is referenced from the mutation table
+below and from `smoke.mjs`'s own header, and renumbering eighteen rows to insert
+two is how a cross-reference quietly starts pointing at the wrong assertion.)
 
 **Assertions 4–7 and 14 are the ones `assertHost` structurally cannot make.**
 `VENDORING.md`: *"`assertHost` cannot check for a message nobody sent."* A Host
@@ -1259,12 +1334,20 @@ measures silence and **this suite cannot replace it**.
 
 ### Watched red
 
-`tools/suites/smoke-mutations.sh`, 19 cases, each declaring the assertion names
+`tools/suites/smoke-mutations.sh`, 22 cases, each declaring the assertion names
 it must turn red, with `tools/suites/coverage.py` over the whole battery refusing
-an assertion that has never been seen on a FAIL line. **Measured 2026-08-26 on
-the commit that introduced the suite: 19 of 19 caught, all 18 assertions seen
-red.** Fifteen cases turn exactly one assertion red; the wide ones are 4 (six —
-the deck never boots at all), 7 (three) and 1, 5, 11 (two each).
+an assertion that has never been seen on a FAIL line. Most cases turn exactly one
+assertion red; the wide ones are 4 (six — the deck never boots at all), 7 (three)
+and 1, 5, 11, 21 (two each).
+
+**Three of the assertions and three of the cases are repairs.** 21 puts the
+chrome bar's Arm button back to `disabled` — the state it SHIPPED in for a wave
+after arming worked, while `shell` asserted that attribute and called it a pass;
+22 makes the bar's gesture always arm, so its label stops following the Host's
+epoch; 23 neuters `src/main/netguard.js`, which is the only thing that stops a
+`fetch()` in the main process from leaving the box — `smoke`'s own off-box ledger
+is `session.webRequest` and cannot see one, and this suite says so on the line
+now instead of leaving the gap unnamed.
 
 Three things about running it, and each is something a previous wave paid for:
 
@@ -1303,6 +1386,9 @@ Three things about running it, and each is something a previous wave paid for:
 | 17 | disarm stops handing the player back | `src/main/deck-host.js` | 15 |
 | 18 | drop a stem from the deck's strip order | `vendor/…/ui/embed.js` | 16 |
 | 19 | open the `AudioContext` at the platform default | `vendor/…/offscreen/engine.js` | 17 |
+| 21 | put the chrome bar's Arm button back to `disabled` — the state it SHIPPED in | `src/renderer/chrome.html` | 3a, 3b |
+| 22 | the bar's gesture always arms, whichever way it was sent | `src/main/main.js` | 3b |
+| 23 | `netguard.js` installs nothing | `src/main/netguard.js` | 19 |
 
 There is **no case for L1's static scan**, and that is not an omission: the scan
 is `transport.mjs`'s and is falsified by that suite's battery. Case 12 is what
@@ -1425,16 +1511,40 @@ text**, so there is no third copy to drift. An assertion that conflated them
 would go red on correct code, and the obvious "fix" is to loosen it until it
 passes.
 
-### The sum test, and why it is the one that cannot be faked
+### The three tests that carry "six stems", and why one was not enough
 
-`htdemucs` is a masking separator: its six stems sum back to the input. So
-`rms(mix - Σstems)` is a small fraction of `rms(mix)`, and `rms(Σstems)` sits
-close to it. **Six copies of the mix would sum to six times it**, leaving a
-residual of 5x — which is exactly the failure "six identical meters" describes,
-and the only one of these claims that arithmetic settles rather than a level.
-The thresholds (0.5x residual, 1.5x sum) are an order of magnitude away from the
-defect rather than tight around the measurement, and the measured values are
-printed on the line.
+**THE SUM.** `htdemucs` is a masking separator: its six stems sum back to the
+input. So `rms(mix - Σstems)` is a small fraction of `rms(mix)`, and
+`rms(Σstems)` sits close to it. **Six copies of the mix would sum to six times
+it**, leaving a residual of 5x — which is exactly the failure "six identical
+meters" describes. The thresholds (0.5x residual, 1.5x sum) are an order of
+magnitude away from the defect rather than tight around the measurement, and the
+measured values are printed on the line.
+
+**THE CORRELATIONS, because an audit beat the sum on paper.** For
+`stems_k = a_k · mix` with `Σa_k = 1`, the residual is **exactly 0**, the sum
+ratio is **exactly 1.0**, and the six levels are all **different** — so a fan-out
+of one mix passed the sum test, the old "six distinct levels" test and the meters
+at once. Pearson r between every pair of planes is the estimator that does not
+saturate there: six scaled copies of one signal correlate at **1.000**, and a
+real separation on the recorded run runs **0.004 to 0.433** (the largest is
+`other`/`guitar`, which share spectrum and should). `CORR_MAX` is 0.8 — not a
+tuned threshold, the gap between "correlated" and "the same signal". `corrSelf`,
+`r(x, x)`, must be exactly 1: **a correlator that returned small numbers because
+it was broken would otherwise pass by being wrong in the safe direction.**
+
+**THE SPECTRA, because nothing in the buffer carries a label.** `shared/host.js`
+freezes the LAYOUT — `(k*2+ch)*SEGMENT`, stem-major — and the meaning of `k` is
+convention. The suite used to "check the order" with
+`perStem[i].stem === STEMS[i]`, and the probe builds that array with
+`STEMS.map((name, k) => …)` three lines earlier: **it was true by construction,
+and a backend returning the planes permuted would have passed the very assertion
+whose comment said it caught that.** The order is now four ORDINAL facts out of
+a 16-window spectrum per plane — the `bass` plane strictly lowest centroid,
+strictly most energy under 500 Hz and under 120 Hz; the `vocals` plane strictly
+least under 120 Hz. Ordinal, not banded, so §7's rule below still holds; and
+STRICT, so six identical spectra (the fan-out again) cannot satisfy all four at
+once by being tied.
 
 ### It must not assert a level band
 
@@ -1474,14 +1584,35 @@ different mutations possible:
 
 | rows | what they do | what they prove | what they do NOT prove |
 |---|---|---|---|
-| `R1`–`R24` (default) | doctor one field of a **recorded** report and re-judge it with `YOUTUBE_REPORT=<file>`, launching nothing (~0.2 s each) | the assertion can fail, names the right thing, and reads the field it claims to read | that a broken **product** would produce that field |
-| `L1`–`L3` (`--live`) | a real edit to `src/`, a real launch against real `youtube.com` (~5 min each) | that the probe **measures the product** | nothing about the assertions the R rows already cover |
+| `R1`–`R27` (default, 43 rows) | doctor one field of a **recorded** report and re-judge it with `YOUTUBE_REPORT=<file>`, launching nothing (~0.2 s each) | the assertion can fail, names the right thing, and reads the field it claims to read | that a broken **product** would produce that field |
+| `L1`–`L3` (`--live`) | a real edit to `src/`, a real launch against real `youtube.com` (~5-11 min each) | that the probe **measures the product** | nothing about the assertions the R rows already cover |
+
+> **A LIVE ROW FOUND SOMETHING NO R ROW COULD.** `L2` re-run on the repaired tree
+> came back with TWO reds: the arm assertion it exists for, and the new spectral
+> one. A live row is a fresh launch, so the separator ran over a DIFFERENT 7.8 s
+> window, and in that window `vocals` and `guitar` both read `0.0001` below
+> 120 Hz — the probe rounds to four decimals, and two planes that both have
+> essentially nothing down there are indistinguishable at that precision. The
+> assertion's *"vocals has strictly the least below 120 Hz"* was a claim about a
+> fourth decimal, and it went red for a reason that was not about the product.
+> It is a RATIO against the mix now (see "The three tests that carry six stems"
+> above). **An R row could never have found it**: R rows doctor ONE recorded
+> report, and this needed a second real window.
 
 Both halves are needed and neither is presented as the other. Each `L` row names
 the report field it moves, so a reader can see which `R` row it is the expensive
 twin of. A row that produces **no** red means the suite is blind to that defect;
 an assertion **no** row ever turned red is the failure invisible from inside a
 green run, and the coverage report at the end is the only place it shows up.
+**Current state: 43 of 43 rows caught, coverage 26/26.**
+
+**TWO ROWS EXIST BECAUSE AN AUDIT FOUND THE ASSERTIONS ABOVE THEM WEAKER THAN
+THEIR OWN HEADLINES**, and they are the ones worth knowing:
+
+| row | the counterexample | why the old assertions called it a pass |
+|---|---|---|
+| `R24c` | six DIFFERENTLY-SCALED COPIES of one mix — `stems_k = a_k · mix`, `Σa_k = 1` | residual exactly 0, sum ratio exactly 1.0, and six distinct levels. The sum test, the "six distinct levels" test and the meters were all green over one signal published six times. The fifteen pairwise correlations are what refuse it: scaled copies correlate at 1.000 |
+| `R22c` | the BACKEND writes its six planes in another order — the names stay put and the audio under them rotates | the order check compared `perStem[i].stem` to `STEMS[i]`, and the probe had built that array with `STEMS.map` three lines earlier. It was true by construction. The per-plane spectra are what refuse it: the plane at the `bass` index stops being the lowest-centroid one |
 
 ---
 
@@ -1838,7 +1969,7 @@ watched red.** A subset run cannot make that claim and does not try.
 ## 9. `p1` — the P1′ acceptance test
 
 **File:** `tools/suites/p1.mjs`. **Flags:** `window` (and `openssl`; it SKIPs
-without either). **19 assertions, 19 mutations, ~30 s plus the lock queue.**
+without either). **24 assertions, 24 mutations, ~30 s plus the lock queue.**
 
 **P1′**, successor to the extension's P1: *the app's own code talks to exactly one
 named host — GitHub Releases, for the update check — and nothing else.* No
@@ -1950,6 +2081,28 @@ answered. The directive can: `connect-src`.
 | 17 | ...and the fake host was reached exactly once for it — the cancellation is a fact about the wire, not about a log line |
 | 18 | the observer covers renderer-initiated traffic on **both** sessions, not just what main asks for |
 | 19 | our renderer cannot reach an off-origin URL at all: the instrument sees nothing **and** the page reports a `connect-src` violation |
+| 20 | **no file under `src/` imports a node network module** — `http`, `https`, `net`, `tls`, `dgram`, `http2` — same scan, comments stripped |
+| 21 | ...and no file under `src/main/` calls a bare `fetch(` or Electron's `net.request(`. The app has exactly ONE network transport and it is `Session.fetch` in `src/main/update.js` |
+| 22 | the main process's unobservable transports are **poisoned at boot**: twelve entry points taken, `fetch` is no longer the platform's, and `netguard.js` is `main.js`'s FIRST import — read out of the source, because the ordering is invisible at runtime |
+| 23 | ...and every one of them **throws** when the app calls it: eleven transports attempted at a real loopback port, eleven refused — while a `net.Socket` to a PIPE is left alone, because Node's own child-process IPC uses it |
+| 24 | ...and **the sink in the suite's own process recorded exactly one connection, ours**. "Nothing left the app" is a fact about a listening socket, not about an instrument inside the app |
+
+> **§3.7 EXISTS BECAUSE TWO INDEPENDENT AUDITS DEFEATED THIS SUITE WITH ONE
+> LINE.** Assertions 1-19 all rest on `session.webRequest`, which is a property
+> of a CHROMIUM session; undici in the main process never enters it. Both
+> reviewers added one `fetch()` to `src/main/main.js` — one to a local sink that
+> logged `GET /telemetry-from-main`, one to `example.com` that answered 404 — and
+> both watched this file print `19 passed, 0 failed` over a live P1′ violation,
+> still saying *"reached exactly { https://api.github.com }"*. `src/main/sessions.js`
+> and `src/main/update.js` had NAMED that exact hazard in prose for a whole phase.
+>
+> The fix is in three pieces because they fail for three reasons:
+> `src/main/netguard.js` removes the transports (22), a source scan forbids the
+> imports a runtime guard cannot reach (20, 21), and a real loopback sink in the
+> suite's process is the witness the app cannot fake (23, 24). The sink is NOT
+> reached through `--host-resolver-rules` — that is a Chromium switch, and a
+> `node:https` call resolves through the OS and would ignore it, so a `.invalid`
+> host would fail with a DNS error and the control would pass by not looking.
 
 ### Deliberately not asserted here
 
@@ -1967,14 +2120,15 @@ answered. The directive can: `connect-src`.
 
 ### Watched red
 
-19 cases in `tools/suites/p1-mutations.sh`, one per assertion, with
+24 cases in `tools/suites/p1-mutations.sh`, one per assertion, with
 `tools/suites/coverage.py` refusing any assertion never seen on a `FAIL` line.
-Recorded run 2026-08-26, Electron 44.0.0 / Linux: **19 of 19 caught, 19 of 19
-watched red.** The full table is at the top of `tools/suites/p1.mjs`; the four
+Recorded run 2026-08-26, Electron 44.0.0 / Linux: **24 of 24 caught, 24 of 24
+watched red.** The full table is at the top of `tools/suites/p1.mjs`; the five
 worth knowing here:
 
 | case | mutation | what went red |
 |---|---|---|
+| 21 | `netguard.js` installs nothing, plus a bare `fetch()` in `boot()` — **the audits' own edit** | the guard, its refusals, **and the sink**, which logged `GET /telemetry-from-main` from another process |
 | 14 | the observer stops recording `https:` — the wire is untouched | **the could-it-look guard**: instrument 0, fake host 1 |
 | 17 | the policy is recorded and then not applied — the log still says `cancelled: true` | the fake host was reached twice |
 | 16 | the exclusion moves from the session owner to a URL substring | the two-session pair, exactly as §9's original design predicted |
@@ -2167,6 +2321,20 @@ Apple credential on this machine, so the substitute is:
 | **configured, never built or signed here** | the electron-builder configuration and CI for macOS and Windows |
 
 Say that plainly wherever it matters. It is not a caveat to bury.
+
+**Both halves now exist, and the second one is still not evidence.** The
+configuration is `package.json`'s `build` key (dmg + zip for macOS with the
+hardened runtime and notarization on, NSIS for Windows, AppImage + deb for
+Linux), `build/entitlements.mac.plist`, and two workflows:
+
+| file | what it is |
+|---|---|
+| `.github/workflows/package.yml` | the installers. `workflow_dispatch` and tag-only, `--publish never` on every invocation, artifacts and **never a GitHub Release**. It has never run. macOS signing needs four secrets this repository does not have, and the job is written to FAIL without them rather than emit an unsigned dmg Gatekeeper will refuse |
+| `.github/workflows/gate.yml` | the suites a hosted runner can honestly answer. **Every step carries `--strict`**, so a step that SKIPs fails the job. Without that flag, `node tools/verify.mjs` on a fresh runner — no display, no PipeWire, no weights — would have skipped most of the plan and exited 0, which is precisely the failure §2's exit-code rule was rewritten to prevent. It has never run either |
+
+`engine-host`, `capture-mute` and `youtube` are deliberately NOT in that gate
+workflow, and the file names each absence with its reason. A green tick there is
+not the full plan; this document is.
 
 Two further honesty items, carried from the spike's write-up:
 

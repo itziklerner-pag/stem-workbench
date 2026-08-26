@@ -76,7 +76,10 @@
  * a SKIP in it. The consequence, named rather than implied: NOTHING IN CI EVER
  * CHECKS THIS PROPERTY. It is checked on a Linux box with PipeWire, by hand or
  * by a self-hosted runner, and on macOS it is checked by nobody at all yet
- * (`docs/TESTING.md` §11).
+ * (`docs/TESTING.md` §11). `.github/workflows/gate.yml` therefore does not list
+ * this step at all and says why in the file, rather than listing it and letting
+ * a SKIP stand in for an answer — and every step it DOES list carries
+ * `--strict`, so a skip there fails the job.
  *
  * ---------------------------------------------------------------------------
  * WATCHED RED BY MUTATION — `tools/suites/capture-mute-mutations.sh`
@@ -1001,12 +1004,32 @@ function scanForGateSeam() {
     : evalGateDefinition(mainCode);
   if (!gate.ok) bad.push(`the gate flag is not development-only: ${gate.why}`);
 
+  /**
+   * THE PACKAGING CONFIG MUST NOT SHIP `tools/`, WHEREVER IT LIVES.
+   *
+   * The seam this assertion is about — the `app://` root that serves
+   * `tools/fixture/` — is dead in a packaged build twice over (`const GATE` is
+   * `''` when `app.isPackaged`, and the directory is not in the bundle). The
+   * SECOND of those is a property of this configuration, so it is checked
+   * rather than assumed, and it is checked over EVERY place electron-builder
+   * will look: the `build` key AND a standalone `electron-builder.*`. Reading
+   * only `package.json` would mean the check quietly stopped applying the day
+   * somebody moved the config out of it.
+   */
   const pkg = readJson(path.join(ROOT, 'package.json')) || {};
-  let builder = 'ABSENT — none is written yet (docs/TESTING.md §11)';
-  if (pkg.build) {
-    const blob = JSON.stringify(pkg.build);
-    builder = /tools/.test(blob) ? 'PACKAGES tools/' : 'present, does not package tools/';
-    if (/tools/.test(blob)) bad.push('package.json "build" packages tools/');
+  const configs = [];
+  if (pkg.build) configs.push(['package.json "build"', JSON.stringify(pkg.build)]);
+  for (const f of fs.readdirSync(ROOT)) {
+    if (!/^electron-builder\.(ya?ml|json|js|cjs|mjs|ts)$/.test(f)) continue;
+    configs.push([f, fs.readFileSync(path.join(ROOT, f), 'utf8')]);
+  }
+  let builder = 'ABSENT — no packaging configuration anywhere (docs/TESTING.md §11)';
+  if (configs.length) {
+    const packers = configs.filter(([, blob]) => /tools/.test(blob)).map(([name]) => name);
+    builder = packers.length
+      ? `PACKAGES tools/ (${packers.join(', ')})`
+      : `${configs.length} config(s) [${configs.map(([n]) => n).join(', ')}], none packages tools/`;
+    for (const name of packers) bad.push(`${name} packages tools/`);
   }
   return { clean: bad.length === 0 && guarded === 2 && gate.ok, bad, files: files.length, guarded, builder, gate };
 }

@@ -1,4 +1,4 @@
-youtube-mutations: baseline docs/evidence/step3-youtube/report.json — 25 assertions, 0 failed
+youtube-mutations: baseline docs/evidence/step3-youtube/report.json — 26 assertions, 0 failed
 
 ok    R1  the report is not a report at all — the launch never wrote one
         1 red: the app launches from its real entry point and the youtube probe writes a report
@@ -51,7 +51,7 @@ ok    R18c  THE RACK IS NOT THE MODEL'S SIX: a strip for a stem the separator do
 ok    R19  THE DECK PLAYED NOTHING AUDIBLE: the master sits under the presence floor and nothing else notices
         1 red: ...and what the deck PLAYED is audible — master rms above the 0.01 floor, presence not level
 ok    R20  THE SEPARATOR THREW instead of separating — the one thing `Backend.separate` is allowed to do besides work
-        5 reds: THE SEPARATOR RAN, in this app, over the audio it captured from the page — the Host's own backend and the real weights | ...and the audio it separated came off the muted view at 44 100 Hz, STEREO, with AGC / echo / noise suppression all OFF | SIX STEMS CAME BACK — six plane pairs, in the unit's own order, each with its own level | ...and the six SUM BACK to the mix — residual under 0.5x the input, the sum within 1.5x of it, which six copies of one mix could not be | ...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING
+        6 reds: THE SEPARATOR RAN, in this app, over the audio it captured from the page — the Host's own backend and the real weights | ...and the audio it separated came off the muted view at 44 100 Hz, STEREO, with AGC / echo / noise suppression all OFF | SIX STEMS CAME BACK — six plane pairs at the frozen layout, each with its own level | ...and the LABELS ARE THE SEPARATOR'S, not this probe's `STEMS.map`: the `bass` plane has strictly the lowest centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds 2x the mix's low end while the `vocals` plane holds under a 20th of it | ...and the six SUM BACK to the mix — residual under 0.5x the input, the sum within 1.5x of it, which six copies of one mix could not be | ...and no two of them are the SAME SIGNAL — all 15 pairwise correlations under 0.8, where six differently-scaled copies of one mix would every one be 1.000
 ok    R20b  THE SEGMENT NEVER FILLED: the separator ran over a partly-empty buffer
         1 red: THE SEPARATOR RAN, in this app, over the audio it captured from the page — the Host's own backend and the real weights
 ok    R20c  IT WAS NOT THE REAL WEIGHTS: a different file went into the backend
@@ -65,17 +65,21 @@ ok    R21c  THE CAPTURE IS AT 48 kHz: the resampling the whole no-resample desig
 ok    R21d  THE SEGMENT IS SILENT: a capture that opened on a muted element and separated nothing
         1 red: ...and the audio it separated came off the muted view at 44 100 Hz, STEREO, with AGC / echo / noise suppression all OFF
 ok    R22  FIVE STEMS CAME BACK, NOT SIX
-        2 reds: SIX STEMS CAME BACK — six plane pairs, in the unit's own order, each with its own level | ...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING
+        3 reds: SIX STEMS CAME BACK — six plane pairs at the frozen layout, each with its own level | ...and the LABELS ARE THE SEPARATOR'S, not this probe's `STEMS.map`: the `bass` plane has strictly the lowest centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds 2x the mix's low end while the `vocals` plane holds under a 20th of it | ...and no two of them are the SAME SIGNAL — all 15 pairwise correlations under 0.8, where six differently-scaled copies of one mix would every one be 1.000
 ok    R22b  THE PLANES ARE IN THE WRONG ORDER: six correct stems, mislabelled at the buffer layout
-        1 red: SIX STEMS CAME BACK — six plane pairs, in the unit's own order, each with its own level
+        2 reds: SIX STEMS CAME BACK — six plane pairs at the frozen layout, each with its own level | ...and the LABELS ARE THE SEPARATOR'S, not this probe's `STEMS.map`: the `bass` plane has strictly the lowest centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds 2x the mix's low end while the `vocals` plane holds under a 20th of it
 ok    R23  SIX COPIES OF THE MIX: the fan-out a stalled separator publishes — it sums to six times the input
         1 red: ...and the six SUM BACK to the mix — residual under 0.5x the input, the sum within 1.5x of it, which six copies of one mix could not be
 ok    R23b  THE STEMS DO NOT ADD BACK: a residual as large as the input, which is not a masking separator at all
         1 red: ...and the six SUM BACK to the mix — residual under 0.5x the input, the sum within 1.5x of it, which six copies of one mix could not be
 ok    R24  SIX IDENTICAL STEMS: the same signal six times, which every level check but this one calls a pass
-        1 red: ...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING
+        1 red: ...and no two of them are the SAME SIGNAL — all 15 pairwise correlations under 0.8, where six differently-scaled copies of one mix would every one be 1.000
 ok    R24b  ONE STEM IS DIGITAL SILENCE — a plane the separator never wrote
-        1 red: ...and no two of them are the same signal — six distinct levels, and every stem carried SOMETHING
+        1 red: ...and no two of them are the SAME SIGNAL — all 15 pairwise correlations under 0.8, where six differently-scaled copies of one mix would every one be 1.000
+ok    R24c  SIX SCALED COPIES OF THE MIX: residual 0, sum ratio 1.0, six distinct levels — and one signal
+        2 reds: ...and the LABELS ARE THE SEPARATOR'S, not this probe's `STEMS.map`: the `bass` plane has strictly the lowest centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds 2x the mix's low end while the `vocals` plane holds under a 20th of it | ...and no two of them are the SAME SIGNAL — all 15 pairwise correlations under 0.8, where six differently-scaled copies of one mix would every one be 1.000
+ok    R22c  THE BACKEND WROTE ITS PLANES IN ANOTHER ORDER: the six names stay put and the audio under them rotates
+        1 red: ...and the LABELS ARE THE SEPARATOR'S, not this probe's `STEMS.map`: the `bass` plane has strictly the lowest centroid and strictly the most energy under 500 Hz and under 120 Hz, and it holds 2x the mix's low end while the `vocals` plane holds under a 20th of it
 ok    R25  THE DECK IS BLANK: a photograph of a view that painted one colour
         1 red: the deck is PAINTED while the stems are live — a photograph of the running app, not a blank view
 ok    R26  THE CAPTURE DIED ON RELOAD: the frame counter froze when the document went
@@ -83,7 +87,7 @@ ok    R26  THE CAPTURE DIED ON RELOAD: the frame counter froze when the document
 ok    R27  THE BUS DROPPED TRAFFIC FOR WANT OF A LISTENER — the quietest failure on the whole seam
         1 red: nothing on the bus was dropped for want of a listener while all that happened
 
-coverage: 25/25 assertions were turned red by some row
+coverage: 26/26 assertions were turned red by some row
 (the product rows L1-L3 were NOT run — `--live` runs them, one real launch each)
 
-youtube-mutations: 41 passed, 0 failed
+youtube-mutations: 43 passed, 0 failed

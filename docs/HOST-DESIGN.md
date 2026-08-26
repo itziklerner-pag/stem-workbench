@@ -767,6 +767,17 @@ distinguishing from an unbound chord.
 | app menu | **Source → Arm** with `ARM_ACCEL` | the accelerator `armShortcut()` reports |
 | automatic | none | arming is never implicit. The deck's `follow()` will start a pipeline on its own if it believes it is armed, and `shared/host.js` records what that cost once already |
 
+**Both gestures are built and both are gated.** The bar's button shipped
+`disabled` for a wave AFTER arming started working — while `ARM_REFUSALS.NOT_ARMED`
+told the user *"Arm this Source first, from the Source menu or the Arm button"*
+and this table called it the first thing the owner touches. An auditor clicked it
+on a real launch and nothing happened; `shell` was ASSERTING the `disabled`
+attribute, so the defect was pinned in place rather than caught. It is live now
+(`ipcMain.handle('chrome:arm')` in `src/main/main.js`, `__wbChrome.arm` in the
+preload), it is a toggle whose label follows the HOST's epoch rather than the
+last click, it draws a refusal inline, and `smoke` clicks the real element in the
+real renderer and requires the deck to see a `SESSION`.
+
 **The view is muted for its whole life, not for the duration of a capture.**
 `ytView.webContents.setAudioMuted(true)` is applied **before the view loads
 anything** and is re-asserted on every `did-start-navigation`. The spike measured

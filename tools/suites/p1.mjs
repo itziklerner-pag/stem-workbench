@@ -31,7 +31,14 @@
  *     failing;
  *   · every session the app makes is COUNTED against the listeners installed
  *     (assertion 10), because Electron cannot enumerate its own sessions and a
- *     session nobody watched reads exactly like a session that made no requests.
+ *     session nobody watched reads exactly like a session that made no requests;
+ *   · ...AND THE OBSERVER'S OWN BLIND SPOT IS MEASURED (§3.7). `session.webRequest`
+ *     is a property of a CHROMIUM session; a `fetch()` in the main process is
+ *     undici, in this process, and never enters it. Two independent audits
+ *     defeated this file with ONE LINE in `src/main/main.js` and watched a real
+ *     request reach a real host while it printed `19 passed, 0 failed`. The
+ *     answer is `src/main/netguard.js`, a scan, and a REAL LOOPBACK SINK in this
+ *     suite's own process that must record exactly one connection — ours.
  *
  * ---------------------------------------------------------------------------
  * WHAT IT DOES NOT GATE, stated so the absence is on the record
@@ -55,7 +62,7 @@
  * WATCHED RED BY MUTATION — every assertion below, with the edit that broke it
  * ---------------------------------------------------------------------------
  * Reproduce all of them with `tools/suites/p1-mutations.sh`. Run on 2026-08-26
- * against Electron 44.0.0 on Linux: 19 of 19 mutations caught, 19 of 19
+ * against Electron 44.0.0 on Linux: 24 of 24 mutations caught, 24 of 24
  * assertions watched red, `tools/suites/coverage.py` clean.
  *
  *   1  p1.js: allow http instead of https                -> the one host is admitted (+3)
@@ -77,8 +84,24 @@
  *  17  sessions.js: record the cancel, do not apply it   -> the fake host was reached once
  *  18  sessions.js: filter the listener down to https:   -> the observer covers renderers
  *  19  assets.js: connect-src 'self' https:              -> the CSP is the layer that answered
+ *  20  main.js: a bare fetch() to a second host          -> the bare-transport scan (+ the boot throws)
+ *  21  netguard.js: take() installs nothing, + case 20   -> the guard, its refusals, AND THE SINK (+1)
+ *  22  storage.js: import https from 'node:https'        -> the node-network-module scan
+ *  23  storage.js: a bare fetch(), never called          -> the bare-transport scan
+ *  24  netguard.js: refuse a pipe as well as a port      -> the guard is too wide
  *
- * TWO OF THEM ARE THE POINT OF THE WHOLE FILE. Case 14 leaves the wire alone and
+ * CASE 21 IS THE AUDIT, RE-RUN AS A GATE. Two independent reviewers defeated
+ * this suite with ONE LINE in `src/main/main.js` — `fetch('http://127.0.0.1:…
+ * /telemetry-from-main')`, and `fetch('https://example.com/audit-beacon')` — and
+ * both watched a real request reach a real host while this file printed
+ * `19 passed, 0 failed`. Everything §1-§3.6 observes rides
+ * `session.webRequest`, which is a property of a CHROMIUM session; undici in the
+ * main process never enters it. §3.7 and `src/main/netguard.js` are the answer,
+ * and case 21 is the proof they can lose: with the guard neutered the sink in
+ * the SUITE's process logs `GET /telemetry-from-main` and three assertions go
+ * red over it.
+ *
+ * TWO MORE OF THEM ARE THE POINT OF THE WHOLE FILE. Case 14 leaves the wire alone and
  * stops the OBSERVER seeing https: the fake host is still hit, the app still
  * behaves, and the only thing that changes is that the instrument has gone
  * blind — which is the failure every "no request except X" test has by default.
@@ -101,6 +124,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { UPDATE_HOST, UPDATE_URL } from '../../src/main/update.js';
 import { mayRequest, violations, SESSION_OWNERS, NETWORK_SCHEMES } from '../../src/main/p1.js';
 import { startP1Host } from '../p1-host.mjs';
+import { startP1Sink } from '../p1-sink.mjs';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
 
@@ -290,6 +314,52 @@ const FILES = appSources();
     + '[entry point: a scan of every .html/.css under src/renderer]',
     external.length === 0,
     `${pages.length} files scanned (${pages.join(' ')})${external.length ? ` — FOUND ${external.join(', ')}` : ''}`);
+
+  /**
+   * =======================================================================
+   * THE TRANSPORT THAT LEAVES CHROMIUM — the hole two audits walked through
+   * =======================================================================
+   * Everything above and everything in §3 rides `session.webRequest`. That
+   * observer is a property of a CHROMIUM SESSION, so a `fetch()` or a
+   * `node:https.request()` in the main process is not merely unobserved, it is
+   * UNOBSERVABLE — and both auditors proved it rather than arguing it: one line
+   * added to `src/main/main.js` reached a real second host, and this suite
+   * reported `19 passed, 0 failed` over it while still printing "reached exactly
+   * { https://api.github.com }".
+   *
+   * `src/main/netguard.js` takes those transports away at boot and §3.7 drives
+   * every one of them at a real loopback sink. THIS pair is the static half, and
+   * it is not redundant with the runtime half: a scan sees the import a guard
+   * cannot reach (`import { request } from 'node:https'` is a live binding on
+   * this runtime, which was measured — but that is Node's property, not ours),
+   * and the guard sees a reach the regex missed.
+   */
+  const NET_MODULES = /(?:^|[^\w$])(?:require\s*\(\s*['"`]|from\s+['"`]|import\s*\(\s*['"`])(?:node:)?(http|https|net|tls|dgram|http2)['"`]/;
+  const netImporters = FILES.filter((f) => NET_MODULES.test(strip(fs.readFileSync(path.join(ROOT, f), 'utf8'))));
+  ok('NO file under src/ imports a node network module — http, https, net, tls, dgram or http2  '
+    + '[entry point: the same scan of every .js/.cjs/.mjs under src/, comments stripped]',
+    netImporters.length === 0,
+    `${FILES.length} files scanned${netImporters.length ? ` — IMPORTED IN ${netImporters.join(' ')}` : ''}`
+    + ' (a transport that leaves Chromium leaves the instrument)');
+
+  /**
+   * `Session.fetch` IS THE ONE TRANSPORT, AND IT IS A MEMBER CALL. The negative
+   * lookbehind is what separates `ses.fetch(` — Chromium's stack, observed —
+   * from a bare `fetch(`, which is undici in this process and is not.
+   */
+  const MAIN_FILES = FILES.filter((f) => f.startsWith(`src${path.sep}main${path.sep}`));
+  const BARE_FETCH = /(?<![.\w$])fetch\s*\(/;
+  const ELECTRON_NET = /(?<![.\w$])net\s*\.\s*(?:request|connect|isOnline)\s*\(/;
+  const callers = MAIN_FILES.filter((f) => {
+    const src = strip(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+    return BARE_FETCH.test(src) || ELECTRON_NET.test(src);
+  });
+  const sessionFetchers = MAIN_FILES.filter((f) => /\.\s*fetch\s*\(/.test(strip(fs.readFileSync(path.join(ROOT, f), 'utf8'))));
+  ok('...and no file under src/main/ calls a bare `fetch(` or Electron\'s `net.request(` — the app has exactly ONE '
+    + 'network transport and it is `Session.fetch` in src/main/update.js  [entry point: the same scan, src/main/ only]',
+    callers.length === 0 && sessionFetchers.length === 1 && sessionFetchers[0] === 'src/main/update.js',
+    `${MAIN_FILES.length} main-process files scanned; \`.fetch(\` in ${sessionFetchers.join(' ') || '(nowhere — the one transport is gone)'}`
+    + `${callers.length ? ` — BARE CALL IN ${callers.join(' ')}` : ''}`);
 }
 
 // ==========================================================================
@@ -313,6 +383,17 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
  */
 const FAKE_TAG = 'v0.0.0-fake-from-the-p1-host';
 const host = await startP1Host([UPDATE_HOST, BAD_HOST], { tag_name: FAKE_TAG });
+/**
+ * THE SECOND WITNESS, AND IT IS DELIBERATELY DUMB — `tools/p1-sink.mjs`.
+ *
+ * The fake TLS host above is reached through `--host-resolver-rules`, a
+ * CHROMIUM switch. Everything that leaves Chromium ignores it, which is exactly
+ * the traffic §3.7 is about: a `node:https` call from main resolves through the
+ * OS, so pointing it at `telemetry.invalid` would fail with a DNS error and the
+ * control would pass by not looking. A loopback port cannot fail that way — if
+ * the transport is not refused, the connection lands here and is counted.
+ */
+const sink = await startP1Sink();
 let launch;
 let lock;
 try {
@@ -338,13 +419,38 @@ try {
       + `--gate=${sh(OUT)} --gate-probe=p1 --update-check `
       + `--source-url=${sh(fixture)} --user-data=${sh(userData)} `
       + host.chromiumArgs.map(sh).join(' ')],
-    { cwd: ROOT, timeoutMs: Number(process.env.STEM_WORKBENCH_LAUNCH_TIMEOUT_MS || 180000) });
+    {
+      cwd: ROOT,
+      timeoutMs: Number(process.env.STEM_WORKBENCH_LAUNCH_TIMEOUT_MS || 180000),
+      /**
+       * THE SINK'S ADDRESS REACHES THE PROBE, NOT THE PRODUCT. Nothing under
+       * `src/` reads this variable — `tools/suites/capture-mute.mjs` assertion 9
+       * scans for exactly that shape and would go red — and `tools/gate/p1.mjs`
+       * is imported only under `--gate`, which is dead in a packaged build.
+       */
+      env: { ...process.env, STEM_WORKBENCH_P1_SINK: sink.url('/') },
+    });
 } finally {
   if (lock) lock.release();
   // The counters are read AFTER the app is gone, so nothing can still be in
   // flight when they are compared.
   host.close();
 }
+/**
+ * ...AND THE SINK IS PROVED TO WORK, from this process, AFTER the app is gone.
+ * "The sink recorded nothing" and "the sink was never listening" are the same
+ * transcript, and this suite exists because two auditors found exactly that
+ * shape of blindness one level up. One request of our own, and the assertion
+ * below reads BOTH numbers.
+ */
+let sinkControl = null;
+try {
+  const res = await fetch(sink.url('/the-suites-own-control'));
+  sinkControl = { ok: res.ok, status: res.status };
+} catch (err) { sinkControl = { ok: false, error: String((err && err.message) || err) }; }
+const sinkRequests = sink.requests.slice();
+const sinkConnections = sink.connections.length;
+sink.close();
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 fs.writeFileSync(path.join(OUT, 'host-hits.json'), `${JSON.stringify(host.hits, null, 2)}\n`);
 
@@ -442,9 +548,70 @@ ok('a renderer of ours cannot reach an off-origin URL AT ALL — the CSP refuses
   + `${JSON.stringify(csp)} and got ${JSON.stringify(O(R.controlD).err)} — every failed fetch says "Failed to fetch", `
   + 'so the DIRECTIVE is what says which layer answered');
 
+// ============ 3.7 THE TRANSPORTS THAT NEVER ENTER CHROMIUM (control E) ======
+/**
+ * THE ASSERTION THIS SUITE DID NOT HAVE, AND THE ONE BOTH AUDITS BROKE IT WITH.
+ *
+ * Everything above rides `session.webRequest`. A `fetch()` in the main process
+ * does not: it is undici, in this process, and the observer is a property of a
+ * Chromium session. So the two audits added one line to `src/main/main.js`,
+ * watched a real request reach a real host — `GET /telemetry-from-main` at a
+ * local sink, and an HTTP 404 from example.com — and watched this file print
+ * `19 passed, 0 failed` while still saying "reached exactly {
+ * https://api.github.com }".
+ *
+ * `src/main/netguard.js` is the fix and these three assertions are how it is
+ * held. They are deliberately in THREE pieces, because they fail for different
+ * reasons: the guard exists, the guard bit, and nothing arrived anyway.
+ */
+const G = O(R.netGuard);
+const gAfter = O(G.after);
+const gAttempts = A(G.attempts);
+
+ok('the main process\'s unobservable transports are POISONED at boot: fetch, http, https, http2, net, tls and dgram '
+  + 'are all gone before any of the app\'s own modules have a body  [entry point: src/main/netguard.js, imported first by src/main/main.js]',
+  gAfter.installed === true && gAfter.fetchIsOurs === true
+  && ['globalThis.fetch()', 'http.request()', 'https.request()', 'http2.connect()', 'net.connect()',
+    'tls.connect()', 'dgram.createSocket()'].every((k) => A(gAfter.poisoned).includes(k))
+  && firstImportOfMain() === './netguard.js',
+  `${A(gAfter.poisoned).length} taken: ${A(gAfter.poisoned).join(' ')}; `
+  + `main.js's first import is ${JSON.stringify(firstImportOfMain())}`);
+
+const refused = gAttempts.filter((a) => O(a).threw === true && /P1/.test(String(O(a).name)));
+const pipeRow = gAttempts.find((a) => /PIPE/.test(String(O(a).what)));
+ok('...and every one of them THROWS when the app calls it — eleven transports attempted at a real loopback port, eleven refused, '
+  + 'while a Socket.connect to a PIPE is untouched  [entry point: tools/gate/p1.mjs control E]',
+  gAttempts.length === 12 && refused.length === 11
+  && !!pipeRow && O(pipeRow).threw === false,
+  `${refused.length}/${gAttempts.length - 1} network transports refused `
+  + `(${refused.map((a) => O(a).what).join(' ')}); the pipe row threw=${pipeRow ? O(pipeRow).threw : '(absent)'} — `
+  + 'a guard that also broke pipes would break child-process IPC, so it is asserted NOT to');
+
+ok('...and the sink in THIS process recorded exactly one connection, ours — so "nothing left the app" is a fact about a '
+  + 'listening socket and not about an instrument inside the app  [entry point: tools/p1-sink.mjs, over the whole launch]',
+  sinkConnections === 1 && sinkRequests.length === 1
+  && sinkRequests[0] === 'GET /the-suites-own-control' && O(sinkControl).ok === true,
+  `${sinkConnections} TCP connection(s), ${sinkRequests.length} request(s): ${JSON.stringify(sinkRequests)}; `
+  + `the suite's own control got ${JSON.stringify(sinkControl)} — the app had the port for its whole life and `
+  + 'used it zero times');
+
 console.log(`\n${ID}: launch log ${path.relative(ROOT, path.join(OUT, 'launch.log'))} · `
   + `report ${path.relative(ROOT, reportPath)} · fake-host hits ${path.relative(ROOT, path.join(OUT, 'host-hits.json'))}`);
 done();
+
+/**
+ * `src/main/main.js`'s FIRST import specifier, read out of the source.
+ *
+ * The guard installs on import, so its position in the import block is what
+ * makes "before any of our code has a body" true — and that ordering is
+ * invisible at runtime once everything is up. Comments are stripped first,
+ * because the file's header names the module in prose three lines above it.
+ */
+function firstImportOfMain() {
+  const src = strip(fs.readFileSync(path.join(ROOT, 'src', 'main', 'main.js'), 'utf8'));
+  const m = src.match(/^\s*import\s+(?:[^'"]*?from\s*)?['"]([^'"]+)['"]/m);
+  return m ? m[1] : null;
+}
 
 // ------------------------------------------------------------------ helpers
 function sh(s) { return `'${String(s).replace(/'/g, `'\\''`)}'`; }
@@ -474,9 +641,9 @@ function takeLock(file) {
   });
 }
 
-function run(bin, args, { cwd, timeoutMs }) {
+function run(bin, args, { cwd, timeoutMs, env }) {
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(bin, args, { cwd, env: env || process.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     const grab = (c) => { out += c.toString(); };
     child.stdout.on('data', grab);

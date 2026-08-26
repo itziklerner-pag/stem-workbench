@@ -168,7 +168,11 @@ export function createTransport({ source, sourceRequests }) {
       lastState = null;
       speed.dropClaim();
       sendConfig();
-      autonav.reassert(true);
+      // ENGAGE ALWAYS, LOOK ONLY IF THERE IS A PLAYER. See `reassert`'s typedef
+      // in src/main/autonav.js: a document with no `<video>` has nothing to
+      // autoplay to next, and hunting for the toggle there can only end in the
+      // advisory the deck paints on `missing`.
+      autonav.reassert(true, { look: msg.have === true });
       speed.openWindow('remount');
       return;
     }
@@ -304,8 +308,15 @@ export function createTransport({ source, sourceRequests }) {
     autonav,
     PREFS_KEY,
     SPEED_JS,
-    /** Called by `main` once the source view has a document. */
-    attach() { sendConfig(); autonav.reassert(true); speed.openWindow('remount'); },
+    /**
+     * Called by `main` on `did-finish-load`. THE BELT TO `hello`, which is the
+     * preload's own announcement and arrives first — so this re-sends the
+     * config and engages, and leaves the find window to `hello` (which knows
+     * whether the document has a player) and to the `play` / `loadedmetadata` /
+     * element-change paths. A preload that never ran sends no autonav
+     * observations at all, so opening a window here would poll into silence.
+     */
+    attach() { sendConfig(); autonav.reassert(true, { look: false }); speed.openWindow('remount'); },
     /** `did-navigate-in-page` — the same-document half of a single-page app. */
     relook() { toPreload({ c: 'relook' }); },
     lastState: () => lastState,

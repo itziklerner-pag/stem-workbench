@@ -407,6 +407,121 @@ const DRIVE_OFFLINE = (token) => `(async () => {
         peak,
       };
     });
+    // ------------------------------------------------ 4b. ARE THEY THE SAME SIGNAL?
+    /**
+     * PEARSON r BETWEEN EVERY PAIR OF STEMS, over the whole plane.
+     *
+     * WHY THE LEVELS WERE NOT ENOUGH. The suite used to answer "no two of them
+     * are the same signal" by counting six DISTINCT RMS VALUES, and an auditor
+     * showed exactly what that misses: for stems_k = a_k * mix with the a_k
+     * summing to 1, the residual is EXACTLY 0, the sum ratio is EXACTLY 1.0 and
+     * the six levels are all different — so a fan-out of one mix passed the sum
+     * test, the distinctness test and the meter test at once. Six scaled copies
+     * of one signal correlate at 1.000 with each other, and nothing else in a
+     * real separation does.
+     *
+     * 'corrSelf' IS THE CONTROL AND IT MUST BE 1. A correlator that returned
+     * small numbers because it was broken would pass the assertion by being
+     * wrong in the safe direction, which is the shape this whole file avoids.
+     */
+    const corr = (offA, offB) => {
+      let sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
+      for (let i = 0; i < SEGMENT; i++) {
+        const x = stems[offA + i], y = stems[offB + i];
+        sa += x; sb += y; saa += x * x; sbb += y * y; sab += x * y;
+      }
+      const ma = sa / SEGMENT, mb = sb / SEGMENT;
+      const va = saa / SEGMENT - ma * ma, vb = sbb / SEGMENT - mb * mb;
+      if (!(va > 0) || !(vb > 0)) return null;
+      return (sab / SEGMENT - ma * mb) / Math.sqrt(va * vb);
+    };
+    out.pairwise = [];
+    for (let a = 0; a < STEMS.length; a++) {
+      for (let b = a + 1; b < STEMS.length; b++) {
+        out.pairwise.push({ a: STEMS[a], b: STEMS[b], r: corr((a * 2) * SEGMENT, (b * 2) * SEGMENT) });
+      }
+    }
+    out.corrSelf = corr(0, 0);
+
+    // -------------------------------------------- 4c. ARE THE LABELS THE SEPARATOR'S?
+    /**
+     * A SHORT-TIME SPECTRUM PER PLANE, because the order could not be checked at
+     * all before this.
+     *
+     * The suite's "six plane pairs, IN THE UNIT'S OWN ORDER" assertion read
+     * 'perStem[i].stem === STEMS[i]' — and 'perStem' is built by 'STEMS.map'
+     * three lines up, so it was true by construction. A backend that returned
+     * the six planes PERMUTED, which is the failure its own comment named, would
+     * have passed it. Nothing in the buffer carries a label: 'shared/host.js'
+     * freezes the LAYOUT ('(k*2+ch)*SEGMENT', stem-major) and the meaning of 'k'
+     * is the convention, so the only thing that can testify to it is the AUDIO.
+     *
+     * 16 Hann windows of 4096 samples spread across the segment, accumulated —
+     * cheap (about 5 M operations for all seven planes) and enough for a
+     * centroid and two band fractions. Bass is a bass line wherever the song
+     * goes; vocals have no fundamental below 120 Hz. Those are properties of the
+     * SEPARATOR'S JOB rather than of this track, which is what lets §7's ban on
+     * level bands stand while the ORDER is still checked.
+     */
+    const NF = 4096, NW = 16;
+    const hann = new Float64Array(NF);
+    for (let i = 0; i < NF; i++) hann[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / NF);
+    const fft = (re, im) => {
+      const n = re.length;
+      for (let i = 1, j = 0; i < n; i++) {
+        let bit = n >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+          const tr = re[i]; re[i] = re[j]; re[j] = tr;
+          const ti = im[i]; im[i] = im[j]; im[j] = ti;
+        }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const ang = (-2 * Math.PI) / len;
+        const wr = Math.cos(ang), wi = Math.sin(ang);
+        const half = len >> 1;
+        for (let i = 0; i < n; i += len) {
+          let cr = 1, ci = 0;
+          for (let k = 0; k < half; k++) {
+            const ur = re[i + k], ui = im[i + k];
+            const xr = re[i + k + half], xi = im[i + k + half];
+            const vr = xr * cr - xi * ci, vi = xr * ci + xi * cr;
+            re[i + k] = ur + vr; im[i + k] = ui + vi;
+            re[i + k + half] = ur - vr; im[i + k + half] = ui - vi;
+            const ncr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = ncr;
+          }
+        }
+      }
+    };
+    const spectrum = (plane, base) => {
+      const power = new Float64Array(NF / 2);
+      const hop = Math.max(1, Math.floor((SEGMENT - NF) / (NW - 1)));
+      const re = new Float64Array(NF), im = new Float64Array(NF);
+      for (let w = 0; w < NW; w++) {
+        const at = base + w * hop;
+        for (let i = 0; i < NF; i++) { re[i] = plane[at + i] * hann[i]; im[i] = 0; }
+        fft(re, im);
+        for (let k = 0; k < NF / 2; k++) power[k] += re[k] * re[k] + im[k] * im[k];
+      }
+      let total = 0, weighted = 0, under120 = 0, under500 = 0;
+      for (let k = 1; k < NF / 2; k++) {
+        const f = (k * SR) / NF;
+        total += power[k];
+        weighted += f * power[k];
+        if (f < 120) under120 += power[k];
+        if (f < 500) under500 += power[k];
+      }
+      if (!(total > 0)) return { centroidHz: null, under120: null, under500: null };
+      return {
+        centroidHz: Math.round(weighted / total),
+        under120: Number((under120 / total).toFixed(4)),
+        under500: Number((under500 / total).toFixed(4)),
+      };
+    };
+    for (let k = 0; k < STEMS.length; k++) out.perStem[k].spectrum = spectrum(stems, (k * 2) * SEGMENT);
+    out.mixSpectrum = spectrum(mixBack, 0);
+
     // THE SUM. A masking separator's stems add back to the input; six copies of
     // the mix would add to six times it.
     let resid = 0, sums = 0, mixs = 0;

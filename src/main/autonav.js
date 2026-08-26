@@ -278,9 +278,22 @@ export function createAutonav({ ask, report }) {
      * for now is not the element we were looking at before, and a deadline
      * inherited from the last video would expire mid-search.
      */
-    reassert(on) {
+    /**
+     * @param {boolean} [on]  engage or disengage; omitted leaves it as it was
+     * @param {{look?: boolean}} [o]  `look: false` engages WITHOUT opening a
+     *   find window. It is for a document with NO PLAYER ON IT: there is nothing
+     *   to autoplay to next, so hunting for the toggle can only end in
+     *   `missing`, which the deck paints as a failure advisory. youtube.com's
+     *   home page is the default source URL, so that advisory was the first
+     *   thing every cold start put in front of the user. The window opens by
+     *   itself on the events that mean a player is really there — `play`,
+     *   `loadedmetadata` and an element change — so nothing is lost on a watch
+     *   page, and `transport`'s fixture (which HAS a player) is unaffected.
+     */
+    reassert(on, { look = true } = {}) {
       if (typeof on === 'boolean') engaged = on;
       clicks = 0;
+      if (!look) return;
       deadline = Date.now() + FIND_MS;
       ask({ c: 'autonav', act: 'look' });
       poll();

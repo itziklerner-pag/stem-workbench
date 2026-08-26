@@ -1,7 +1,7 @@
 {
   "gate": 1,
   "probe": "youtube",
-  "when": "2026-08-26T19:17:34.053Z",
+  "when": "2026-08-26T22:22:52.590Z",
   "versions": {
     "node": "24.18.1",
     "acorn": "8.16.0",
@@ -38,8 +38,8 @@
   "platform": "linux",
   "sourceUrl": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   "stems": {
-    "windowMs": 20007,
-    "meterFrames": 574,
+    "windowMs": 20002,
+    "meterFrames": 575,
     "keysSeen": [
       "bass",
       "drums",
@@ -59,7 +59,7 @@
     ],
     "series": {
       "drums": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -67,7 +67,7 @@
         "nonZeroFrames": 0
       },
       "bass": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -75,7 +75,7 @@
         "nonZeroFrames": 0
       },
       "other": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -83,7 +83,7 @@
         "nonZeroFrames": 0
       },
       "vocals": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -91,7 +91,7 @@
         "nonZeroFrames": 0
       },
       "guitar": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -99,7 +99,7 @@
         "nonZeroFrames": 0
       },
       "piano": {
-        "frames": 574,
+        "frames": 575,
         "rmsMean": 0,
         "rmsMax": 0,
         "rmsMin": 0,
@@ -107,23 +107,23 @@
         "nonZeroFrames": 0
       },
       "master": {
-        "frames": 574,
-        "rmsMean": 0.11657573098747483,
-        "rmsMax": 0.22301623745711918,
-        "rmsMin": 0.02963444041305039,
-        "peakMax": 0.7671511173248291,
-        "nonZeroFrames": 574
+        "frames": 575,
+        "rmsMean": 0.11628280395135455,
+        "rmsMax": 0.22388670897974064,
+        "rmsMin": 0.03401072314623556,
+        "peakMax": 0.760515570640564,
+        "nonZeroFrames": 575
       }
     },
     "distinctPerFrame": {
       "min": 1,
       "max": 1,
       "framesWithAllSix": 0,
-      "framesWithOne": 574
+      "framesWithOne": 575
     },
     "sample": [
       {
-        "t": "0.02",
+        "t": "0.00",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -131,11 +131,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.117544
+          "master": 0.15923
         }
       },
       {
-        "t": "0.30",
+        "t": "0.28",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -143,11 +143,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.198827
+          "master": 0.214268
         }
       },
       {
-        "t": "0.58",
+        "t": "0.56",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -155,11 +155,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.094834
+          "master": 0.08086
         }
       },
       {
-        "t": "0.85",
+        "t": "0.83",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -167,11 +167,107 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.150915
+          "master": 0.126344
         }
       },
       {
-        "t": "1.13",
+        "t": "1.11",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.102879
+        }
+      },
+      {
+        "t": "1.39",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.116804
+        }
+      },
+      {
+        "t": "1.66",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.09861
+        }
+      },
+      {
+        "t": "1.96",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.100209
+        }
+      },
+      {
+        "t": "2.24",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.091069
+        }
+      },
+      {
+        "t": "2.52",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.073685
+        }
+      },
+      {
+        "t": "2.79",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.096681
+        }
+      },
+      {
+        "t": "3.07",
+        "rms": {
+          "drums": 0,
+          "bass": 0,
+          "other": 0,
+          "vocals": 0,
+          "guitar": 0,
+          "piano": 0,
+          "master": 0.095487
+        }
+      },
+      {
+        "t": "3.35",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -183,7 +279,7 @@
         }
       },
       {
-        "t": "1.41",
+        "t": "3.63",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -191,11 +287,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.107888
+          "master": 0.085633
         }
       },
       {
-        "t": "1.71",
+        "t": "3.90",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -203,11 +299,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.089712
+          "master": 0.072917
         }
       },
       {
-        "t": "1.98",
+        "t": "4.18",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -215,11 +311,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.096031
+          "master": 0.098959
         }
       },
       {
-        "t": "2.26",
+        "t": "4.46",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -227,11 +323,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.102277
+          "master": 0.188979
         }
       },
       {
-        "t": "2.54",
+        "t": "4.74",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -239,11 +335,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.101251
+          "master": 0.082157
         }
       },
       {
-        "t": "2.82",
+        "t": "5.01",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -251,11 +347,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.073795
+          "master": 0.212409
         }
       },
       {
-        "t": "3.09",
+        "t": "5.29",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -263,11 +359,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.086023
+          "master": 0.10801
         }
       },
       {
-        "t": "3.37",
+        "t": "5.57",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -275,11 +371,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.099055
+          "master": 0.165975
         }
       },
       {
-        "t": "3.65",
+        "t": "5.84",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -287,11 +383,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.092527
+          "master": 0.092762
         }
       },
       {
-        "t": "3.92",
+        "t": "6.12",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -299,11 +395,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.07712
+          "master": 0.120081
         }
       },
       {
-        "t": "4.20",
+        "t": "6.40",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -311,11 +407,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.085793
+          "master": 0.103036
         }
       },
       {
-        "t": "4.48",
+        "t": "6.70",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -323,11 +419,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.180136
+          "master": 0.099948
         }
       },
       {
-        "t": "4.76",
+        "t": "6.98",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -335,11 +431,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.104574
+          "master": 0.086867
         }
       },
       {
-        "t": "5.03",
+        "t": "7.25",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -347,11 +443,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.18748
+          "master": 0.068042
         }
       },
       {
-        "t": "5.31",
+        "t": "7.53",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -359,11 +455,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.108453
+          "master": 0.093052
         }
       },
       {
-        "t": "5.59",
+        "t": "7.81",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -371,11 +467,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.15838
+          "master": 0.076869
         }
       },
       {
-        "t": "5.87",
+        "t": "8.09",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -383,11 +479,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.074532
+          "master": 0.059181
         }
       },
       {
-        "t": "6.14",
+        "t": "8.36",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -395,11 +491,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.120637
+          "master": 0.084109
         }
       },
       {
-        "t": "6.44",
+        "t": "8.64",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -407,11 +503,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.078076
+          "master": 0.073464
         }
       },
       {
-        "t": "6.72",
+        "t": "8.92",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -419,11 +515,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.106336
+          "master": 0.077772
         }
       },
       {
-        "t": "7.00",
+        "t": "9.19",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -431,11 +527,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.072776
+          "master": 0.094852
         }
       },
       {
-        "t": "7.27",
+        "t": "9.47",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -443,11 +539,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.100206
+          "master": 0.110805
         }
       },
       {
-        "t": "7.55",
+        "t": "9.75",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -455,11 +551,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.108622
+          "master": 0.210211
         }
       },
       {
-        "t": "7.83",
+        "t": "10.03",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -467,11 +563,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.112099
+          "master": 0.134466
         }
       },
       {
-        "t": "8.11",
+        "t": "10.30",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -479,11 +575,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.092302
+          "master": 0.196342
         }
       },
       {
-        "t": "8.38",
+        "t": "10.58",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -491,11 +587,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.043633
+          "master": 0.136446
         }
       },
       {
-        "t": "8.66",
+        "t": "10.86",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -503,11 +599,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.077886
+          "master": 0.128683
         }
       },
       {
-        "t": "8.94",
+        "t": "11.16",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -515,11 +611,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.117127
+          "master": 0.102285
         }
       },
       {
-        "t": "9.22",
+        "t": "11.43",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -527,11 +623,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.120154
+          "master": 0.104083
         }
       },
       {
-        "t": "9.49",
+        "t": "11.71",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -539,11 +635,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.136901
+          "master": 0.129343
         }
       },
       {
-        "t": "9.77",
+        "t": "11.99",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -551,11 +647,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.206217
+          "master": 0.121928
         }
       },
       {
-        "t": "10.05",
+        "t": "12.27",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -563,11 +659,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.139066
+          "master": 0.10744
         }
       },
       {
-        "t": "10.32",
+        "t": "12.54",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -575,11 +671,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.210642
+          "master": 0.093347
         }
       },
       {
-        "t": "10.60",
+        "t": "12.82",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -587,11 +683,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.12594
+          "master": 0.051288
         }
       },
       {
-        "t": "10.90",
+        "t": "13.10",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -599,11 +695,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.132118
+          "master": 0.044708
         }
       },
       {
-        "t": "11.18",
+        "t": "13.38",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -611,11 +707,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.094562
+          "master": 0.068201
         }
       },
       {
-        "t": "11.46",
+        "t": "13.65",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -623,11 +719,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.091706
+          "master": 0.062397
         }
       },
       {
-        "t": "11.73",
+        "t": "13.93",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -635,11 +731,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.081117
+          "master": 0.159015
         }
       },
       {
-        "t": "12.01",
+        "t": "14.21",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -647,11 +743,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.055914
+          "master": 0.113943
         }
       },
       {
-        "t": "12.29",
+        "t": "14.48",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -659,11 +755,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.091456
+          "master": 0.161072
         }
       },
       {
-        "t": "12.56",
+        "t": "14.76",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -671,11 +767,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.041144
+          "master": 0.138846
         }
       },
       {
-        "t": "12.84",
+        "t": "15.04",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -683,11 +779,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.108386
+          "master": 0.209763
         }
       },
       {
-        "t": "13.12",
+        "t": "15.32",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -695,11 +791,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.102017
+          "master": 0.118075
         }
       },
       {
-        "t": "13.40",
+        "t": "15.62",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -707,11 +803,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.108501
+          "master": 0.171468
         }
       },
       {
-        "t": "13.67",
+        "t": "15.89",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -719,11 +815,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.101402
+          "master": 0.091818
         }
       },
       {
-        "t": "13.95",
+        "t": "16.17",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -731,11 +827,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.112611
+          "master": 0.13656
         }
       },
       {
-        "t": "14.23",
+        "t": "16.45",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -743,11 +839,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.111427
+          "master": 0.134688
         }
       },
       {
-        "t": "14.51",
+        "t": "16.73",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -755,11 +851,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.159262
+          "master": 0.152275
         }
       },
       {
-        "t": "14.78",
+        "t": "17.00",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -767,11 +863,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.102716
+          "master": 0.14513
         }
       },
       {
-        "t": "15.06",
+        "t": "17.28",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -779,11 +875,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.220116
+          "master": 0.118795
         }
       },
       {
-        "t": "15.36",
+        "t": "17.56",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -791,11 +887,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.13301
+          "master": 0.108331
         }
       },
       {
-        "t": "15.64",
+        "t": "17.83",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -803,11 +899,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.184942
+          "master": 0.064529
         }
       },
       {
-        "t": "15.91",
+        "t": "18.11",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -815,11 +911,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.171406
+          "master": 0.094145
         }
       },
       {
-        "t": "16.19",
+        "t": "18.39",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -827,11 +923,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.136079
+          "master": 0.094578
         }
       },
       {
-        "t": "16.47",
+        "t": "18.67",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -839,11 +935,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.12845
+          "master": 0.121143
         }
       },
       {
-        "t": "16.75",
+        "t": "18.94",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -851,11 +947,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.07364
+          "master": 0.113001
         }
       },
       {
-        "t": "17.02",
+        "t": "19.22",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -863,11 +959,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.112976
+          "master": 0.152069
         }
       },
       {
-        "t": "17.30",
+        "t": "19.50",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -875,11 +971,11 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.123468
+          "master": 0.148726
         }
       },
       {
-        "t": "17.58",
+        "t": "19.78",
         "rms": {
           "drums": 0,
           "bass": 0,
@@ -887,103 +983,7 @@
           "vocals": 0,
           "guitar": 0,
           "piano": 0,
-          "master": 0.124863
-        }
-      },
-      {
-        "t": "17.86",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.0692
-        }
-      },
-      {
-        "t": "18.13",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.075247
-        }
-      },
-      {
-        "t": "18.41",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.116236
-        }
-      },
-      {
-        "t": "18.69",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.06983
-        }
-      },
-      {
-        "t": "18.96",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.071832
-        }
-      },
-      {
-        "t": "19.24",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.171948
-        }
-      },
-      {
-        "t": "19.52",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.150149
-        }
-      },
-      {
-        "t": "19.80",
-        "rms": {
-          "drums": 0,
-          "bass": 0,
-          "other": 0,
-          "vocals": 0,
-          "guitar": 0,
-          "piano": 0,
-          "master": 0.181992
+          "master": 0.181009
         }
       }
     ]
@@ -991,75 +991,75 @@
   "phases": [
     {
       "name": "page",
-      "at": 1787771854054
+      "at": 1787782972590
     },
     {
       "name": "play",
-      "at": 1787771854161
+      "at": 1787782972747
     },
     {
       "name": "ad",
-      "at": 1787771854240
+      "at": 1787782972840
     },
     {
       "name": "arm",
-      "at": 1787771854335
+      "at": 1787782985079
     },
     {
       "name": "seam",
-      "at": 1787771854335
+      "at": 1787782985080
     },
     {
       "name": "stems",
-      "at": 1787771862724
+      "at": 1787782993151
     },
     {
       "name": "shots",
-      "at": 1787771886915
+      "at": 1787783017422
     },
     {
       "name": "reload",
-      "at": 1787771887257
+      "at": 1787783017736
     },
     {
       "name": "offline",
-      "at": 1787771899250
+      "at": 1787783029094
     },
     {
       "name": "ledger",
-      "at": 1787771924563
+      "at": 1787783053391
     }
   ],
   "page": {
     "hasVideo": true,
     "paused": false,
     "ended": false,
-    "currentTime": 1.397346,
-    "duration": 213.061,
-    "volume": 0.8933054837332952,
+    "currentTime": 0.641027,
+    "duration": 6.041,
+    "volume": 0.5636376558259544,
     "muted": false,
     "readyState": 4,
     "rect": {
-      "x": 85.75,
+      "x": 83.125,
       "y": 68,
       "w": 640,
       "h": 360
     },
-    "adShowing": false,
+    "adShowing": true,
     "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
     "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
     "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "bodyText": "Rick Astley-Are We There Yet?\nPull up for precise seeking\n3:07\n0:01 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4"
+    "bodyText": "Katana Cloud Inventory\nkatanamrp.com\nGet a demo\nSponsored\n1 of 2\nkatanamrp.com\n0:00 / 0:06\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6"
   },
   "transportBeforePlay": {
     "t": "state",
     "playing": true,
-    "currentTime": 1.352678,
-    "duration": 213.061,
+    "currentTime": 0.64061,
+    "duration": 6.041,
     "ended": false,
     "playbackRate": 1,
     "hasMedia": true,
-    "adShowing": false,
+    "adShowing": true,
     "counts": {
       "events": 3,
       "jumps": 1,
@@ -1067,10 +1067,10 @@
       "writes": 0,
       "swaps": 0,
       "keys": 0,
-      "clicks": 3,
+      "clicks": 1,
       "ticks": 4
     },
-    "event": "config",
+    "event": "tick",
     "seeking": false
   },
   "sourceUrlLoaded": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
@@ -1082,7 +1082,7 @@
       "mutedBeforeLoad": [
         true
       ],
-      "navigations": 4,
+      "navigations": 6,
       "unmutedNavigations": 0
     },
     "refusals": {
@@ -1095,23 +1095,23 @@
     "beforePlay": {
       "ok": true,
       "file": "10-source-before-play.png",
-      "bytes": 103621,
+      "bytes": 64141,
       "width": 1280,
-      "height": 368,
-      "colours": 1035
+      "height": 354,
+      "colours": 274
     },
     "playing": {
       "ok": true,
       "file": "11-source-playing.png",
-      "bytes": 108723,
+      "bytes": 65757,
       "width": 1280,
-      "height": 368,
-      "colours": 1047
+      "height": 354,
+      "colours": 292
     },
     "deck": {
       "ok": true,
       "file": "20-deck-live.png",
-      "bytes": 37630,
+      "bytes": 37820,
       "width": 1280,
       "height": 434,
       "colours": 211
@@ -1119,15 +1119,15 @@
     "source": {
       "ok": true,
       "file": "21-source-live.png",
-      "bytes": 260028,
+      "bytes": 281913,
       "width": 1280,
       "height": 354,
-      "colours": 1989
+      "colours": 1945
     },
     "chrome": {
       "ok": true,
       "file": "22-chrome-live.png",
-      "bytes": 8807,
+      "bytes": 8869,
       "width": 1280,
       "height": 44,
       "colours": 40
@@ -1135,7 +1135,7 @@
     "window": {
       "ok": true,
       "file": "23-window-live.png",
-      "bytes": 296173
+      "bytes": 325961
     }
   },
   "play": {
@@ -1143,7 +1143,7 @@
       {
         "attempt": 0,
         "skipped": "already playing",
-        "currentTime": 1.460463
+        "currentTime": 0.807806
       }
     ]
   },
@@ -1151,9 +1151,9 @@
     "hasVideo": true,
     "paused": false,
     "ended": false,
-    "currentTime": 1.49339,
-    "duration": 213.061,
-    "volume": 0.8933054837332952,
+    "currentTime": 0.859345,
+    "duration": 6.041,
+    "volume": 0.5636376558259544,
     "muted": false,
     "readyState": 4,
     "rect": {
@@ -1162,45 +1162,45 @@
       "w": 640,
       "h": 360
     },
-    "adShowing": false,
+    "adShowing": true,
     "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
     "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
     "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "bodyText": "Skip navigation\nSign in\nRick Astley-Are We There Yet?\nPull up for precise seeking\n3:07\n[♪♪♪]\n0:01 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9"
+    "bodyText": "Skip navigation\nSign in\nKatana Cloud Inventory\nkatanamrp.com\nGet a demo\nSponsored\n1 of 2\nkatanamrp.com\nsimplify\n0:00 / 0:06\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n"
   },
   "transportAfterPlay": {
     "t": "state",
     "playing": true,
-    "currentTime": 1.4349,
-    "duration": 213.061,
+    "currentTime": 0.64061,
+    "duration": 6.041,
     "ended": false,
     "playbackRate": 1,
     "hasMedia": true,
-    "adShowing": false,
+    "adShowing": true,
     "counts": {
-      "events": 4,
+      "events": 3,
       "jumps": 1,
       "selfSeeks": 0,
       "writes": 0,
       "swaps": 0,
       "keys": 0,
-      "clicks": 3,
+      "clicks": 1,
       "ticks": 4
     },
-    "event": "timeupdate",
+    "event": "tick",
     "seeking": false
   },
   "ad": {
     "label": "before arming",
-    "sawAd": false,
-    "skipPresses": 0,
-    "waitedMs": 69,
+    "sawAd": true,
+    "skipPresses": 1,
+    "waitedMs": 12237,
     "timedOut": false,
     "after": {
       "hasVideo": true,
       "paused": false,
       "ended": false,
-      "currentTime": 1.625209,
+      "currentTime": 0.806629,
       "duration": 213.061,
       "volume": 0.8933054837332952,
       "muted": false,
@@ -1215,15 +1215,15 @@
       "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
       "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
       "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "bodyText": "Skip navigation\nSign in\nRick Astley-Are We There Yet?\nPull up for precise seeking\n3:07\n[♪♪♪]\n0:01 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9"
+      "bodyText": "Skip navigation\nSign in\n0:00 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \ny ago  \nRick Astley\n4.54M "
     },
-    "durationBefore": 213.061
+    "durationBefore": 6.041
   },
   "content": {
     "hasVideo": true,
     "paused": false,
     "ended": false,
-    "currentTime": 1.625209,
+    "currentTime": 0.806629,
     "duration": 213.061,
     "volume": 0.8933054837332952,
     "muted": false,
@@ -1238,7 +1238,7 @@
     "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
     "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
     "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "bodyText": "Skip navigation\nSign in\nRick Astley-Are We There Yet?\nPull up for precise seeking\n3:07\n[♪♪♪]\n0:01 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9"
+    "bodyText": "Skip navigation\nSign in\n0:00 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \ny ago  \nRick Astley\n4.54M "
   },
   "menu": {
     "installed": true,
@@ -1266,13 +1266,13 @@
     "fromDeck": {
       "claimKeys": 1,
       "ready": 1,
-      "height": 6
+      "height": 7
     },
     "toDeck": {
-      "speed": 3,
-      "video": 15,
-      "autonav": 3,
-      "jump": 1
+      "speed": 4,
+      "video": 118,
+      "autonav": 1,
+      "jump": 3
     },
     "strangers": 0,
     "heights": [
@@ -1281,6 +1281,7 @@
       420,
       420,
       420,
+      434,
       420
     ]
   },
@@ -1349,7 +1350,7 @@
     "phase": null,
     "got": 114559139,
     "total": 114559139,
-    "ms": 580.2550001144409,
+    "ms": 516.8500003814697,
     "error": null,
     "fromCache": false
   },
@@ -1367,11 +1368,11 @@
       "id": "A",
       "capture": {
         "status": "recording",
-        "frames": 552960,
-        "seconds": 12.538775510204081,
+        "frames": 540672,
+        "seconds": 12.26013605442177,
         "peak": [
-          0.565782647175512,
-          0.4730063783684805
+          0.5056917020172734,
+          0.48231452375865963
         ],
         "dropped": 0,
         "source": {
@@ -1396,10 +1397,10 @@
     },
     "B": null
   },
-  "firstMeterMs": -4118,
+  "firstMeterMs": -4181,
   "liveStates": [
     {
-      "at": 1787771882918,
+      "at": 1787783013460,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1424,7 +1425,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1440,20 +1441,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 1.246,
+      "bufferSec": 1.107,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
       "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 716800,
-      "atMs": 1787771882917
+      "playFrames": 722944,
+      "atMs": 1787783013460
     },
     {
-      "at": 1787771883017,
+      "at": 1787783013560,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1478,7 +1479,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1494,20 +1495,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 1.176,
+      "bufferSec": 1.014,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
       "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 719872,
-      "atMs": 1787771883017
+      "playFrames": 727040,
+      "atMs": 1787783013560
     },
     {
-      "at": 1787771883117,
+      "at": 1787783013660,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1532,7 +1533,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1548,20 +1549,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 1.06,
+      "bufferSec": 0.921,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
       "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 724992,
-      "atMs": 1787771883117
+      "playFrames": 731136,
+      "atMs": 1787783013660
     },
     {
-      "at": 1787771883217,
+      "at": 1787783013760,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1586,7 +1587,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1602,20 +1603,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 0.944,
+      "bufferSec": 0.828,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
       "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 730112,
-      "atMs": 1787771883217
+      "playFrames": 735232,
+      "atMs": 1787783013760
     },
     {
-      "at": 1787771883317,
+      "at": 1787783013860,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1640,7 +1641,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1656,20 +1657,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 0.875,
+      "bufferSec": 0.712,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
       "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 733184,
-      "atMs": 1787771883317
+      "playFrames": 740352,
+      "atMs": 1787783013860
     },
     {
-      "at": 1787771883417,
+      "at": 1787783013960,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -1694,7 +1695,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -1710,1154 +1711,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.042,
-      "bufferSec": 0.758,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 738304,
-      "atMs": 1787771883417
-    },
-    {
-      "at": 1787771883517,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.666,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 742400,
-      "atMs": 1787771883517
-    },
-    {
-      "at": 1787771883617,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.573,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 746496,
-      "atMs": 1787771883617
-    },
-    {
-      "at": 1787771883717,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.457,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 751616,
-      "atMs": 1787771883717
-    },
-    {
-      "at": 1787771883817,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.364,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 755712,
-      "atMs": 1787771883817
-    },
-    {
-      "at": 1787771883917,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.271,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 759808,
-      "atMs": 1787771883917
-    },
-    {
-      "at": 1787771884017,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.155,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 764928,
-      "atMs": 1787771884017
-    },
-    {
-      "at": 1787771884117,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.042,
-      "bufferSec": 0.062,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 9,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 769024,
-      "atMs": 1787771884117
-    },
-    {
-      "at": 1787771884221,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.896,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 774144,
-      "atMs": 1787771884221
-    },
-    {
-      "at": 1787771884321,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.826,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 777216,
-      "atMs": 1787771884321
-    },
-    {
-      "at": 1787771884421,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.71,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 782336,
-      "atMs": 1787771884421
-    },
-    {
-      "at": 1787771884522,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.594,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 787456,
-      "atMs": 1787771884521
-    },
-    {
-      "at": 1787771884620,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.524,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 790528,
-      "atMs": 1787771884620
-    },
-    {
-      "at": 1787771884717,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.408,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 795648,
-      "atMs": 1787771884717
-    },
-    {
-      "at": 1787771884817,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.292,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 800768,
-      "atMs": 1787771884817
-    },
-    {
-      "at": 1787771884917,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.222,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 803840,
-      "atMs": 1787771884917
-    },
-    {
-      "at": 1787771885017,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.073,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.106,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 808960,
-      "atMs": 1787771885017
-    },
-    {
-      "at": 1787771885117,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.074,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.013,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 813056,
-      "atMs": 1787771885117
-    },
-    {
-      "at": 1787771885217,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.074,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 0.92,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 817152,
-      "atMs": 1787771885217
-    },
-    {
-      "at": 1787771885318,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.074,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 0.804,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 822272,
-      "atMs": 1787771885317
-    },
-    {
-      "at": 1787771885417,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.074,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 0.711,
-      "floorSec": 0.4,
-      "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
-      "underruns": 0,
-      "overruns": 0,
-      "staleReads": 0,
-      "primedPct": 1,
-      "playFrames": 826368,
-      "atMs": 1787771885417
-    },
-    {
-      "at": 1787771885517,
-      "type": "LIVE_STATE",
-      "v": 1,
-      "to": "ui",
-      "from": "off",
-      "deck": "A",
-      "status": "starving",
-      "demotions": 0,
-      "masterDb": 0,
-      "masterAuto": true,
-      "xf": {
-        "effective": 0,
-        "curve": "dip",
-        "assign": [
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF",
-          "XF"
-        ]
-      },
-      "phase": null,
-      "hopSec": 1.95,
-      "pendingHopSec": 1.95,
-      "latencySec": 4.069,
-      "key": {
-        "state": "none",
-        "concertTonic": null,
-        "mode": null,
-        "confidence": 0
-      },
-      "bpm": {
-        "state": "none",
-        "bpm": null,
-        "confidence": 0,
-        "beatFrame": null
-      },
-      "pitchSemitones": 0,
-      "passthroughNow": true,
-      "bufferMinSec": 0.041,
       "bufferSec": 0.619,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 830464,
-      "atMs": 1787771885517
+      "playFrames": 744448,
+      "atMs": 1787783013960
     },
     {
-      "at": 1787771885617,
+      "at": 1787783014060,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -2882,7 +1749,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -2897,21 +1764,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
+      "bufferMinSec": 0.042,
       "bufferSec": 0.526,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 834560,
-      "atMs": 1787771885617
+      "playFrames": 748544,
+      "atMs": 1787783014060
     },
     {
-      "at": 1787771885717,
+      "at": 1787783014160,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -2936,7 +1803,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -2951,21 +1818,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
+      "bufferMinSec": 0.042,
       "bufferSec": 0.41,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 839680,
-      "atMs": 1787771885717
+      "playFrames": 753664,
+      "atMs": 1787783014160
     },
     {
-      "at": 1787771885817,
+      "at": 1787783014260,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -2990,7 +1857,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.066,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3005,21 +1872,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 0.311,
+      "bufferMinSec": 0.042,
+      "bufferSec": 0.317,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 844032,
-      "atMs": 1787771885817
+      "playFrames": 757760,
+      "atMs": 1787783014260
     },
     {
-      "at": 1787771885917,
+      "at": 1787783014360,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3044,7 +1911,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3059,21 +1926,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
+      "bufferMinSec": 0.042,
       "bufferSec": 0.224,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 847872,
-      "atMs": 1787771885917
+      "playFrames": 761856,
+      "atMs": 1787783014360
     },
     {
-      "at": 1787771886017,
+      "at": 1787783014460,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3098,7 +1965,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3113,21 +1980,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
+      "bufferMinSec": 0.042,
       "bufferSec": 0.108,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 10,
+      "rtf": 2.889,
+      "drops": 9,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 852992,
-      "atMs": 1787771886017
+      "playFrames": 766976,
+      "atMs": 1787783014460
     },
     {
-      "at": 1787771886122,
+      "at": 1787783014562,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3152,7 +2019,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3167,21 +2034,21 @@
       },
       "pitchSemitones": 0,
       "passthroughNow": true,
-      "bufferMinSec": 0.041,
-      "bufferSec": 1.942,
+      "bufferMinSec": 0.042,
+      "bufferSec": 1.965,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 858112,
-      "atMs": 1787771886122
+      "playFrames": 771072,
+      "atMs": 1787783014562
     },
     {
-      "at": 1787771886222,
+      "at": 1787783014662,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3206,7 +2073,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.048,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3225,17 +2092,17 @@
       "bufferSec": 1.872,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 861184,
-      "atMs": 1787771886222
+      "playFrames": 775168,
+      "atMs": 1787783014662
     },
     {
-      "at": 1787771886319,
+      "at": 1787783014762,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3260,7 +2127,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3279,17 +2146,17 @@
       "bufferSec": 1.756,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 866304,
-      "atMs": 1787771886319
+      "playFrames": 780288,
+      "atMs": 1787783014762
     },
     {
-      "at": 1787771886421,
+      "at": 1787783014864,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3314,7 +2181,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3330,20 +2197,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.041,
-      "bufferSec": 1.663,
+      "bufferSec": 1.664,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 870400,
-      "atMs": 1787771886421
+      "playFrames": 784384,
+      "atMs": 1787783014863
     },
     {
-      "at": 1787771886521,
+      "at": 1787783014962,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3368,7 +2235,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.066,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3384,20 +2251,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.041,
-      "bufferSec": 1.567,
+      "bufferSec": 1.571,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 874624,
-      "atMs": 1787771886521
+      "playFrames": 788480,
+      "atMs": 1787783014962
     },
     {
-      "at": 1787771886617,
+      "at": 1787783015060,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3422,7 +2289,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3438,20 +2305,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.041,
-      "bufferSec": 1.454,
+      "bufferSec": 1.455,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 879616,
-      "atMs": 1787771886617
+      "playFrames": 793600,
+      "atMs": 1787783015060
     },
     {
-      "at": 1787771886717,
+      "at": 1787783015160,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3476,7 +2343,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3492,20 +2359,20 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.041,
-      "bufferSec": 1.361,
+      "bufferSec": 1.362,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
-      "drops": 11,
+      "rtf": 2.889,
+      "drops": 10,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 883712,
-      "atMs": 1787771886717
+      "playFrames": 797696,
+      "atMs": 1787783015160
     },
     {
-      "at": 1787771886817,
+      "at": 1787783015260,
       "type": "LIVE_STATE",
       "v": 1,
       "to": "ui",
@@ -3530,7 +2397,7 @@
       "phase": null,
       "hopSec": 1.95,
       "pendingHopSec": 1.95,
-      "latencySec": 4.069,
+      "latencySec": 4.052,
       "key": {
         "state": "none",
         "concertTonic": null,
@@ -3546,26 +2413,1160 @@
       "pitchSemitones": 0,
       "passthroughNow": true,
       "bufferMinSec": 0.041,
-      "bufferSec": 1.268,
+      "bufferSec": 1.269,
       "floorSec": 0.4,
       "targetSec": 2.35,
-      "rtf": 2.899,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 801792,
+      "atMs": 1787783015260
+    },
+    {
+      "at": 1787783015360,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.176,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 805888,
+      "atMs": 1787783015360
+    },
+    {
+      "at": 1787783015460,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.06,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 811008,
+      "atMs": 1787783015460
+    },
+    {
+      "at": 1787783015560,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.967,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 815104,
+      "atMs": 1787783015560
+    },
+    {
+      "at": 1787783015661,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.874,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 819200,
+      "atMs": 1787783015660
+    },
+    {
+      "at": 1787783015760,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.758,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 824320,
+      "atMs": 1787783015760
+    },
+    {
+      "at": 1787783015860,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.665,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 828416,
+      "atMs": 1787783015860
+    },
+    {
+      "at": 1787783015960,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.572,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 832512,
+      "atMs": 1787783015960
+    },
+    {
+      "at": 1787783016060,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.456,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 837632,
+      "atMs": 1787783016060
+    },
+    {
+      "at": 1787783016160,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.052,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.384,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 840832,
+      "atMs": 1787783016160
+    },
+    {
+      "at": 1787783016260,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.27,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 845824,
+      "atMs": 1787783016260
+    },
+    {
+      "at": 1787783016360,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.154,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 850944,
+      "atMs": 1787783016360
+    },
+    {
+      "at": 1787783016460,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 0.061,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 10,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 855040,
+      "atMs": 1787783016460
+    },
+    {
+      "at": 1787783016563,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.918,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
       "drops": 11,
       "underruns": 0,
       "overruns": 0,
       "staleReads": 0,
       "primedPct": 1,
-      "playFrames": 887808,
-      "atMs": 1787771886817
+      "playFrames": 859136,
+      "atMs": 1787783016563
+    },
+    {
+      "at": 1787783016663,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.826,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 863232,
+      "atMs": 1787783016663
+    },
+    {
+      "at": 1787783016764,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.709,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 868352,
+      "atMs": 1787783016764
+    },
+    {
+      "at": 1787783016865,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.611,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 872704,
+      "atMs": 1787783016865
+    },
+    {
+      "at": 1787783016965,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.524,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 876544,
+      "atMs": 1787783016965
+    },
+    {
+      "at": 1787783017060,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.408,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 881664,
+      "atMs": 1787783017060
+    },
+    {
+      "at": 1787783017160,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.315,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 885760,
+      "atMs": 1787783017160
+    },
+    {
+      "at": 1787783017260,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.222,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 889856,
+      "atMs": 1787783017260
+    },
+    {
+      "at": 1787783017360,
+      "type": "LIVE_STATE",
+      "v": 1,
+      "to": "ui",
+      "from": "off",
+      "deck": "A",
+      "status": "starving",
+      "demotions": 0,
+      "masterDb": 0,
+      "masterAuto": true,
+      "xf": {
+        "effective": 0,
+        "curve": "dip",
+        "assign": [
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF",
+          "XF"
+        ]
+      },
+      "phase": null,
+      "hopSec": 1.95,
+      "pendingHopSec": 1.95,
+      "latencySec": 4.048,
+      "key": {
+        "state": "none",
+        "concertTonic": null,
+        "mode": null,
+        "confidence": 0
+      },
+      "bpm": {
+        "state": "none",
+        "bpm": null,
+        "confidence": 0,
+        "beatFrame": null
+      },
+      "pitchSemitones": 0,
+      "passthroughNow": true,
+      "bufferMinSec": 0.041,
+      "bufferSec": 1.106,
+      "floorSec": 0.4,
+      "targetSec": 2.35,
+      "rtf": 2.889,
+      "drops": 11,
+      "underruns": 0,
+      "overruns": 0,
+      "staleReads": 0,
+      "primedPct": 1,
+      "playFrames": 894976,
+      "atMs": 1787783017360
     }
   ],
   "captureFinal": {
     "status": "recording",
-    "frames": 1425408,
-    "seconds": 32.3221768707483,
+    "frames": 1413120,
+    "seconds": 32.04353741496599,
     "peak": [
-      0.6076235236671041,
-      0.5938596758934294
+      0.4087343974120304,
+      0.39197973570970795
     ],
     "dropped": 0,
     "source": {
@@ -3630,7 +3631,7 @@
         "connected": true,
         "why": "edge present"
       },
-      "p95ChunkMs": 5676.8,
+      "p95ChunkMs": 5666.8,
       "xfadeMs": 50,
       "xfadeLaw": "linear",
       "jitterCushionSec": 0.4,
@@ -3690,9 +3691,9 @@
       "chunkFails": 0,
       "status": "running",
       "chunkMsAll": [
-        5677,
-        5666,
-        5615
+        5579,
+        5667,
+        5653
       ],
       "masterBus": {
         "oversample": "4x",
@@ -3700,11 +3701,11 @@
       },
       "output": {
         "built": true,
-        "busPeak": 0.290671,
-        "busRms": 0.095456,
+        "busPeak": 0.237041,
+        "busRms": 0.04847,
         "ctxState": "running",
         "sampleRate": 44100,
-        "outputLatency": 0.052000000000000005,
+        "outputLatency": 0.054,
         "baseLatency": 0.023219954648526078,
         "preGain": 0.5,
         "postGain": 2,
@@ -3717,26 +3718,26 @@
       "outputAlarm": null,
       "outputAlarmVariant": null,
       "outputVerdict": "signal",
-      "outputChecks": 203,
+      "outputChecks": 204,
       "deadTicks": 0,
       "deadFrames": 0,
       "deadHoldFrames": 132300,
       "inputWindowMisses": 0,
-      "healthAgeMs": 86,
+      "healthAgeMs": 38,
       "marginal": false,
       "marginalP95Fraction": 0.85,
       "marginalDropRate": 0.05,
       "underruns": 0,
       "underrunFrames": 0,
-      "medianChunkMs": 5665.9,
-      "maxChunkMs": 5676.8,
-      "sustainedRTF": 2.8988,
-      "worstMarginMs": -3726.8,
-      "cushionSec": 1.199,
+      "medianChunkMs": 5652.6,
+      "maxChunkMs": 5666.8,
+      "sustainedRTF": 2.8887,
+      "worstMarginMs": -3716.8,
+      "cushionSec": 1.106,
       "bufferMinSec": 0.041,
       "floorSec": 0.4,
-      "playedSec": 20.105578231292515,
-      "playedFramesNow": 890880,
+      "playedSec": 20.25360544217687,
+      "playedFramesNow": 894976,
       "passSpans": [
         {
           "from": 0,
@@ -3785,19 +3786,19 @@
       ],
       "producedSec": 21.4,
       "primedPct": 1,
-      "firstChunkMs": 5676.8,
+      "firstChunkMs": 5579.3,
       "armMs": 900,
       "armedOnChunk0": false,
       "predictedLatencySec": 3.37,
-      "latencySec": 4.069,
-      "outputLatencySec": 0.052000000000000005
+      "latencySec": 4.048,
+      "outputLatencySec": 0.054
     },
     "tap": null,
     "gpu": {
       "priority": "A",
       "armed": true,
-      "estMs": 5672,
-      "medMs": 5664,
+      "estMs": 5665,
+      "medMs": 5651,
       "samples": 3,
       "busy": "A",
       "queued": 0,
@@ -3815,9 +3816,9 @@
       },
       "runMs": {
         "A": [
-          5673,
-          5664,
-          5615
+          5568,
+          5665,
+          5652
         ],
         "B": []
       },
@@ -3880,7 +3881,7 @@
       "modelStatus": "ready",
       "videoPlaying": true,
       "halted": false,
-      "jumps": 1,
+      "jumps": 3,
       "speed": 1,
       "key": {
         "show": "none"
@@ -3894,81 +3895,29 @@
       },
       "source": "live",
       "logTail": [
-        "3.35s [A] not caching this listen — the video is already 1.8 s in",
-        "3.79s weights downloaded + hash verified in 580ms",
-        "4.11s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag \"--enable-unsafe-webgpu\" if you are using Chrome.) — falling back to wasm",
-        "11.54s deck A session wasm created in 1200ms · warmup 6227ms",
-        "11.57s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
-        "15.51s [A] backpressure: chunk 0 -> passthrough (1 total)",
-        "15.51s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
-        "32.98s [A] backpressure: chunk 9 -> passthrough (10 total)"
+        "15.54s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
+        "15.98s weights downloaded + hash verified in 517ms",
+        "16.29s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag \"--enable-unsafe-webgpu\" if you are using Chrome.) — falling back to wasm",
+        "23.47s deck A session wasm created in 1160ms · warmup 6012ms",
+        "23.49s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
+        "27.40s [A] backpressure: chunk 0 -> passthrough (1 total)",
+        "27.40s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
+        "44.85s [A] backpressure: chunk 9 -> passthrough (10 total)"
       ]
     },
-    "bodyText": "Starving\n−4.1 s · buffer empty · 11 dropped\n⏏\n✕\nVOCALS\n1\nM\nS\n0.0 dB\nPK −∞\nDRUMS\n2\nM\nS\n0.0 dB\nPK −∞\nBASS\n3\nM\nS\n0.0 dB\nPK −∞\nOTHER\n4\nM\nS\n0.0 dB\nPK −∞\nGUITAR\n5\nM\nS\n0.0 dB\nPK −∞\nPIANO\n6\nM\nS\n0.0 dB\nPK −∞\nMASTER\n0.0 dB\nKEY\nBPM\nTRANSPOSE\n−\n0\n+\nsemitones · all stems except drums\nSPEED\n−\n1.00×\n+\nspeed · key "
+    "bodyText": "Starving\n−4.0 s · buffer empty · 11 dropped\n⏏\n✕\nVOCALS\n1\nM\nS\n0.0 dB\nPK −∞\nDRUMS\n2\nM\nS\n0.0 dB\nPK −∞\nBASS\n3\nM\nS\n0.0 dB\nPK −∞\nOTHER\n4\nM\nS\n0.0 dB\nPK −∞\nGUITAR\n5\nM\nS\n0.0 dB\nPK −∞\nPIANO\n6\nM\nS\n0.0 dB\nPK −∞\nMASTER\n0.0 dB\nKEY\nBPM\nTRANSPOSE\n−\n0\n+\nsemitones · all stems except drums\nSPEED\n−\n1.00×\n+\nspeed · key "
   },
   "reload": {
-    "framesBefore": 1449984,
+    "framesBefore": 1437696,
     "statusBefore": "recording",
     "statusAfter": "recording",
-    "framesAfter": 1978368,
+    "framesAfter": 1929216,
     "climbed": true,
     "player": {
       "hasVideo": true,
       "paused": false,
       "ended": false,
-      "currentTime": 3.968153,
-      "duration": 30.061,
-      "volume": 0.5623413251903491,
-      "muted": false,
-      "readyState": 4,
-      "rect": {
-        "x": 85.75,
-        "y": 68,
-        "w": 640,
-        "h": 360
-      },
-      "adShowing": true,
-      "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
-      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
-      "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "bodyText": "Skip navigation\nSign in\nDell Technologies\ndell.com\nLearn more\nSponsored\ndell.com\n0:02 / 0:30\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5"
-    },
-    "playerAfter": {
-      "hasVideo": true,
-      "paused": false,
-      "ended": false,
-      "currentTime": 9.970008,
-      "duration": 30.061,
-      "volume": 0.5623413251903491,
-      "muted": false,
-      "readyState": 4,
-      "rect": {
-        "x": 85.75,
-        "y": 68,
-        "w": 640,
-        "h": 360
-      },
-      "adShowing": true,
-      "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
-      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
-      "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "bodyText": "Skip navigation\nSign in\nDell Technologies\ndell.com\nLearn more\nSponsored\ndell.com\nSkip\n0:02 / 0:30\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n"
-    },
-    "muted": true,
-    "navigations": 9,
-    "unmutedNavigations": 0
-  },
-  "adBeforeOffline": {
-    "label": "before the offline segment",
-    "sawAd": true,
-    "skipPresses": 1,
-    "waitedMs": 1108,
-    "timedOut": false,
-    "after": {
-      "hasVideo": true,
-      "paused": false,
-      "ended": false,
-      "currentTime": 0.750332,
+      "currentTime": 2.983068,
       "duration": 213.061,
       "volume": 0.8933054837332952,
       "muted": false,
@@ -3983,7 +3932,59 @@
       "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
       "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
       "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "bodyText": "Skip navigation\nSign in\n0:00 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \ny ago  \nRick Astley\n4.54M "
+      "bodyText": "Skip navigation\nSign in\nRick Astley-Are We There Yet?\nPull up for precise seeking\n3:07\n[♪♪♪]\n0:02 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9"
+    },
+    "playerAfter": {
+      "hasVideo": true,
+      "paused": false,
+      "ended": false,
+      "currentTime": 8.986906,
+      "duration": 213.061,
+      "volume": 0.8933054837332952,
+      "muted": false,
+      "readyState": 4,
+      "rect": {
+        "x": 85.75,
+        "y": 68,
+        "w": 640,
+        "h": 360
+      },
+      "adShowing": false,
+      "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
+      "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "bodyText": "Skip navigation\nSign in\n0:02 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \ny ago  \nRick Astley\n4.54M "
+    },
+    "muted": true,
+    "navigations": 11,
+    "unmutedNavigations": 0
+  },
+  "adBeforeOffline": {
+    "label": "before the offline segment",
+    "sawAd": false,
+    "skipPresses": 0,
+    "waitedMs": 1,
+    "timedOut": false,
+    "after": {
+      "hasVideo": true,
+      "paused": false,
+      "ended": false,
+      "currentTime": 8.988626,
+      "duration": 213.061,
+      "volume": 0.8933054837332952,
+      "muted": false,
+      "readyState": 4,
+      "rect": {
+        "x": 85.75,
+        "y": 68,
+        "w": 640,
+        "h": 360
+      },
+      "adShowing": false,
+      "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
+      "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "bodyText": "Skip navigation\nSign in\n0:02 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \ny ago  \nRick Astley\n4.54M "
     }
   },
   "offlineSeek": {
@@ -3992,7 +3993,7 @@
       "hasVideo": true,
       "paused": false,
       "ended": false,
-      "currentTime": 50.386919,
+      "currentTime": 50.40285,
       "duration": 213.061,
       "volume": 0.8933054837332952,
       "muted": false,
@@ -4007,7 +4008,7 @@
       "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
       "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
       "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      "bodyText": "Skip navigation\nSign in\n♪ Never gonna run around\nand desert you ♪\n0:50 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n"
+      "bodyText": "Skip navigation\nSign in\n♪ Never gonna run around\nand desert you ♪\n0:48 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n"
     }
   },
   "offline": {
@@ -4017,7 +4018,7 @@
     "settings": {
       "autoGainControl": false,
       "channelCount": 2,
-      "deviceId": "web-contents-media-stream://11:15?local_echo=false",
+      "deviceId": "web-contents-media-stream://11:19?local_echo=false",
       "echoCancellation": false,
       "latency": 0.01,
       "noiseSuppression": false,
@@ -4031,25 +4032,25 @@
     "frameChannels": 2,
     "captured": 343980,
     "mixRms": {
-      "l": 0.16355844736684433,
-      "r": 0.16510994258004397
+      "l": 0.16356384862796244,
+      "r": 0.16511227021030464
     },
     "modelBytes": 114559139,
     "load": {
       "ep": "wasm",
-      "createMs": 724.4000000953674,
-      "warmupMs": 5664.8099999427795
+      "createMs": 737.2849998474121,
+      "warmupMs": 5669.625
     },
     "ready": {
       "threads": 4,
       "adapter": null
     },
-    "loadMs": 6742,
-    "separateMs": 5485,
+    "loadMs": 6752,
+    "separateMs": 5560,
     "timing": {
-      "prepMs": 91.89499998092651,
-      "inferMs": 4870.075000286102,
-      "postMs": 522.1500000953674
+      "prepMs": 93.13000011444092,
+      "inferMs": 4929.039999961853,
+      "postMs": 537.3400001525879
     },
     "buffersReturned": {
       "mix": 2751840,
@@ -4059,57 +4060,170 @@
       {
         "stem": "drums",
         "index": 0,
-        "rmsL": 0.06688964015095472,
-        "rmsR": 0.058396631276233596,
-        "peak": 0.5666123628616333
+        "rmsL": 0.06681651411502244,
+        "rmsR": 0.05851105662433371,
+        "peak": 0.5681735277175903,
+        "spectrum": {
+          "centroidHz": 1795,
+          "under120": 0.1906,
+          "under500": 0.6434
+        }
       },
       {
         "stem": "bass",
         "index": 1,
-        "rmsL": 0.037112501876448,
-        "rmsR": 0.026569242834806838,
-        "peak": 0.16763649880886078
+        "rmsL": 0.037203025052006795,
+        "rmsR": 0.02660577776641667,
+        "peak": 0.16193200647830963,
+        "spectrum": {
+          "centroidHz": 102,
+          "under120": 0.7636,
+          "under500": 0.9991
+        }
       },
       {
         "stem": "other",
         "index": 2,
-        "rmsL": 0.03064372568168281,
-        "rmsR": 0.03638155615031677,
-        "peak": 0.21114309132099152
+        "rmsL": 0.027362762554567124,
+        "rmsR": 0.032975888462184,
+        "peak": 0.20592091977596283,
+        "spectrum": {
+          "centroidHz": 1345,
+          "under120": 0.0008,
+          "under500": 0.3831
+        }
       },
       {
         "stem": "vocals",
         "index": 3,
-        "rmsL": 0.12245596575622915,
-        "rmsR": 0.12631378552967834,
-        "peak": 0.6225986480712891
+        "rmsL": 0.12234652126953954,
+        "rmsR": 0.12617537587671562,
+        "peak": 0.6206164956092834,
+        "spectrum": {
+          "centroidHz": 1723,
+          "under120": 0.0001,
+          "under500": 0.1891
+        }
       },
       {
         "stem": "guitar",
         "index": 4,
-        "rmsL": 0.0023283575225070434,
-        "rmsR": 0.0023663352494150275,
-        "peak": 0.019544079899787903
+        "rmsL": 0.0047445651537945015,
+        "rmsR": 0.004979572536362489,
+        "peak": 0.0500943660736084,
+        "spectrum": {
+          "centroidHz": 447,
+          "under120": 0.0009,
+          "under500": 0.524
+        }
       },
       {
         "stem": "piano",
         "index": 5,
-        "rmsL": 0.00017544656742756956,
-        "rmsR": 0.0001871138454432349,
-        "peak": 0.0015457841800525784
+        "rmsL": 0.00018439549387438622,
+        "rmsR": 0.00019964972918662844,
+        "peak": 0.00155012053437531,
+        "spectrum": {
+          "centroidHz": 4265,
+          "under120": 0.0075,
+          "under500": 0.3113
+        }
       }
     ],
+    "pairwise": [
+      {
+        "a": "drums",
+        "b": "bass",
+        "r": 0.07815173417122608
+      },
+      {
+        "a": "drums",
+        "b": "other",
+        "r": 0.05273737195279609
+      },
+      {
+        "a": "drums",
+        "b": "vocals",
+        "r": 0.039137163229306604
+      },
+      {
+        "a": "drums",
+        "b": "guitar",
+        "r": 0.020763951040601133
+      },
+      {
+        "a": "drums",
+        "b": "piano",
+        "r": -0.019805215329081406
+      },
+      {
+        "a": "bass",
+        "b": "other",
+        "r": 0.045374560226250915
+      },
+      {
+        "a": "bass",
+        "b": "vocals",
+        "r": 0.019354960407374784
+      },
+      {
+        "a": "bass",
+        "b": "guitar",
+        "r": 0.04271045296696739
+      },
+      {
+        "a": "bass",
+        "b": "piano",
+        "r": 0.0036460242881656514
+      },
+      {
+        "a": "other",
+        "b": "vocals",
+        "r": 0.2696865267047226
+      },
+      {
+        "a": "other",
+        "b": "guitar",
+        "r": 0.4329047418753321
+      },
+      {
+        "a": "other",
+        "b": "piano",
+        "r": 0.36235163395594766
+      },
+      {
+        "a": "vocals",
+        "b": "guitar",
+        "r": 0.12055995198467778
+      },
+      {
+        "a": "vocals",
+        "b": "piano",
+        "r": 0.07078875403360195
+      },
+      {
+        "a": "guitar",
+        "b": "piano",
+        "r": 0.401225760584695
+      }
+    ],
+    "corrSelf": 1,
+    "mixSpectrum": {
+      "centroidHz": 1493,
+      "under120": 0.0762,
+      "under500": 0.3394
+    },
     "sum": {
-      "mixRms": 0.16433602594049565,
-      "sumRms": 0.15958504162251314,
-      "residualRms": 0.01790118286136577
+      "mixRms": 0.16433988309595485,
+      "sumRms": 0.1586974860836157,
+      "residualRms": 0.01920250917236833
     }
   },
   "offlinePlayer": {
     "hasVideo": true,
     "paused": false,
     "ended": false,
-    "currentTime": 72.075305,
+    "currentTime": 72.195399,
     "duration": 213.061,
     "volume": 0.8933054837332952,
     "muted": false,
@@ -4124,40 +4238,36 @@
     "playerClasses": "html5-video-player ytp-transparent ytp-exp-bottom-control-flexbox ytp-modern-caption ytp-exp-ppp-update ytp-livebadge-color ytp-grid-scrollable ytp-delhi-modern ytp-delhi-modern-icons ytp-delhi-horizo",
     "title": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) - YouTube",
     "href": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    "bodyText": "Skip navigation\nSign in\n♪ Inside we both know\nwhat's been going ♪\n0:50 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n"
+    "bodyText": "Skip navigation\nSign in\n♪ Inside we both know\nwhat's been going ♪\n0:48 / 3:33\nRick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)\n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n.\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \nB\n \n views  \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n \n \n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n0\n1\n2\n"
   },
   "engineLog": [
-    "0.31s offscreen up · SAB true · crossOriginIsolated true",
-    "0.36s deck A backend ready · wasm threads 4",
-    "3.21s deck A capture started · track 44100 Hz -> ctx 44100 Hz",
-    "3.35s [A] not caching this listen — the video is already 1.8 s in",
-    "3.79s weights downloaded + hash verified in 580ms",
-    "4.11s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag \"--enable-unsafe-webgpu\" if you are using Chrome.) — falling back to wasm",
-    "11.54s deck A session wasm created in 1200ms · warmup 6227ms",
-    "11.57s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
-    "15.51s [A] backpressure: chunk 0 -> passthrough (1 total)",
-    "15.51s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
-    "32.98s [A] backpressure: chunk 9 -> passthrough (10 total)",
-    "36.33s [A] live stop · 11 chunks, 11 drops, 0 underruns",
-    "37.93s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
-    "37.94s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
-    "38.32s [A] live stop · 0 chunks, 0 drops, 0 underruns",
-    "38.32s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
-    "38.33s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
-    "38.33s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
-    "42.26s [A] backpressure: chunk 0 -> passthrough (1 total)",
-    "42.26s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
-    "48.26s [A] prime discarded — the prime was interrupted",
-    "48.26s [A] live stop · 4 chunks, 4 drops, 0 underruns",
-    "48.26s [A] not caching this listen — the page reports no duration",
-    "48.27s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
-    "48.27s [A] not caching this listen — the page reports no duration",
-    "51.72s [A] live stop · 0 chunks, 0 drops, 0 underruns",
-    "51.72s deck A capture stopped · 48.55 s (2141184 frames), dropped 0"
+    "0.35s offscreen up · SAB true · crossOriginIsolated true",
+    "0.40s deck A backend ready · wasm threads 4",
+    "15.46s deck A capture started · track 44100 Hz -> ctx 44100 Hz",
+    "15.54s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
+    "15.98s weights downloaded + hash verified in 517ms",
+    "16.29s deck A webgpu unavailable (no available backend found. ERR: [webgpu] Error: Failed to get GPU adapter. You may need to enable flag \"--enable-unsafe-webgpu\" if you are using Chrome.) — falling back to wasm",
+    "23.47s deck A session wasm created in 1160ms · warmup 6012ms",
+    "23.49s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
+    "27.40s [A] backpressure: chunk 0 -> passthrough (1 total)",
+    "27.40s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
+    "44.85s [A] backpressure: chunk 9 -> passthrough (10 total)",
+    "48.30s [A] live stop · 11 chunks, 11 drops, 0 underruns",
+    "49.83s [A] not caching this listen — the page reports no duration",
+    "49.84s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
+    "50.77s [A] live stop · 0 chunks, 0 drops, 0 underruns",
+    "50.77s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
+    "50.78s [A] live start · hop 1.95s (85995 frames) · xfade 2205 frames (linear)",
+    "50.78s [A] priming cache: dQw4w9WgXcQ--f1-b19cdf832ede-sr44100-seg343980-hop1950-x50L",
+    "54.71s [A] backpressure: chunk 0 -> passthrough (1 total)",
+    "54.71s [A] playback armed · latency 3.30 s (hop 1.95 + xfade 0.050 + T 0.90 [shared-GPU reference, chunk 0 was 0.00] + cushion 0.4)",
+    "61.93s [A] prime discarded — the prime was interrupted",
+    "61.93s [A] live stop · 4 chunks, 4 drops, 0 underruns",
+    "61.93s deck A capture stopped · 46.51 s (2051072 frames), dropped 0"
   ],
   "busStats": {
-    "received": 3049,
-    "delivered": 3053,
+    "received": 3094,
+    "delivered": 3098,
     "host": 2,
     "dropped": {
       "malformed": 0,
@@ -4185,9 +4295,9 @@
     "lastPermissionDenied": null,
     "lastGrantedFrame": {
       "processId": 11,
-      "routingId": 15
+      "routingId": 19
     },
-    "lastClaim": "15fa8627-5abb-433e-81de-f743da3ea2fd"
+    "lastClaim": "001e27b7-cc60-45fe-9390-abc1bb9983c8"
   },
   "claimStats": {
     "minted": 2,
@@ -4204,10 +4314,10 @@
     "undelivered": 0
   },
   "transportStats": {
-    "fromPreload": 593,
-    "toPreload": 37,
-    "states": 566,
-    "jumps": 3,
+    "fromPreload": 664,
+    "toPreload": 26,
+    "states": 647,
+    "jumps": 4,
     "keys": 0,
     "changes": [
       "arrived",
@@ -4218,9 +4328,9 @@
     "strangers": 0,
     "emitted": {
       "onSpeedReport": 7,
-      "onState": 566,
-      "onAutonav": 5,
-      "onJump": 3
+      "onState": 647,
+      "onAutonav": 1,
+      "onJump": 4
     }
   },
   "deckHostStats": {
@@ -4239,13 +4349,13 @@
     "fromDeck": {
       "claimKeys": 2,
       "ready": 1,
-      "height": 11
+      "height": 12
     },
     "toDeck": {
       "speed": 7,
-      "video": 566,
-      "autonav": 5,
-      "jump": 3
+      "video": 647,
+      "autonav": 1,
+      "jump": 4
     },
     "strangers": 0,
     "heights": [
@@ -4254,6 +4364,7 @@
       420,
       420,
       420,
+      434,
       420,
       434,
       420,
@@ -4263,7 +4374,7 @@
     ]
   },
   "sourceRequests": {
-    "count": 446,
+    "count": 234,
     "hosts": [
       "accounts.google.com",
       "ad.doubleclick.net",
@@ -4272,14 +4383,13 @@
       "fonts.gstatic.com",
       "googleads.g.doubleclick.net",
       "i.ytimg.com",
-      "i9.ytimg.com",
       "pagead2.googlesyndication.com",
-      "rr1---sn-5hne6n6e.googlevideo.com",
-      "rr1---sn-q4fl6nz7.googlevideo.com",
-      "rr2---sn-aigzrne7.googlevideo.com",
+      "rr1---sn-5hnekn7s.googlevideo.com",
       "rr2---sn-n4v7snse.c.youtube.com",
       "rr2---sn-n4v7snse.googlevideo.com",
-      "rr3---sn-o097znsd.googlevideo.com",
+      "rr3---sn-q4fl6nss.googlevideo.com",
+      "rr4---sn-n4v7snse.googlevideo.com",
+      "rr5---sn-2on4v5-59.googlevideo.com",
       "rr5---sn-o097znzr.c.youtube.com",
       "rr5---sn-o097znzr.googlevideo.com",
       "static.doubleclick.net",
@@ -4287,7 +4397,6 @@
       "www.google.com",
       "www.gstatic.com",
       "www.youtube.com",
-      "youtube.com",
       "yt3.ggpht.com"
     ]
   },
@@ -4311,7 +4420,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909171
+      "at": 1787783037954
     },
     {
       "verdict": "delivered",
@@ -4332,7 +4441,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909221
+      "at": 1787783038163
     },
     {
       "verdict": "delivered",
@@ -4353,7 +4462,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909442
+      "at": 1787783038204
     },
     {
       "verdict": "delivered",
@@ -4374,7 +4483,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909471
+      "at": 1787783038430
     },
     {
       "verdict": "delivered",
@@ -4395,7 +4504,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909702
+      "at": 1787783038453
     },
     {
       "verdict": "delivered",
@@ -4416,7 +4525,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909722
+      "at": 1787783038686
     },
     {
       "verdict": "delivered",
@@ -4437,7 +4546,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909970
+      "at": 1787783038703
     },
     {
       "verdict": "delivered",
@@ -4458,7 +4567,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771909971
+      "at": 1787783038954
     },
     {
       "verdict": "delivered",
@@ -4479,7 +4588,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910221
+      "at": 1787783038954
     },
     {
       "verdict": "delivered",
@@ -4500,7 +4609,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910233
+      "at": 1787783039204
     },
     {
       "verdict": "delivered",
@@ -4521,7 +4630,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910471
+      "at": 1787783039220
     },
     {
       "verdict": "delivered",
@@ -4542,7 +4651,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910499
+      "at": 1787783039453
     },
     {
       "verdict": "delivered",
@@ -4563,7 +4672,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910722
+      "at": 1787783039487
     },
     {
       "verdict": "delivered",
@@ -4584,7 +4693,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910771
+      "at": 1787783039702
     },
     {
       "verdict": "delivered",
@@ -4605,7 +4714,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771910971
+      "at": 1787783039754
     },
     {
       "verdict": "delivered",
@@ -4626,7 +4735,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911030
+      "at": 1787783039954
     },
     {
       "verdict": "delivered",
@@ -4647,7 +4756,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911221
+      "at": 1787783040016
     },
     {
       "verdict": "delivered",
@@ -4668,7 +4777,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911297
+      "at": 1787783040203
     },
     {
       "verdict": "delivered",
@@ -4689,7 +4798,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911472
+      "at": 1787783040288
     },
     {
       "verdict": "delivered",
@@ -4710,7 +4819,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911569
+      "at": 1787783040454
     },
     {
       "verdict": "delivered",
@@ -4731,7 +4840,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911721
+      "at": 1787783040555
     },
     {
       "verdict": "delivered",
@@ -4752,7 +4861,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911828
+      "at": 1787783040703
     },
     {
       "verdict": "delivered",
@@ -4773,7 +4882,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771911971
+      "at": 1787783040813
     },
     {
       "verdict": "delivered",
@@ -4794,7 +4903,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912097
+      "at": 1787783040953
     },
     {
       "verdict": "delivered",
@@ -4815,7 +4924,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912221
+      "at": 1787783041079
     },
     {
       "verdict": "delivered",
@@ -4836,7 +4945,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912358
+      "at": 1787783041202
     },
     {
       "verdict": "delivered",
@@ -4857,7 +4966,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912471
+      "at": 1787783041343
     },
     {
       "verdict": "delivered",
@@ -4878,7 +4987,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912624
+      "at": 1787783041454
     },
     {
       "verdict": "delivered",
@@ -4899,7 +5008,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912721
+      "at": 1787783041611
     },
     {
       "verdict": "delivered",
@@ -4920,7 +5029,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912895
+      "at": 1787783041702
     },
     {
       "verdict": "delivered",
@@ -4941,7 +5050,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771912971
+      "at": 1787783041878
     },
     {
       "verdict": "delivered",
@@ -4962,7 +5071,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913155
+      "at": 1787783041953
     },
     {
       "verdict": "delivered",
@@ -4983,7 +5092,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913221
+      "at": 1787783042139
     },
     {
       "verdict": "delivered",
@@ -5004,7 +5113,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913421
+      "at": 1787783042203
     },
     {
       "verdict": "delivered",
@@ -5025,7 +5134,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913471
+      "at": 1787783042411
     },
     {
       "verdict": "delivered",
@@ -5046,7 +5155,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913692
+      "at": 1787783042452
     },
     {
       "verdict": "delivered",
@@ -5067,7 +5176,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913722
+      "at": 1787783042678
     },
     {
       "verdict": "delivered",
@@ -5088,7 +5197,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913952
+      "at": 1787783042702
     },
     {
       "verdict": "delivered",
@@ -5109,7 +5218,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771913971
+      "at": 1787783042936
     },
     {
       "verdict": "delivered",
@@ -5130,7 +5239,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914220
+      "at": 1787783042953
     },
     {
       "verdict": "delivered",
@@ -5151,7 +5260,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914221
+      "at": 1787783043203
     },
     {
       "verdict": "delivered",
@@ -5172,7 +5281,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914472
+      "at": 1787783043203
     },
     {
       "verdict": "delivered",
@@ -5193,7 +5302,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914483
+      "at": 1787783043452
     },
     {
       "verdict": "delivered",
@@ -5214,7 +5323,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914721
+      "at": 1787783043467
     },
     {
       "verdict": "delivered",
@@ -5235,7 +5344,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914749
+      "at": 1787783043702
     },
     {
       "verdict": "delivered",
@@ -5256,7 +5365,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771914971
+      "at": 1787783043736
     },
     {
       "verdict": "delivered",
@@ -5277,7 +5386,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915020
+      "at": 1787783043952
     },
     {
       "verdict": "delivered",
@@ -5298,7 +5407,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915221
+      "at": 1787783044003
     },
     {
       "verdict": "delivered",
@@ -5319,7 +5428,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915280
+      "at": 1787783044202
     },
     {
       "verdict": "delivered",
@@ -5340,7 +5449,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915471
+      "at": 1787783044265
     },
     {
       "verdict": "delivered",
@@ -5361,7 +5470,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915546
+      "at": 1787783044452
     },
     {
       "verdict": "delivered",
@@ -5382,7 +5491,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915721
+      "at": 1787783044536
     },
     {
       "verdict": "delivered",
@@ -5403,7 +5512,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915817
+      "at": 1787783044702
     },
     {
       "verdict": "delivered",
@@ -5424,7 +5533,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771915971
+      "at": 1787783044803
     },
     {
       "verdict": "delivered",
@@ -5445,7 +5554,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916077
+      "at": 1787783044952
     },
     {
       "verdict": "delivered",
@@ -5466,7 +5575,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916221
+      "at": 1787783045061
     },
     {
       "verdict": "delivered",
@@ -5487,7 +5596,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916345
+      "at": 1787783045202
     },
     {
       "verdict": "delivered",
@@ -5508,7 +5617,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916471
+      "at": 1787783045328
     },
     {
       "verdict": "delivered",
@@ -5529,7 +5638,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916609
+      "at": 1787783045452
     },
     {
       "verdict": "delivered",
@@ -5550,7 +5659,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916721
+      "at": 1787783045593
     },
     {
       "verdict": "delivered",
@@ -5571,7 +5680,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916874
+      "at": 1787783045702
     },
     {
       "verdict": "delivered",
@@ -5592,7 +5701,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771916971
+      "at": 1787783045861
     },
     {
       "verdict": "delivered",
@@ -5613,7 +5722,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917145
+      "at": 1787783045952
     },
     {
       "verdict": "delivered",
@@ -5634,7 +5743,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917221
+      "at": 1787783046128
     },
     {
       "verdict": "delivered",
@@ -5655,7 +5764,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917405
+      "at": 1787783046203
     },
     {
       "verdict": "delivered",
@@ -5676,7 +5785,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917471
+      "at": 1787783046389
     },
     {
       "verdict": "delivered",
@@ -5697,7 +5806,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917675
+      "at": 1787783046452
     },
     {
       "verdict": "delivered",
@@ -5718,7 +5827,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917721
+      "at": 1787783046662
     },
     {
       "verdict": "delivered",
@@ -5739,7 +5848,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917943
+      "at": 1787783046702
     },
     {
       "verdict": "delivered",
@@ -5760,7 +5869,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771917971
+      "at": 1787783046928
     },
     {
       "verdict": "delivered",
@@ -5781,7 +5890,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918203
+      "at": 1787783046953
     },
     {
       "verdict": "delivered",
@@ -5802,7 +5911,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918222
+      "at": 1787783047186
     },
     {
       "verdict": "delivered",
@@ -5823,7 +5932,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918470
+      "at": 1787783047202
     },
     {
       "verdict": "delivered",
@@ -5844,7 +5953,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918471
+      "at": 1787783047452
     },
     {
       "verdict": "delivered",
@@ -5865,7 +5974,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918721
+      "at": 1787783047453
     },
     {
       "verdict": "delivered",
@@ -5886,7 +5995,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918733
+      "at": 1787783047702
     },
     {
       "verdict": "delivered",
@@ -5907,7 +6016,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918971
+      "at": 1787783047717
     },
     {
       "verdict": "delivered",
@@ -5928,7 +6037,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771918999
+      "at": 1787783047952
     },
     {
       "verdict": "delivered",
@@ -5949,7 +6058,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919221
+      "at": 1787783047987
     },
     {
       "verdict": "delivered",
@@ -5970,7 +6079,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919271
+      "at": 1787783048202
     },
     {
       "verdict": "delivered",
@@ -5991,7 +6100,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919471
+      "at": 1787783048253
     },
     {
       "verdict": "delivered",
@@ -6012,7 +6121,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919530
+      "at": 1787783048453
     },
     {
       "verdict": "delivered",
@@ -6033,7 +6142,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919721
+      "at": 1787783048514
     },
     {
       "verdict": "delivered",
@@ -6054,7 +6163,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919796
+      "at": 1787783048703
     },
     {
       "verdict": "delivered",
@@ -6075,7 +6184,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771919971
+      "at": 1787783048788
     },
     {
       "verdict": "delivered",
@@ -6096,7 +6205,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920068
+      "at": 1787783048953
     },
     {
       "verdict": "delivered",
@@ -6117,7 +6226,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920221
+      "at": 1787783049053
     },
     {
       "verdict": "delivered",
@@ -6138,7 +6247,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920327
+      "at": 1787783049202
     },
     {
       "verdict": "delivered",
@@ -6159,7 +6268,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920471
+      "at": 1787783049311
     },
     {
       "verdict": "delivered",
@@ -6180,7 +6289,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920595
+      "at": 1787783049453
     },
     {
       "verdict": "delivered",
@@ -6201,7 +6310,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920721
+      "at": 1787783049578
     },
     {
       "verdict": "delivered",
@@ -6222,7 +6331,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920858
+      "at": 1787783049703
     },
     {
       "verdict": "delivered",
@@ -6243,7 +6352,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771920971
+      "at": 1787783049842
     },
     {
       "verdict": "delivered",
@@ -6264,7 +6373,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921124
+      "at": 1787783049952
     },
     {
       "verdict": "delivered",
@@ -6285,7 +6394,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921221
+      "at": 1787783050111
     },
     {
       "verdict": "delivered",
@@ -6306,7 +6415,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921395
+      "at": 1787783050202
     },
     {
       "verdict": "delivered",
@@ -6327,7 +6436,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921471
+      "at": 1787783050378
     },
     {
       "verdict": "delivered",
@@ -6348,7 +6457,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921655
+      "at": 1787783050452
     },
     {
       "verdict": "delivered",
@@ -6369,7 +6478,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921721
+      "at": 1787783050639
     },
     {
       "verdict": "delivered",
@@ -6390,7 +6499,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921921
+      "at": 1787783050702
     },
     {
       "verdict": "delivered",
@@ -6411,7 +6520,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771921971
+      "at": 1787783050911
     },
     {
       "verdict": "delivered",
@@ -6432,7 +6541,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922193
+      "at": 1787783050953
     },
     {
       "verdict": "delivered",
@@ -6453,7 +6562,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922221
+      "at": 1787783051178
     },
     {
       "verdict": "delivered",
@@ -6474,7 +6583,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922452
+      "at": 1787783051203
     },
     {
       "verdict": "delivered",
@@ -6495,7 +6604,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922471
+      "at": 1787783051436
     },
     {
       "verdict": "delivered",
@@ -6516,7 +6625,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922720
+      "at": 1787783051452
     },
     {
       "verdict": "delivered",
@@ -6537,7 +6646,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922721
+      "at": 1787783051702
     },
     {
       "verdict": "delivered",
@@ -6558,7 +6667,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922971
+      "at": 1787783051703
     },
     {
       "verdict": "delivered",
@@ -6579,7 +6688,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771922983
+      "at": 1787783051952
     },
     {
       "verdict": "delivered",
@@ -6600,7 +6709,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923221
+      "at": 1787783051968
     },
     {
       "verdict": "delivered",
@@ -6621,7 +6730,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923249
+      "at": 1787783052202
     },
     {
       "verdict": "delivered",
@@ -6642,7 +6751,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923471
+      "at": 1787783052237
     },
     {
       "verdict": "delivered",
@@ -6663,7 +6772,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923520
+      "at": 1787783052452
     },
     {
       "verdict": "delivered",
@@ -6684,7 +6793,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923721
+      "at": 1787783052503
     },
     {
       "verdict": "delivered",
@@ -6705,7 +6814,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923780
+      "at": 1787783052703
     },
     {
       "verdict": "delivered",
@@ -6726,7 +6835,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771923972
+      "at": 1787783052764
     },
     {
       "verdict": "delivered",
@@ -6747,7 +6856,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771924046
+      "at": 1787783052953
     },
     {
       "verdict": "delivered",
@@ -6768,7 +6877,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771924221
+      "at": 1787783053036
     },
     {
       "verdict": "delivered",
@@ -6789,7 +6898,7 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771924317
+      "at": 1787783053203
     },
     {
       "verdict": "delivered",
@@ -6810,8 +6919,8 @@
       "deck": "A",
       "sourceKeys": null,
       "tokenLength": null,
-      "at": 1787771924471
+      "at": 1787783053303
     }
   ],
-  "meterCount": 1106
+  "meterCount": 1060
 }

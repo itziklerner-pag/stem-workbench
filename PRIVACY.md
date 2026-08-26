@@ -203,6 +203,19 @@ server's own hit counter is half of the assertion: an instrument that sees
 nothing while the server is hit is a **failure**, not a pass.
 `docs/TESTING.md` §9 is what it asserts and how each assertion was watched fail.
 
+**A gap in that test was found and closed, and it is worth saying plainly what it
+was.** The observer watches Chromium's network stack, so it could not have seen a
+request the app made from its own main process, outside Chromium — a `fetch()` in
+one line of Node. Two independent reviewers proved it: they added that line, a
+real request reached a real server, and this test stayed green over it. **No such
+request was ever in a shipped or committed version of this app** — it was an
+instrument gap, not a leak — but "we would have noticed" was not true, and that
+is the claim this page makes. The app now removes those transports from its own
+main process at start-up (`src/main/netguard.js`), so such a line throws instead
+of sending; a source scan refuses the imports; and the test stands up a real
+listening socket on your own machine, has the app try eleven different ways to
+reach it, and requires that **nothing arrived**.
+
 What it does **not** prove is stated there too: nothing here tests the real
 GitHub, the update download does not exist yet, and the YouTube view loads a
 local fixture rather than youtube.com.

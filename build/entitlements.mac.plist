@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS hardened-runtime entitlements. WRITTEN, NEVER BUILT: nothing in this
+  repository has been signed or notarized, because there is no Mac and no Apple
+  Developer ID here. README.md "What was verified, and what was only configured".
+
+  WHY EACH ONE IS HERE, AND WHY THE OBVIOUS ONES ARE NOT:
+
+  · allow-jit / allow-unsigned-executable-memory — ONNX Runtime Web runs the
+    model in WebAssembly, and V8 and the wasm engine both write executable
+    memory. Without these two the engine renderer is killed by the kernel the
+    moment it compiles anything, which looks like "the app crashes when you
+    press Arm".
+
+  · allow-dyld-environment-variables / disable-library-validation — Electron's
+    own helper processes and its framework bundle. electron-builder documents
+    both as required for a hardened-runtime Electron app.
+
+  THERE IS NO MICROPHONE ENTITLEMENT, and that is the product. This app captures
+  what the embedded YouTube view RENDERS, through getDisplayMedia on a
+  WebContentsView we own (docs/spike-capture-mute.md) — it never opens an input
+  device. `com.apple.security.device.audio-input` would be an entitlement for a
+  capability the product does not have, and asking for one is how an app ends up
+  showing the user a microphone prompt it cannot explain.
+
+  THERE IS NO NETWORK-CLIENT EXCEPTION EITHER: the hardened runtime does not gate
+  outbound sockets, and rule P1' (src/main/netguard.js, CONTRIBUTING.md) is what
+  binds this app's own traffic to exactly one host.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

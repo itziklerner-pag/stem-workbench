@@ -1,6 +1,6 @@
 [
 {
-"at": 1787771862735,
+"at": 1787782993185,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -23,7 +23,7 @@
 "clip": false
 },
 {
-"at": 1787771863312,
+"at": 1787782993741,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -46,7 +46,7 @@
 "clip": false
 },
 {
-"at": 1787771863866,
+"at": 1787782994295,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -69,7 +69,7 @@
 "clip": false
 },
 {
-"at": 1787771864420,
+"at": 1787782994871,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -92,7 +92,7 @@
 "clip": false
 },
 {
-"at": 1787771864975,
+"at": 1787782995424,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -115,7 +115,7 @@
 "clip": false
 },
 {
-"at": 1787771865530,
+"at": 1787782995980,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -138,7 +138,7 @@
 "clip": false
 },
 {
-"at": 1787771866084,
+"at": 1787782996534,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -161,7 +161,7 @@
 "clip": false
 },
 {
-"at": 1787771866639,
+"at": 1787782997093,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -184,7 +184,7 @@
 "clip": false
 },
 {
-"at": 1787771867193,
+"at": 1787782997643,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -193,7 +193,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1278157184092234
+"master": 0.21426778501456012
 },
 "peak": {
 "drums": 0,
@@ -202,12 +202,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.4022078514099121
+"master": 0.6297553777694702
 },
 "clip": false
 },
 {
-"at": 1787771867748,
+"at": 1787782998199,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -216,7 +216,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.10514009611509147
+"master": 0.12634367318391376
 },
 "peak": {
 "drums": 0,
@@ -225,12 +225,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.3717288374900818
+"master": 0.39045462012290955
 },
 "clip": false
 },
 {
-"at": 1787771868324,
+"at": 1787782998753,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -239,7 +239,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.08976838440706676
+"master": 0.11680408095139201
 },
 "peak": {
 "drums": 0,
@@ -248,12 +248,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.3093997836112976
+"master": 0.3194557726383209
 },
 "clip": false
 },
 {
-"at": 1787771868879,
+"at": 1787782999329,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -262,7 +262,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.08212146603423653
+"master": 0.10020920021534613
 },
 "peak": {
 "drums": 0,
@@ -271,12 +271,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.30376842617988586
+"master": 0.3709314465522766
 },
 "clip": false
 },
 {
-"at": 1787771869434,
+"at": 1787782999884,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -285,7 +285,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.10040041012241191
+"master": 0.07368506519373769
 },
 "peak": {
 "drums": 0,
@@ -294,12 +294,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.32594993710517883
+"master": 0.2380572259426117
 },
 "clip": false
 },
 {
-"at": 1787771869988,
+"at": 1787783000438,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -308,7 +308,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.07671910778349612
+"master": 0.09548683552765859
 },
 "peak": {
 "drums": 0,
@@ -317,12 +317,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.26118433475494385
+"master": 0.267888605594635
 },
 "clip": false
 },
 {
-"at": 1787771870543,
+"at": 1787783000993,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -331,7 +331,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.09202200855767503
+"master": 0.08563327632608049
 },
 "peak": {
 "drums": 0,
@@ -340,12 +340,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.3750029504299164
+"master": 0.2684214413166046
 },
 "clip": false
 },
 {
-"at": 1787771871098,
+"at": 1787783001548,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -354,7 +354,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1122821582507932
+"master": 0.0989585285154884
 },
 "peak": {
 "drums": 0,
@@ -363,12 +363,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.37494638562202454
+"master": 0.38124412298202515
 },
 "clip": false
 },
 {
-"at": 1787771871652,
+"at": 1787783002102,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -377,7 +377,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.092393790865982
+"master": 0.08215651212561785
 },
 "peak": {
 "drums": 0,
@@ -386,12 +386,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.3462846875190735
+"master": 0.28621506690979004
 },
 "clip": false
 },
 {
-"at": 1787771872207,
+"at": 1787783002656,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -400,7 +400,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.11240040105907445
+"master": 0.10801006322440238
 },
 "peak": {
 "drums": 0,
@@ -409,12 +409,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.43401622772216797
+"master": 0.30623865127563477
 },
 "clip": false
 },
 {
-"at": 1787771872783,
+"at": 1787783003211,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -423,7 +423,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.07294949007737243
+"master": 0.09276155186214488
 },
 "peak": {
 "drums": 0,
@@ -432,12 +432,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.25230515003204346
+"master": 0.34141987562179565
 },
 "clip": false
 },
 {
-"at": 1787771873338,
+"at": 1787783003767,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -446,7 +446,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.10302975981175141
+"master": 0.10303624602659711
 },
 "peak": {
 "drums": 0,
@@ -455,12 +455,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.41248267889022827
+"master": 0.3353902995586395
 },
 "clip": false
 },
 {
-"at": 1787771873892,
+"at": 1787783004342,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -469,7 +469,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.05628024890960263
+"master": 0.0868668510892861
 },
 "peak": {
 "drums": 0,
@@ -478,12 +478,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1866217851638794
+"master": 0.35198381543159485
 },
 "clip": false
 },
 {
-"at": 1787771874447,
+"at": 1787783004897,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -492,7 +492,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.08042499819141284
+"master": 0.09305221283285627
 },
 "peak": {
 "drums": 0,
@@ -501,12 +501,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.2735585570335388
+"master": 0.39805498719215393
 },
 "clip": false
 },
 {
-"at": 1787771875002,
+"at": 1787783005451,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -515,7 +515,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.04680407109201626
+"master": 0.05918073303327332
 },
 "peak": {
 "drums": 0,
@@ -524,12 +524,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.19969907402992249
+"master": 0.2093883454799652
 },
 "clip": false
 },
 {
-"at": 1787771875556,
+"at": 1787783006006,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -538,7 +538,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.18002090880529353
+"master": 0.07346442620736203
 },
 "peak": {
 "drums": 0,
@@ -547,12 +547,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.6287126541137695
+"master": 0.23109391331672668
 },
 "clip": false
 },
 {
-"at": 1787771876111,
+"at": 1787783006560,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -561,7 +561,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1781522652646533
+"master": 0.09485165147186324
 },
 "peak": {
 "drums": 0,
@@ -570,12 +570,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.48001569509506226
+"master": 0.5308060646057129
 },
 "clip": false
 },
 {
-"at": 1787771876666,
+"at": 1787783007115,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -584,7 +584,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.18587401952537502
+"master": 0.2102110568625178
 },
 "peak": {
 "drums": 0,
@@ -593,12 +593,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.5379638671875
+"master": 0.6338565349578857
 },
 "clip": false
 },
 {
-"at": 1787771877242,
+"at": 1787783007670,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -607,7 +607,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.14647128681616786
+"master": 0.19634247344479375
 },
 "peak": {
 "drums": 0,
@@ -616,12 +616,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.4330471158027649
+"master": 0.5499047040939331
 },
 "clip": false
 },
 {
-"at": 1787771877796,
+"at": 1787783008224,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -630,7 +630,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.11648498916566001
+"master": 0.12868340996001587
 },
 "peak": {
 "drums": 0,
@@ -639,12 +639,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.43140000104904175
+"master": 0.4138840436935425
 },
 "clip": false
 },
 {
-"at": 1787771878351,
+"at": 1787783008800,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -653,7 +653,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.09000399641278381
+"master": 0.10408300589217788
 },
 "peak": {
 "drums": 0,
@@ -662,12 +662,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.2575985789299011
+"master": 0.32350367307662964
 },
 "clip": false
 },
 {
-"at": 1787771878906,
+"at": 1787783009355,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -676,7 +676,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.045557695987624526
+"master": 0.12192772317131141
 },
 "peak": {
 "drums": 0,
@@ -685,12 +685,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.14319470524787903
+"master": 0.4321563243865967
 },
 "clip": false
 },
 {
-"at": 1787771879460,
+"at": 1787783009910,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -699,7 +699,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.05305596307400283
+"master": 0.09334650744068719
 },
 "peak": {
 "drums": 0,
@@ -708,12 +708,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.22162750363349915
+"master": 0.23917563259601593
 },
 "clip": false
 },
 {
-"at": 1787771880015,
+"at": 1787783010464,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -722,7 +722,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.0728522475054761
+"master": 0.04470819226661577
 },
 "peak": {
 "drums": 0,
@@ -731,12 +731,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.23118136823177338
+"master": 0.13737072050571442
 },
 "clip": false
 },
 {
-"at": 1787771880570,
+"at": 1787783011019,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -745,7 +745,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.12805984826608793
+"master": 0.062396919151909036
 },
 "peak": {
 "drums": 0,
@@ -754,12 +754,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.4156605005264282
+"master": 0.22426779568195343
 },
 "clip": false
 },
 {
-"at": 1787771881124,
+"at": 1787783011574,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -768,7 +768,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.12343886266854116
+"master": 0.11394276099848312
 },
 "peak": {
 "drums": 0,
@@ -777,12 +777,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.42790019512176514
+"master": 0.49408847093582153
 },
 "clip": false
 },
 {
-"at": 1787771881700,
+"at": 1787783012129,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -791,7 +791,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.10368587424639204
+"master": 0.13884570237987054
 },
 "peak": {
 "drums": 0,
@@ -800,12 +800,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.34881216287612915
+"master": 0.4332331717014313
 },
 "clip": false
 },
 {
-"at": 1787771882255,
+"at": 1787783012684,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -814,7 +814,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1321433150058229
+"master": 0.11807542201604139
 },
 "peak": {
 "drums": 0,
@@ -823,12 +823,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.41952720284461975
+"master": 0.37075865268707275
 },
 "clip": false
 },
 {
-"at": 1787771882809,
+"at": 1787783013259,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -837,7 +837,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.16024275630984774
+"master": 0.09181848504592054
 },
 "peak": {
 "drums": 0,
@@ -846,12 +846,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.41287124156951904
+"master": 0.2889305353164673
 },
 "clip": false
 },
 {
-"at": 1787771883364,
+"at": 1787783013814,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -860,7 +860,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.12180505780939553
+"master": 0.1346877763535749
 },
 "peak": {
 "drums": 0,
@@ -869,12 +869,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.4512242078781128
+"master": 0.42158934473991394
 },
 "clip": false
 },
 {
-"at": 1787771883919,
+"at": 1787783014369,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -883,7 +883,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1003333856976145
+"master": 0.14513026276444177
 },
 "peak": {
 "drums": 0,
@@ -892,12 +892,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.36604052782058716
+"master": 0.41757237911224365
 },
 "clip": false
 },
 {
-"at": 1787771884473,
+"at": 1787783014923,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -906,7 +906,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.11040940771488462
+"master": 0.10833121784168087
 },
 "peak": {
 "drums": 0,
@@ -915,12 +915,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.3156992495059967
+"master": 0.35804444551467896
 },
 "clip": false
 },
 {
-"at": 1787771885028,
+"at": 1787783015478,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -929,7 +929,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.062186279346490965
+"master": 0.09414527328603065
 },
 "peak": {
 "drums": 0,
@@ -938,12 +938,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.260250985622406
+"master": 0.3271062672138214
 },
 "clip": false
 },
 {
-"at": 1787771885584,
+"at": 1787783016032,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -952,7 +952,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.11068189389975973
+"master": 0.12114306579657556
 },
 "peak": {
 "drums": 0,
@@ -961,12 +961,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.4893951416015625
+"master": 0.32226642966270447
 },
 "clip": false
 },
 {
-"at": 1787771886160,
+"at": 1787783016587,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -975,7 +975,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.19990914706110305
+"master": 0.15206889767714404
 },
 "peak": {
 "drums": 0,
@@ -984,12 +984,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.7244951725006104
+"master": 0.587348997592926
 },
 "clip": false
 },
 {
-"at": 1787771886714,
+"at": 1787783017142,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -998,7 +998,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.1994319664527489
+"master": 0.18100943971151498
 },
 "peak": {
 "drums": 0,
@@ -1007,12 +1007,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.5095404386520386
+"master": 0.44483423233032227
 },
 "clip": false
 },
 {
-"at": 1787771887268,
+"at": 1787783017718,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1021,7 +1021,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.107699788853121
+"master": 0.20204302500523502
 },
 "peak": {
 "drums": 0,
@@ -1030,12 +1030,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0.319924533367157
+"master": 0.5956377983093262
 },
 "clip": false
 },
 {
-"at": 1787771889444,
+"at": 1787783019808,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1058,7 +1058,7 @@
 "clip": false
 },
 {
-"at": 1787771889999,
+"at": 1787783020363,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1081,7 +1081,7 @@
 "clip": false
 },
 {
-"at": 1787771890554,
+"at": 1787783020918,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1104,7 +1104,7 @@
 "clip": false
 },
 {
-"at": 1787771891108,
+"at": 1787783021472,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1127,7 +1127,7 @@
 "clip": false
 },
 {
-"at": 1787771891684,
+"at": 1787783022027,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1150,7 +1150,7 @@
 "clip": false
 },
 {
-"at": 1787771892240,
+"at": 1787783022582,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1173,7 +1173,7 @@
 "clip": false
 },
 {
-"at": 1787771892794,
+"at": 1787783023136,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1196,7 +1196,7 @@
 "clip": false
 },
 {
-"at": 1787771893348,
+"at": 1787783023691,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1219,237 +1219,7 @@
 "clip": false
 },
 {
-"at": 1787771893903,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.09000452900432276
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.2479134500026703
-},
-"clip": false
-},
-{
-"at": 1787771894458,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.07829359436077764
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.21517610549926758
-},
-"clip": false
-},
-{
-"at": 1787771895013,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.09395607643944835
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.31077808141708374
-},
-"clip": false
-},
-{
-"at": 1787771895567,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.12589929688834267
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.30171096324920654
-},
-"clip": false
-},
-{
-"at": 1787771896143,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.11711157356205577
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.39420241117477417
-},
-"clip": false
-},
-{
-"at": 1787771896698,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.11502458424048469
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.40354934334754944
-},
-"clip": false
-},
-{
-"at": 1787771897252,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.10450249577855382
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.4551848769187927
-},
-"clip": false
-},
-{
-"at": 1787771897807,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.03821219923743825
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.11087243258953094
-},
-"clip": false
-},
-{
-"at": 1787771898363,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.012755207486714772
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.04629037156701088
-},
-"clip": false
-},
-{
-"at": 1787771898916,
-"deck": "A",
-"rms": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.034255306886007586
-},
-"peak": {
-"drums": 0,
-"bass": 0,
-"other": 0,
-"vocals": 0,
-"guitar": 0,
-"piano": 0,
-"master": 0.09386374056339264
-},
-"clip": false
-},
-{
-"at": 1787771899472,
+"at": 1787783024247,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1472,7 +1242,7 @@
 "clip": false
 },
 {
-"at": 1787771900026,
+"at": 1787783024822,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1481,7 +1251,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.06480577313912544
 },
 "peak": {
 "drums": 0,
@@ -1490,12 +1260,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.23097455501556396
 },
 "clip": false
 },
 {
-"at": 1787771900602,
+"at": 1787783025376,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1504,7 +1274,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.05084101765713595
 },
 "peak": {
 "drums": 0,
@@ -1513,12 +1283,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.20778590440750122
 },
 "clip": false
 },
 {
-"at": 1787771901156,
+"at": 1787783025931,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1527,7 +1297,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.08632911516764534
 },
 "peak": {
 "drums": 0,
@@ -1536,12 +1306,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.30373477935791016
 },
 "clip": false
 },
 {
-"at": 1787771901711,
+"at": 1787783026486,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1550,7 +1320,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.07164240849785251
 },
 "peak": {
 "drums": 0,
@@ -1559,12 +1329,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.33744171261787415
 },
 "clip": false
 },
 {
-"at": 1787771902266,
+"at": 1787783027041,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1573,7 +1343,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.08193232333654761
 },
 "peak": {
 "drums": 0,
@@ -1582,12 +1352,12 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.24044585227966309
 },
 "clip": false
 },
 {
-"at": 1787771902820,
+"at": 1787783027595,
 "deck": "A",
 "rms": {
 "drums": 0,
@@ -1596,7 +1366,7 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.07856889108860501
 },
 "peak": {
 "drums": 0,
@@ -1605,7 +1375,168 @@
 "vocals": 0,
 "guitar": 0,
 "piano": 0,
-"master": 0
+"master": 0.22112151980400085
+},
+"clip": false
+},
+{
+"at": 1787783028150,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.12775975463477954
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.5720388889312744
+},
+"clip": false
+},
+{
+"at": 1787783028705,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.14044525224357005
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.449514776468277
+},
+"clip": false
+},
+{
+"at": 1787783029280,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.21073705300742343
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.5463918447494507
+},
+"clip": false
+},
+{
+"at": 1787783029835,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.1215379463879379
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3716210126876831
+},
+"clip": false
+},
+{
+"at": 1787783030390,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.11546893974997083
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.3714144825935364
+},
+"clip": false
+},
+{
+"at": 1787783030944,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.10592116029869296
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.30015432834625244
+},
+"clip": false
+},
+{
+"at": 1787783031499,
+"deck": "A",
+"rms": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.06732238771085762
+},
+"peak": {
+"drums": 0,
+"bass": 0,
+"other": 0,
+"vocals": 0,
+"guitar": 0,
+"piano": 0,
+"master": 0.18402116000652313
 },
 "clip": false
 }

@@ -11,7 +11,7 @@
  * suite that exits 0 having asserted nothing.
  *
  * ---------------------------------------------------------------------------
- * THE FOUR CONTROLS, AND WHY FOUR
+ * THE FIVE CONTROLS, AND WHY FIVE
  * ---------------------------------------------------------------------------
  * "No request except X" is the archetypal assertion that passes by not looking.
  * Silence from a working observer and silence from an observer that was never
@@ -39,6 +39,23 @@
  *      says `TypeError: Failed to fetch`, so the message alone cannot tell a CSP
  *      refusal from a DNS failure.
  *
+ *   E  THE MAIN PROCESS'S OWN TRANSPORTS, at a real HTTP sink on 127.0.0.1 —
+ *      `fetch`, `node:https`, `node:http`, `node:http2`, `node:net`,
+ *      `node:tls`, `node:dgram` and `net.Socket.prototype.connect`. Every one
+ *      of them MUST throw, and the sink in the suite's process MUST have
+ *      recorded no connection at all. This is the control that was MISSING and
+ *      that two audits exploited: A-D all ride Chromium, and `session.webRequest`
+ *      is the observer for all of them, so a request that never enters Chromium
+ *      is invisible to every one of them. Both auditors put one line of
+ *      `fetch()` into `main.js`, watched it reach a real host, and watched this
+ *      suite report 19 passed / 0 failed over it. `src/main/netguard.js` is the
+ *      answer and this is how it is measured.
+ *
+ *      THE SINK IS NOT REACHED THROUGH A RESOLVER RULE. `--host-resolver-rules`
+ *      is a Chromium switch; a `node:https` call resolves through the OS and
+ *      would ignore it, so a `.invalid` host would fail with a DNS error and the
+ *      control would pass by not looking. A loopback port cannot fail that way.
+ *
  * B and C are the same URL through two sessions with opposite verdicts. That
  * pairing is the whole of what makes the `persist:youtube` exclusion testable
  * without YouTube.
@@ -55,6 +72,12 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
+import https from 'node:https';
+import http2 from 'node:http2';
+import net from 'node:net';
+import tls from 'node:tls';
+import dgram from 'node:dgram';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -186,6 +209,74 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     document.removeEventListener('securitypolicyviolation', on);
     return { err, violations: seen };
   })()`);
+
+  // ------------------------- E. the transports that leave Chromium entirely
+  /**
+   * EVERY ONE OF THESE MUST THROW. The URL is a REAL loopback port owned by
+   * `tools/p1-sink.mjs` in the suite's process, so if a transport is not
+   * refused the request completes and the sink records it — and the suite reads
+   * the sink, not this report, for that half. A probe that graded its own
+   * homework would be no better than the prose this replaces.
+   *
+   * `sinkUrl` is absent on every other launch of the app, and this whole block
+   * is `tools/`, which `--gate` gates and packaging never ships.
+   */
+  const sinkUrl = process.env.STEM_WORKBENCH_P1_SINK || '';
+  R.netGuard = { before: state.netGuard(), sinkUrl, attempts: [] };
+  if (sinkUrl) {
+    const u = new URL(sinkUrl);
+    const port = Number(u.port);
+    const shot = async (what, fn) => {
+      const row = { what, threw: false, name: null, message: null };
+      try {
+        await fn();
+      } catch (err) {
+        row.threw = true;
+        row.name = String((err && err.name) || '');
+        row.message = String((err && err.message) || err).slice(0, 200);
+      }
+      R.netGuard.attempts.push(row);
+    };
+    /**
+     * EVERY HANDLE IS GIVEN AN `error` LISTENER AND THEN DESTROYED, and that is
+     * not tidiness. With the guard in place none of these lines returns at all —
+     * the call throws first. With the guard REMOVED (mutation 21) they all
+     * return live handles against a plain HTTP sink, and an unhandled `error`
+     * on any one of them takes the main process down with it: the app would die
+     * before writing a report, and the suite would go red for the WRONG reason,
+     * naming "the app launches and writes a report" instead of the three
+     * assertions the mutation is meant to break.
+     */
+    const drop = (h) => { try { h.on('error', () => {}); } catch { /* not an emitter */ } return h; };
+    const kill = (h) => { try { (h.destroy || h.close || h.end).call(h); } catch { /* already gone */ } };
+    await shot('globalThis.fetch()', () => fetch(`${sinkUrl}from-main-fetch`));
+    await shot('https.request()', () => kill(drop(https.request('https://127.0.0.1/from-main-https')).end()));
+    await shot('https.get()', () => kill(drop(https.get('https://127.0.0.1/from-main-https-get'))));
+    await shot('http.request()', () => kill(drop(http.request(`${sinkUrl}from-main-http`)).end()));
+    await shot('http.get()', () => kill(drop(http.get(`${sinkUrl}from-main-http-get`))));
+    await shot('http2.connect()', () => kill(drop(http2.connect(sinkUrl))));
+    await shot('net.connect()', () => kill(drop(net.connect(port, '127.0.0.1'))));
+    await shot('net.createConnection()', () => kill(drop(net.createConnection(port, '127.0.0.1'))));
+    await shot('net.Socket.prototype.connect()', () => kill(drop(new net.Socket()).connect(port, '127.0.0.1')));
+    await shot('tls.connect()', () => kill(drop(tls.connect(port, '127.0.0.1'))));
+    await shot('dgram.createSocket()', () => kill(drop(dgram.createSocket('udp4'))));
+    /**
+     * ...AND A PIPE IS NOT A NETWORK. The guard wraps
+     * `net.Socket.prototype.connect` rather than removing it, because Node's own
+     * child-process IPC uses that method on a path. If this row ever starts
+     * throwing `P1ViolationError`, the guard has become too wide and something
+     * unrelated is about to break in a way nobody will connect to this file.
+     */
+    await shot('net.Socket.prototype.connect() to a PIPE (must NOT be refused)',
+      () => new Promise((resolve, reject) => {
+        const s = new net.Socket();
+        s.on('error', () => resolve());       // ENOENT: it reached the OS, which is the answer
+        s.connect(path.join(outDir, 'there-is-no-socket-here.sock'));
+        setTimeout(() => { try { s.destroy(); } catch { /* already gone */ } resolve(); }, 500);
+      }));
+    await wait(400);          // any request that WAS admitted has time to arrive
+  }
+  R.netGuard.after = state.netGuard();
 
   await wait(250);           // let the last onBeforeRequest land
 

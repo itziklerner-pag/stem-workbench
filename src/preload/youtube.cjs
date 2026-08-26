@@ -525,4 +525,13 @@ setInterval(() => {
 addEventListener('pagehide', () => { up({ t: 'bye' }); }, { capture: true });
 
 watchVideo();
-up({ t: 'hello' });
+/**
+ * `have` IS PART OF THE ANNOUNCEMENT, and it decides one thing in `main`:
+ * whether to start hunting for the page's autoplay-next toggle. youtube.com's
+ * HOME PAGE has no player, so the hunt there can only ever end in "not found",
+ * which the deck paints as *"Couldn't turn off YouTube's autoplay"* — an
+ * advisory about a page the user has not asked to do anything with, on every
+ * cold start, because the home page is the default source URL.
+ * `watchVideo()` above has already run, so this is an answer and not a guess.
+ */
+up({ t: 'hello', have: !!el });

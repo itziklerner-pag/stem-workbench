@@ -146,6 +146,22 @@ export const ASSERTED = new RegExp([
   String.raw`^\s*(?:PASS|ok)\s`,
 ].join('|'), 'm');
 
+/**
+ * The number in a suite's own summary line — `p1: 24 passed, 0 failed`.
+ *
+ * The LAST such line, not the first: a suite may quote a count in its prose (and
+ * `void-canary` prints four of them on purpose, as classifier fixtures), and the
+ * summary is by construction the last thing printed. `null` when there is none,
+ * which is a different answer from zero and is reported as one.
+ *
+ * @param {string} out  the transcript, already colour-stripped
+ * @returns {number|null}
+ */
+export function countOf(out) {
+  const all = [...String(out).matchAll(/^\s*(?:[\w-]+:\s*)?(?:all\s+)?(\d+)\s+passed,\s+\d+\s+failed\s*$/gm)];
+  return all.length ? Number(all[all.length - 1][1]) : null;
+}
+
 // ------------------------------------------------------------------- the steps
 /**
  * THE STEPS TABLE IS THE PLAN, AND A SUITE THAT IS NOT IN IT DOES NOT EXIST.
@@ -157,6 +173,21 @@ export const ASSERTED = new RegExp([
  * reason: a suite that is not in the table is indistinguishable from a suite
  * nobody thought of. `todo` steps never run, are printed in the verdict every
  * time, and make an unqualified GREEN impossible.
+ *
+ * `assertions: N` — THE EXACT COUNT THE SUITE MUST PRINT, and it is checked.
+ * `vendor/.pin` pins the vendored plan's 544 both ways and
+ * `vendor/.conformance.json` pins 612/593/19 both ways, for a reason `vendor-unit`
+ * states out loud: *"the count of SUITES cannot see a suite that ran and asserted
+ * less than it used to."* This repository's own twelve suites had no such pin,
+ * and an audit showed the cost — `deck-seam` with its `ok()` silently dropping a
+ * class of assertion names printed `32 passed, 0 failed` instead of 49, and the
+ * runner called it PASS. `classify()` now refuses that, exactly, and
+ * `tools/suites/void-canary.mjs` holds these numbers against the count column in
+ * `docs/TESTING.md`, so neither can be moved quietly on its own.
+ *
+ * `vendor-unit` HAS NONE, deliberately: its count is somebody else's runner's and
+ * is pinned in `vendor/.pin` in both directions, over a report the count check
+ * below never reaches (it exits 1 as pinned).
  *
  * Flags:
  *   window  needs an X display and launches Electron. `--quick` drops it. The
@@ -170,11 +201,13 @@ export const ASSERTED = new RegExp([
 export const STEPS = [
   {
     id: 'void-canary',
+    assertions: 35,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
   {
     id: 'vendor-intact',
+    assertions: 6,
     title: 'bash tools/vendor-unit.sh --check — nothing under vendor/ was edited, added or removed behind the pin',
     cmd: ['bash', 'tools/vendor-unit.sh', '--check'],
     /**
@@ -380,6 +413,7 @@ export const STEPS = [
   },
   {
     id: 'deck-seam',
+    assertions: 49,
     title: 'node tools/suites/deck-seam.mjs — the DeckHost conformance suite: the shipped hole module over a stubbed preload bridge',
     cmd: ['node', 'tools/suites/deck-seam.mjs'],
     /**
@@ -400,12 +434,14 @@ export const STEPS = [
   },
   {
     id: 'shell',
+    assertions: 35,
     title: 'node tools/suites/shell.mjs — one real launch of `electron .`: the window, isolation, the capture grant, the mute, the allowlist',
     cmd: ['node', 'tools/suites/shell.mjs'],
     window: true,
   },
   {
     id: 'engine-host',
+    assertions: 37,
     title: 'node tools/suites/engine-host.mjs — the ENGINE half of the seam over one real launch: the nine duties, the model, a real capture',
     cmd: ['node', 'tools/suites/engine-host.mjs'],
     window: true,
@@ -467,12 +503,14 @@ export const STEPS = [
   },
   {
     id: 'transport',
+    assertions: 64,
     title: 'node tools/suites/transport.mjs — the source view\'s transport: L1, the closed write set, the jump rule, speed, autoplay-next, the keys',
     cmd: ['node', 'tools/suites/transport.mjs'],
     window: true,
   },
   {
     id: 'deck-host',
+    assertions: 27,
     title: "node tools/suites/deck-host.mjs — the DECK half of the seam: fourteen members over a stub AND one real launch, the three messages the Host originates, and the autoplay-next wire",
     cmd: ['node', 'tools/suites/deck-host.mjs'],
     window: true,
@@ -489,6 +527,7 @@ export const STEPS = [
   },
   {
     id: 'p1',
+    assertions: 24,
     title: "node tools/suites/p1.mjs — P1': every session the app creates reaches the update host and nothing else",
     cmd: ['node', 'tools/suites/p1.mjs'],
     window: true,
@@ -516,6 +555,7 @@ export const STEPS = [
   },
   {
     id: 'conformance',
+    assertions: 11,
     title: "node tools/suites/conformance.mjs — the unit's own group('host'), pointed at THIS Host's hole modules, run to completion",
     cmd: ['node', 'tools/suites/conformance.mjs'],
     /**
@@ -548,6 +588,7 @@ export const STEPS = [
   },
   {
     id: 'smoke',
+    assertions: 21,
     title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
     cmd: ['node', 'tools/suites/smoke.mjs'],
     window: true,
@@ -574,6 +615,7 @@ export const STEPS = [
   },
   {
     id: 'capture-mute',
+    assertions: 15,
     title: 'node tools/suites/capture-mute.mjs — the permanent gate: the view is captured at full level while the device stays silent',
     cmd: ['node', 'tools/suites/capture-mute.mjs'],
     window: true,
@@ -609,6 +651,7 @@ export const STEPS = [
   },
   {
     id: 'youtube',
+    assertions: 26,
     title: 'node tools/suites/youtube.mjs — the same claims against real youtube.com, and the six stems. MANUAL / nightly only.',
     cmd: ['node', 'tools/suites/youtube.mjs'],
     window: true,
@@ -645,9 +688,9 @@ export const STEPS = [
      * forbids it a level BAND: one recorded spike run was measuring a pre-roll
      * ad, so every level claim in it is presence/absence against one floor.
      *
-     * WHAT FALSIFIES IT — `tools/suites/youtube-mutations.mjs`: 41 rows that
+     * WHAT FALSIFIES IT — `tools/suites/youtube-mutations.mjs`: 43 rows that
      * doctor a RECORDED report one field at a time and re-judge it without
-     * launching anything (coverage 25/25), plus three `--live` rows that edit
+     * launching anything (coverage 26/26), plus three `--live` rows that edit
      * `src/` for real and re-run against the site. The two halves prove
      * different things and the file says which.
      */
@@ -806,7 +849,50 @@ export function classify(res) {
     const bad = res.expect.pin ? res.expect.pin(m, t) : null;
     if (bad) return { verdict: 'FAIL', detail: bad, hard: [`${res.id}: ${bad}`] };
   }
-  if (res.code === 0) return { verdict: 'PASS', detail: summarise(res), hard: [] };
+  if (res.code === 0) {
+    /**
+     * ---------------------------------------------------------------------
+     * THE ABSENT-ASSERTION FAILURE, one level up from the vendored runner.
+     * ---------------------------------------------------------------------
+     * `vendor/.pin` pins the vendored plan's 544 both ways and
+     * `vendor/.conformance.json` pins 612/593/19 both ways, for a reason
+     * `vendor-unit`'s own comment states: *"the count of SUITES cannot see a
+     * suite that ran and asserted less than it used to."* This repository's own
+     * twelve suites had no such pin, and an audit showed what that costs — a
+     * `deck-seam` whose `ok()` silently dropped a class of assertion names
+     * printed `32 passed, 0 failed` instead of 49 and the runner called it PASS.
+     *
+     * So a step may declare `assertions: N` and it is checked EXACTLY, not as a
+     * floor. `docs/TESTING.md`'s suite table carries the same number in its own
+     * column and `tools/suites/void-canary.mjs` holds the two lists together, so
+     * the pin cannot be moved quietly in one place.
+     *
+     * IT IS EXACT ON PURPOSE. A range on a deterministic number is a gate that
+     * has stopped measuring; every suite here emits its assertions from literal
+     * lists or from `STEPS` itself, so the count is a property of the code. A
+     * suite whose count really is machine-dependent must SKIP rather than assert
+     * fewer things — that is `docs/TESTING.md` §3 rule 8 — and it declares no
+     * `assertions` here, with the reason written beside it.
+     */
+    if (typeof res.assertions === 'number') {
+      const got = countOf(t);
+      if (got === null) {
+        return { verdict: 'FAIL', detail: `exit 0 with no readable "N passed, M failed" line to count`,
+                 hard: [`${res.id}: expected ${res.assertions} assertions and could not find a summary line at all`] };
+      }
+      if (got !== res.assertions) {
+        const how = got < res.assertions ? 'FEWER' : 'more';
+        return {
+          verdict: 'FAIL',
+          detail: `${got} assertions, and docs/TESTING.md pins ${res.assertions}`,
+          hard: [`${res.id}: ran ${got} assertions, ${how} than the ${res.assertions} pinned in STEPS and in `
+            + "docs/TESTING.md's suite table. A suite that asserts less than it used to is green from the "
+            + 'outside; that is what this pin exists to see. Move BOTH numbers, in the commit that changes the suite.'],
+        };
+      }
+    }
+    return { verdict: 'PASS', detail: summarise(res), hard: [] };
+  }
 
   /**
    * ------------------------------------------------------------------------
@@ -865,10 +951,57 @@ export function classify(res) {
  * every step this repository has: any step that was filtered out, declined,
  * declared-and-not-built, or manual makes it `GREEN (partial)` and is NAMED.
  */
+/**
+ * THE EXIT CODE FOR A VERDICT, as a pure function so `--self-check` can assert it.
+ *
+ * `GREEN (partial)` USED TO EXIT 0, IDENTICALLY TO A FULL GREEN, and an audit
+ * showed what that buys: with `xvfb-run` off PATH,
+ * `node tools/verify.mjs --only shell` printed `shell SKIPPED — xvfb-run is not
+ * on PATH`, `GREEN (partial — 1 of 13 steps ran)`, and exit 0. The WORDS were
+ * honest and the STATUS was not, and a status is what CI reads.
+ * `docs/TESTING.md` already stated the principle for the vendored runner —
+ * *"Exit 0 alone is not enough"* — and this is the host runner acting on it.
+ *
+ * ---------------------------------------------------------------------------
+ * `--strict` IS ABOUT SKIPS AND TODOs, NOT ABOUT FILTERING, AND THE DIFFERENCE
+ * IS THE WHOLE DESIGN
+ * ---------------------------------------------------------------------------
+ * `--quick` and `--only` are a HUMAN saying which question they are asking, and
+ * a runner that called that a failure would be a runner people stop passing
+ * `--strict` to. A SKIP is the MACHINE declining to answer a question that WAS
+ * asked — no display, no PipeWire, no weights, a busy sink queue — and a `todo`
+ * is a suite that is declared and does not exist. Those two are the ones that
+ * read as success while measuring nothing, so those two are what `--strict`
+ * refuses.
+ *
+ * So `node tools/verify.mjs --quick --strict` means *"every step I asked for
+ * really ran"*, which is a sentence CI can use, and `--only shell --strict`
+ * means it for one step.
+ *
+ * 2 RATHER THAN 1, so a machine can tell "nothing measured" from "something
+ * failed". They are different problems and they get different fixes.
+ *
+ * @param {{colour: string, skipped: object[], todo: object[]}} v  a `verdict()`
+ * @param {boolean} strict
+ * @returns {0|1|2}
+ */
+export function exitFor(v, strict = false) {
+  if (v.colour === 'RED') return 1;
+  if (strict && (v.skipped.length > 0 || v.todo.length > 0)) return 2;
+  return 0;
+}
+
 export function verdict(results, steps, plan) {
   const hard = results.flatMap((r) => (r.hard || []).map((h) => ({ step: r.id, line: h })));
+  /**
+   * THE TWO KINDS OF ABSENCE ARE SEPARATED EVEN ON A RED, because `exitFor`
+   * reads them and a caller must never get `undefined.length`. On a red the
+   * colour decides the code anyway; the lists are still true.
+   */
+  const skipped = results.filter((r) => r.verdict === 'SKIP').map((r) => ({ id: r.id, why: r.detail }));
+  const todo = steps.filter((s) => s.todo).map((s) => ({ id: s.id, why: s.todo }));
   if (hard.length || results.some((r) => r.verdict === 'FAIL' || r.verdict === 'VOID')) {
-    return { colour: 'RED', hard, notRun: [] };
+    return { colour: 'RED', hard, notRun: [], skipped, todo };
   }
   const ran = new Set(plan.map((s) => s.id));
   const notRun = [];
@@ -880,7 +1013,7 @@ export function verdict(results, steps, plan) {
   for (const r of results) {
     if (r.verdict === 'SKIP') notRun.push({ id: r.id, why: `SKIPPED — ${r.detail}` });
   }
-  return { colour: notRun.length ? 'GREEN-PARTIAL' : 'GREEN', hard, notRun };
+  return { colour: notRun.length ? 'GREEN-PARTIAL' : 'GREEN', hard, notRun, skipped, todo };
 }
 
 // ------------------------------------------------------------------ self-check
@@ -1083,6 +1216,22 @@ function selfCheck() {
   const withManual = verdict([{ id: 'a', verdict: 'PASS', hard: [] }], [...built.slice(0, 1), { id: 'y', manual: true }], built.slice(0, 1));
   check('...and a manual step that was not asked for is named every run, never silently absent',
     withManual.colour === 'GREEN-PARTIAL' && withManual.notRun.some((n) => n.id === 'y'));
+  /**
+   * THE EXIT CODE, over the same four verdicts. `--strict` refuses a SKIP and a
+   * `todo` and is deliberately SILENT about filtering — asserted here rather
+   * than described, because getting it the other way round makes `--strict`
+   * something people stop passing.
+   */
+  check('--strict exits 2 over a SKIP: a step the machine declined is a question nobody answered  [entry point: exitFor()]',
+    exitFor(withSkip, true) === 2 && exitFor(withSkip, false) === 0, `${exitFor(withSkip, true)} / ${exitFor(withSkip, false)}`);
+  check('...and 2 over a step that is declared and NOT BUILT', exitFor(part, true) === 2, String(exitFor(part, true)));
+  check('...and 0 over a plan the caller FILTERED — --quick and --only are a question, not a failure',
+    exitFor(withManual, true) === 0, String(exitFor(withManual, true)));
+  check('...and 1 for a RED whether or not --strict is on, because those are different problems',
+    exitFor(verdict([{ id: 'a', verdict: 'VOID', hard: ['x'] }], built, built), true) === 1
+    && exitFor(verdict([{ id: 'a', verdict: 'VOID', hard: ['x'] }], built, built), false) === 1);
+  check('...and 0 for a full green under --strict', exitFor(green, true) === 0);
+
   const filtered = verdict([{ id: 'a', verdict: 'PASS', hard: [] }], built, [built[0]]);
   check('...and a step --quick filtered out is named too, not silently absent from the count',
     filtered.colour === 'GREEN-PARTIAL' && filtered.notRun.some((x) => x.id === 'b' && /filtered/.test(x.why)),
@@ -1141,12 +1290,13 @@ function selfCheck() {
 async function main(argv) {
   const flag = (k) => argv.includes('--' + k);
   const arg = (k, d) => { const i = argv.indexOf('--' + k); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
-  const QUICK = flag('quick'), ONLY = arg('only', null), MANUAL = flag('manual');
+  const QUICK = flag('quick'), ONLY = arg('only', null), MANUAL = flag('manual'), STRICT = flag('strict');
 
   if (flag('self-check')) return selfCheck() ? 1 : 0;
   if (flag('list')) {
     for (const s of STEPS) {
-      const tags = [s.window && 'window', s.sink && 'sink', s.manual && 'manual', s.todo && 'TODO'].filter(Boolean);
+      const tags = [s.window && 'window', s.sink && 'sink', s.manual && 'manual', s.todo && 'TODO',
+        typeof s.assertions === 'number' && `${s.assertions} assertions`].filter(Boolean);
       console.log(`  ${s.id.padEnd(14)}${tags.length ? `[${tags.join(' ')}] ` : ''}${s.title}`);
     }
     return 0;
@@ -1202,16 +1352,23 @@ async function main(argv) {
     for (const n of v.notRun) console.log(`  ${C.y}-${C.x} ${pad(n.id, 14)} ${n.why}`);
   }
   console.log(`\n${C.d}logs -> ${OUT}${C.x}`);
+  const code = exitFor(v, STRICT);
   if (v.colour === 'RED') {
     console.log(`\n${C.r}${C.b}RED${C.x} — ${v.hard.length} failing assertion${v.hard.length === 1 ? '' : 's'}. Do not commit as green.\n`);
-    return 1;
+    return code;
   }
   if (v.colour === 'GREEN-PARTIAL') {
-    console.log(`\n${C.g}${C.b}GREEN${C.x} ${C.y}(partial — ${results.length} of ${STEPS.length} steps ran; see WHAT DID NOT RUN above)${C.x}\n`);
-    return 0;
+    console.log(`\n${C.g}${C.b}GREEN${C.x} ${C.y}(partial — ${results.length} of ${STEPS.length} steps ran; see WHAT DID NOT RUN above)${C.x}`
+      + `${code === 2
+        ? `\n${C.r}${C.b}--strict: EXIT 2${C.x} — ${v.skipped.length} step(s) SKIPPED and ${v.todo.length} `
+          + `NOT BUILT (${[...v.skipped, ...v.todo].map((x) => x.id).join(' ')}). A step the machine declined to `
+          + 'run is a question nobody answered, and it reads as success from the outside. Filtering with '
+          + '--quick or --only is NOT what this refuses.'
+        : ''}\n`);
+    return code;
   }
   console.log(`\n${C.g}${C.b}GREEN${C.x} — ${results.map((r) => `${r.id} ${r.detail}`).join(' · ')}\n`);
-  return 0;
+  return code;
 }
 
 // Import-safe on purpose: `tools/suites/void-canary.mjs` imports `STEPS`,

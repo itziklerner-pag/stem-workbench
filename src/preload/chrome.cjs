@@ -6,9 +6,15 @@
  * the unit's three addresses, and putting it on the bus would give a renderer
  * with no duties a seat at the engine's traffic.
  *
- * WHAT IS HERE IN THIS WAVE: a one-way status feed, pushed by `main`. The arm
- * and disarm gestures (HOST-DESIGN.md §6.4 — this is the surface that carries
- * them) are the next wave's, and they arrive here as two more arrow functions.
+ * WHAT IS HERE: a one-way status feed pushed by `main`, and the ARM GESTURE
+ * (HOST-DESIGN.md §6.4 — this is the surface that carries it). The gesture is
+ * `invoke`, not `send`, because the bar has to draw the ANSWER: `arm()` refuses
+ * when there is no page in the source view, and a button that swallowed that
+ * refusal would be the dead control this one replaced.
+ *
+ * IT IS STILL NOT ON THE BUS. `deck:arm` reaches `main`, which calls the same
+ * `deckHost.arm()` the menu item calls; nothing here talks to the engine or the
+ * deck directly.
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
@@ -28,4 +34,13 @@ contextBridge.exposeInMainWorld('__wbChrome', {
     ipcRenderer.send('chrome:ready');     // ask main to push the current status
     return () => listeners.delete(fn);
   },
+  /**
+   * THE ARM GESTURE. One channel and a direction, because arming and disarming
+   * are the same button and the bar must not have to guess which one it is
+   * looking at — `main` holds the epoch and answers with the new state.
+   *
+   * @param {boolean} on  true = arm, false = disarm
+   * @returns {Promise<{ok: boolean, armed: boolean, kind?: string, message?: string}>}
+   */
+  arm: (on) => ipcRenderer.invoke('chrome:arm', on === true),
 });

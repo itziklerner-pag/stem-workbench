@@ -314,6 +314,7 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     const t = (id) => { const el = document.getElementById(id); return el ? el.textContent : null; };
     const arm = document.getElementById('arm');
     return { arm: !!arm, armDisabled: !!(arm && arm.disabled), armText: arm ? arm.textContent : null,
+             armedAttr: arm ? arm.dataset.armed : null, bridgeArm: typeof (window.__wbChrome || {}).arm,
              source: t('source'), deck: t('deck'), engine: t('engine'), refusal: t('refusal') };
   })()`);
 
