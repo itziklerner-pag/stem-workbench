@@ -363,6 +363,21 @@ M 39 "a session write lands in the map that is persisted" "$S" \
       if (true) {" \
   'LOCAL area outlives the process and the SESSION area does not'
 
+# The two cases below arrived with the two assertions they watch, when
+# `deck-host.mjs` was cut down to its launch half and its main-store claims moved
+# here. A claim that moves without its mutation is a claim that stopped being
+# evidence.
+M 39a "a fresh store answers undefined where it should answer null" "$S" \
+  '      return m.has(key) ? m.get(key) : null;' \
+  '      return m.get(key);' \
+  'FRESH profile answers null in both areas'
+
+M 39b "main's change feed fires for every key it holds" "$S" \
+  '      const set = feeds.get(feedKey(area, key));
+      if (set) for (const fn of [...set]) { stats.changes++; fn(value); }' \
+  '      for (const set of feeds.values()) for (const fn of [...set]) { stats.changes++; fn(value); }' \
+  "main's change feed fires for the area and key it was given"
+
 M 40 "an unreadable local file is read as an empty one" "$S" \
   '      localUnreadable = new Error(`storage: ${localFile} exists and could not be read `' \
   '      localUnreadable = null || new Error(`storage: x `' \

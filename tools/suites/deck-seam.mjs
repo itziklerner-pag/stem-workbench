@@ -771,6 +771,26 @@ async function loadHost(bridge) {
    * to make".
    */
   const first = createStorage({ dir: OUT });
+
+  /**
+   * A FRESH PROFILE ANSWERS `null`, IN BOTH AREAS — the ordinary case, asserted
+   * BEFORE anything is written, because it is the only moment it can be.
+   *
+   * It is the same claim rule 6 makes at the seam, one level in, and it needs its
+   * own line for the reason the seam's does: the deck's `applyPrefs(null)` DRAWS
+   * its defaults, so a store that threw or answered `undefined` for a key nobody
+   * had written would turn every first run into either a broken boot or a
+   * preference that reads as deliberately unset.
+   *
+   * (Moved here from `deck-host.mjs` §1b when that suite was cut down to its
+   * launch half; nothing else asserted it.)
+   */
+  ok('a FRESH profile answers null in both areas, and does not throw — absent is the ordinary case, not a fault  '
+    + '[entry point: createStorage() get(), before anything has been written]',
+    threw(() => first.get('local', PREFS_KEY)) === null
+    && first.get('local', PREFS_KEY) === null && first.get('session', ARM_ERROR_KEY) === null,
+    `local -> ${JSON.stringify(first.get('local', PREFS_KEY))} · session -> ${JSON.stringify(first.get('session', ARM_ERROR_KEY))}`);
+
   first.set('local', PREFS_KEY, { autoplayNext: false, instrument: 'alto' });
   first.set('session', ARM_ERROR_KEY, { code: 'ARM_FAILED', at: Date.now(), seq: 1 });
   const second = createStorage({ dir: OUT });
@@ -810,6 +830,29 @@ async function loadHost(bridge) {
     + '[rule 6, one level in; entry point: createStorage() load]',
     readThrew !== null && /could not be read/.test(readThrew.message) && sessionStillFine && afterWrite === null,
     `${readThrew ? readThrew.message.slice(0, 90) : 'IT ANSWERED null — a corrupt store read as "no preferences"'}`);
+
+  /**
+   * MAIN'S OWN CHANGE FEED FILTERS BY AREA AND KEY, and that is a different
+   * filter from the seam's.
+   *
+   * The seam's (`onStorageChanged` in the hole) unpicks what main PUSHES. This
+   * one decides what main pushes at all — and main is itself a writer of
+   * `PREFS_KEY`, through the autoplay-next wire, so a feed that fired for every
+   * key would have the deck applying another key's value to its preferences and
+   * would put the Host in a loop with itself.
+   *
+   * (Moved here from `deck-host.mjs` §1b; nothing else asserted it.)
+   */
+  const feedSaw = [];
+  const feedStore = createStorage({ dir: path.join(OUT, 'feed') });
+  feedStore.onChanged('local', PREFS_KEY, (v) => feedSaw.push(v));
+  feedStore.set('local', PREFS_KEY, { autoplayNext: false });
+  feedStore.set('local', 'somethingElse', 1);
+  feedStore.set('session', PREFS_KEY, 'the other lifetime');
+  ok('main\'s change feed fires for the area and key it was given, and for no other  '
+    + '[entry point: createStorage() onChanged(), which the autoplay-next wire subscribes to]',
+    feedSaw.length === 1 && JSON.stringify(feedSaw[0]) === JSON.stringify({ autoplayNext: false }),
+    `${feedSaw.length} of 3 writes reported: ${JSON.stringify(feedSaw)}`);
 
   const areaThrows = ['get', 'set', 'onChanged'].filter((m) => threw(() => (
     m === 'get' ? first.get('sync', 'k') : m === 'set' ? first.set('sync', 'k', 1) : first.onChanged('sync', 'k', () => {})

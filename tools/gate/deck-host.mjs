@@ -254,6 +254,70 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   // =======================================================================
   // 6. THE PAGE DUTIES
   // =======================================================================
+  /**
+   * THE RE-SEND, MEASURED ON ITS OWN, because the obvious estimator saturates.
+   *
+   * "`ready` produced a re-send" was asserted as "some video messages have
+   * arrived", and the transport pushes state on a ~4 Hz tick anyway — so
+   * deleting the re-send changed nothing the assertion could see. Measured: the
+   * mutation that ignores `ready` scored NO RED.
+   *
+   * `speed` and `autonav` are the discriminators: neither ticks, both are
+   * deduped on the change path, and `resend()` re-sends the last of each
+   * UNDEDUPED. So a second `ready` must move both counters within a window
+   * shorter than anything else that could move them.
+   */
+  /**
+   * WAIT FOR THE PRECONDITION, AND RECORD WHETHER IT WAS MET.
+   *
+   * `resend()` re-sends the LAST speed report and the LAST autoplay report — so
+   * on a machine slow enough that neither has happened yet, it correctly sends
+   * nothing and the delta below is correctly zero. That is a race in the
+   * MEASUREMENT, not a defect in the Host, and it flaked exactly once: the first
+   * battery run's clean baseline went red here while the same suite passed alone
+   * seconds later.
+   *
+   * So the probe waits for each channel to have said something at all, and
+   * reports whether it got there. A suite that could not set up its own
+   * precondition must say so rather than assert through it.
+   */
+  const ready0 = Date.now();
+  let pre = false;
+  while (Date.now() - ready0 < 8000) {
+    if (Number(host.stats.toDeck.speed || 0) >= 1 && Number(host.stats.toDeck.autonav || 0) >= 1) { pre = true; break; }
+    await wait(100);
+  }
+  const countsBefore = { ...host.stats.toDeck };
+  await evalIn(deckWc, "(() => { window.__wbDeck.pageSend({ c: 'ready' }); return true; })()");
+  await wait(400);
+  R.resend = {
+    /** Did each channel have a last report to re-send at all. See above. */
+    precondition: pre,
+    waitedMs: Date.now() - ready0,
+    before: countsBefore,
+    after: { ...host.stats.toDeck },
+    // What the deck asked for, so a red can tell "the deck never asked" from
+    // "the Host never answered".
+    readyFromDeck: host.stats.fromDeck.ready,
+  };
+
+  /**
+   * WHAT THE DECK ITSELF MEASURED, read out of the deck's own document.
+   *
+   * Without it, "the Host clamped what the deck reported" cannot be told from
+   * "the Host reports a constant": a Host that answered 900 for everything is
+   * self-consistent, and the view really is 900 px, so an assertion that
+   * compares main's number with the view's number passes. Measured — the
+   * mutation that clamps every height to the ceiling left that assertion green
+   * while the deck was measuring 432.
+   *
+   * `body.scrollHeight` is the same read `reportHeight()` makes in `ui/embed.js`,
+   * and it is taken with no dialog open, which is when the deck's own modal floor
+   * does not apply.
+   */
+  R.deckMeasured = await evalIn(deckWc,
+    '(() => (document.querySelector("dialog[open]") ? null : Math.ceil(document.body.scrollHeight)))()');
+
   R.page = {
     claim: host.claim(),
     heights: host.stats.heights.slice(),

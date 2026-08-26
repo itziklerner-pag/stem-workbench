@@ -1,35 +1,43 @@
 #!/usr/bin/env node
 /**
- * THE MUTATION BATTERY FOR `deck-host` — every assertion watched RED.
+ * THE MUTATION BATTERY FOR `deck-host` — every assertion in the launch suite,
+ * watched RED.
  *
  * `AGENTS.md`: *"Every assertion you add must be WATCHED RED BY MUTATION. Break
  * the code, show it fails, restore. Name the mutation. An assertion you did not
  * watch fail is not evidence."*
  *
- * This file is that, executed rather than remembered. Each row below is one
- * edit to one shipped file, the assertions it MUST turn red, and a sentence
- * saying what the defect would look like in the product. It applies the edit,
- * runs `tools/suites/deck-host.mjs`, records which assertion names appeared on a
- * `FAIL` line, and puts the file back — with the restore in a `finally`, so an
- * interrupted run does not leave a mutation on the tree.
+ * Each row is one edit to one shipped file, the assertions it MUST turn red, and
+ * a sentence saying what the defect would look like in the product. It applies
+ * the edit, runs `tools/suites/deck-host.mjs`, records which assertion names
+ * appeared on a `FAIL` line, and puts the file back — with the restore in a
+ * `finally`, so an interrupted run does not leave a mutation on the tree.
  *
  *   node tools/suites/deck-host-mutations.mjs             # the whole battery
- *   node tools/suites/deck-host-mutations.mjs --only M12  # one row
- *   node tools/suites/deck-host-mutations.mjs --fast      # the node-half rows only
+ *   node tools/suites/deck-host-mutations.mjs --only L12  # one row
+ *
+ * EVERY ROW COSTS A LAUNCH — about 45 s — because every assertion in this suite
+ * is about a real one. The conformance half and its cheap battery are
+ * `deck-seam.mjs` / `deck-seam-mutations.sh`; this file deliberately has no
+ * plain-node rows, for the same reason the suite has no plain-node assertions.
  *
  * TWO WAYS IT FAILS, and the second is the one worth having:
  *
  *   1. A MUTATION THAT PRODUCED NO RED. The suite is blind to a real defect.
  *   2. AN ASSERTION NO MUTATION EVER TURNED RED — the coverage report at the
  *      end. That is invisible from inside a green run, and it is how a suite
- *      ends up with an assertion that cannot fail. `tools/suites/coverage.py`
- *      does the same job for `shell`; this is the same idea, in-process.
+ *      ends up with an assertion that cannot fail.
  *
- * WHY SOME ROWS BATCH SEVERAL EDITS. A launch costs ~45 s and the battery has
- * more rows than that budget allows one at a time. Rows marked `batch` apply
- * two or three edits whose assertions are disjoint, and the row FAILS unless
- * EXACTLY the expected set went red — so an interaction between them shows up
- * as an unexpected red rather than being hidden by one.
+ * TWO ASSERTIONS ARE COVERED DELIBERATELY WEAKLY, and both say so at their site
+ * rather than being quietly dropped from the report:
+ *   · "NOTHING ELSE did: volume and evil" — `drive`'s write set is filtered at
+ *     three layers, so breaking one does not change what reaches the element.
+ *     `deck-seam-mutations.sh` watches the seam's layer; `transport`'s battery
+ *     watches its own.
+ *   · "the preload bridge cannot be rewritten from inside the deck page" — that
+ *     is a property of `contextBridge`, not of our code, so there is nothing of
+ *     ours to break. It is recorded because it is what makes the launch half
+ *     unable to test late binding at all.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,318 +51,22 @@ const STORAGE = 'src/main/storage.js';
 const KEYS = 'src/main/keys.js';
 const ASSETS = 'src/main/assets.js';
 
-/** @type {{id: string, why: string, fast?: boolean, edits: [string, string, string][], expect: string[]}[]} */
+/** @type {{id: string, why: string, shared?: boolean, atLeast?: boolean, edits: [string, string, string][], expect: string[]}[]} */
 const MUTATIONS = [
-  // ------------------------------------------------ the hole module, §1 only
-  {
-    id: 'M1',
-    why: 'a Host short one duty — the failure assertHost exists to move to boot',
-    fast: true,
-    edits: [[HOST, '  armShortcut: async () => {', '  armShortcutX: async () => {']],
-    expect: ['assertHost accepts the SHIPPED'],
-  },
-  {
-    id: 'M2',
-    why: 'a `page` namespace short `close` — the deck could never take itself off the page',
-    fast: true,
-    edits: [[HOST, '    close: () => { bridge().pageSend({ c: \'close\' }); },', '']],
-    expect: ['...and `page`, against'],
-  },
-  {
-    id: 'M3',
-    why: 'a `transport` short `release` — a muted 1.02x video the user cannot undo',
-    fast: true,
-    edits: [[HOST, '    release: () => { bridge().pageSend({ c: \'release\' }); },', '']],
-    expect: ['...and `transport` is SPELLED', '...and a Host that COULD NOT ASK'],
-  },
-  {
-    id: 'M4',
-    why: 'a duty that needs its `this` — the Electron bridge mistake shared/host.js names',
-    fast: true,
-    edits: [[HOST, '  send: (msg) => { bridge().send(msg); },',
-      '  send(msg) { this.__nothing.here; bridge().send(msg); },']],
-    expect: ['every duty works UNBOUND'],
-  },
-  {
-    id: 'M5',
-    why: 'a transport that is OMITTED rather than spelled null — read as "no player", which starts a capture on boot',
-    fast: true,
-    edits: [[HOST, '  transport: HOSTED === false ? null : {', '  transportX: HOSTED === false ? null : {']],
-    expect: ['...and `transport` is SPELLED', 'a Host with no player spells', '...and a Host that COULD NOT ASK',
-      '...and a bridge that answered the hosted question', '...and it says so ONCE', 'every duty works UNBOUND'],
-  },
-  {
-    id: 'M6',
-    why: 'coercing the hosted answer — "I could not ask" collapses into "there is no player", which is what starts a capture on boot',
-    fast: true,
-    edits: [[HOST, "  return typeof b.hosted === 'boolean' ? b.hosted : null;", '  return b.hosted === true;']],
-    expect: ['...and a bridge that answered the hosted question'],
-  },
-  {
-    id: 'M7',
-    why: 'a missing bridge answered with a bare object instead of the inert one — the duties throw again, and a throw crashes the vendored group rather than appearing in it',
-    fast: true,
-    edits: [[HOST, '  return (w && w[BRIDGE]) || INERT;', '  return (w && w[BRIDGE]) || {};']],
-    expect: ['...and a Host that COULD NOT ASK', '...and it says so ONCE'],
-  },
-  {
-    id: 'M8',
-    why: 'a Host that stamps the deck\'s envelope — rule 1, and it breaks receivers quietly',
-    fast: true,
-    edits: [[HOST, '  send: (msg) => { bridge().send(msg); },',
-      "  send: (msg) => { bridge().send({ ...msg, hostSaw: true }); },"]],
-    expect: ['send carries the FINISHED envelope'],
-  },
-  {
-    id: 'M9',
-    why: 'a `send` that returns something — a call site could start awaiting delivery',
-    fast: true,
-    edits: [[HOST, '  send: (msg) => { bridge().send(msg); },',
-      '  send: (msg) => { bridge().send(msg); return true; },']],
-    expect: ['...and returns nothing, so no call site'],
-  },
-  {
-    id: 'M10',
-    why: 'the transport captured at IMPORT — rule 2, and the reason a recorder stays empty while everything reports green',
-    fast: true,
-    edits: [
-      [HOST, '/** @type {import(\'../shared/host.js\').DeckHost} */',
-        'const BOUND_SEND = bridge().send;\n/** @type {import(\'../shared/host.js\').DeckHost} */'],
-      [HOST, '  send: (msg) => { bridge().send(msg); },', '  send: (msg) => { BOUND_SEND(msg); },'],
-    ],
-    expect: ['send resolves the transport at CALL time'],
-  },
-  {
-    id: 'M11',
-    why: 'an onMessage that registers nothing — the deck simply never paints, with nothing in the console',
-    fast: true,
-    edits: [[HOST, '    bridge().onMessage((m) => { if (m && m.to === ME) fn(m); });', '    /* registered nothing */']],
-    expect: ['INSTRUMENT CHECK: onMessage registered exactly one'],
-  },
-  {
-    id: 'M12',
-    why: 'no address guard — the deck is handed the engine\'s and the Host\'s traffic too',
-    fast: true,
-    edits: [[HOST, '    bridge().onMessage((m) => { if (m && m.to === ME) fn(m); });', '    bridge().onMessage((m) => { if (m) fn(m); });']],
-    expect: ['onMessage delivers ONLY what is addressed', '...and hands the deck the SAME message'],
-  },
-  {
-    id: 'M13',
-    why: 'a Host that re-wraps the envelope on the way in',
-    fast: true,
-    edits: [[HOST, '    bridge().onMessage((m) => { if (m && m.to === ME) fn(m); });',
-      '    bridge().onMessage((m) => { if (m && m.to === ME) fn({ ...m }); });']],
-    expect: ['...and hands the deck the SAME message'],
-  },
-  {
-    id: 'M14',
-    why: 'a Host that forwards what the deck returned — MV3 holds a response channel open for exactly this',
-    fast: true,
-    edits: [[HOST, '    bridge().onMessage((m) => { if (m && m.to === ME) fn(m); });',
-      '    return bridge().onMessage((m) => { if (m && m.to === ME) return fn(m); });']],
-    expect: ['...and drops what the deck returns'],
-  },
-  {
-    id: 'M15',
-    why: 'a Host that takes the area and ignores it — the arm refusal then outlives the restart',
-    fast: true,
-    edits: [[HOST, '    const r = await bridge().storageGet(area, key);', "    const r = await bridge().storageGet('local', key);"]],
-    expect: ['storageGet READS THE AREA IT WAS GIVEN', '...while a read that FAILED rejects'],
-  },
-  {
-    id: 'M16',
-    why: 'an absent key answered with undefined — the deck cannot tell it from a stored undefined',
-    fast: true,
-    edits: [[HOST, '    return r.value === undefined ? null : r.value;', '    return r.value;']],
-    expect: ['...and an absent key RESOLVES null'],
-  },
-  {
-    id: 'M17',
-    why: 'unreadable folded into absent — the deck applies its defaults most confidently on the run it could not read',
-    fast: true,
-    edits: [[HOST, '    if (!r || r.ok !== true) {', '    if (false) {']],
-    expect: ['...while a read that FAILED rejects'],
-  },
-  {
-    id: 'M18',
-    why: 'a storageSet that accepts any area — chrome.storage.sync is a network write and P1 forbids it',
-    fast: true,
-    edits: [[HOST, '  storageSet: (area, key, value) => {\n    assertArea(area);', '  storageSet: (area, key, value) => {']],
-    expect: ['an area outside {local, session} is REFUSED', 'storageSet returns undefined'],
-  },
-  {
-    id: 'M19',
-    why: 'a storageSet that returns the transport\'s value',
-    fast: true,
-    edits: [[HOST, '    bridge().storageSet(area, key, value);', '    return bridge().storageSet(area, key, value) || 1;']],
-    expect: ['storageSet returns undefined'],
-  },
-  {
-    id: 'M20',
-    why: 'a change feed with no area filter — the deck applies another lifetime\'s value to its preferences',
-    fast: true,
-    edits: [[HOST, '      if (!ch || ch.area !== area || ch.key !== key) return;', '      if (!ch || ch.key !== key) return;']],
-    expect: ['onStorageChanged filters by BOTH area and key'],
-  },
-  {
-    id: 'M21',
-    why: "Electron's own accelerator grammar — the deck draws the word CommandOrControl on a key cap, and nothing goes red",
-    fast: true,
-    edits: [[KEYS, "export const ARM_ACCEL = process.platform === 'darwin' ? 'Command+Shift+A' : 'Ctrl+Shift+A';",
-      "export const ARM_ACCEL = 'CommandOrControl+Shift+A';"]],
-    expect: ['armShortcut answers RAW', '...and the unit can spell every token'],
-  },
-  {
-    id: 'M22',
-    why: 'an empty accelerator passed through as a chord — the deck draws an empty key cap instead of the other sentence',
-    fast: true,
-    edits: [[HOST, "    return typeof accel === 'string' && accel !== '' ? accel : null;", '    return accel;']],
-    expect: ['...and an accelerator the menu could not take answers'],
-  },
-  {
-    id: 'M23',
-    why: "drive spreading the caller's patch — ADR 0001 decision 4's write set becomes whatever a call site passes",
-    fast: true,
-    edits: [[HOST, "      const cmd = { c: 'drive' };", "      const cmd = { c: 'drive', ...p };"]],
-    expect: ['drive writes muted, playbackRate and currentTime', '...and a value of the wrong type is dropped'],
-  },
-  {
-    id: 'M24',
-    why: 'no type guards on the three fields — NaN reaches playbackRate, which throws in Blink',
-    fast: true,
-    edits: [
-      [HOST, "      if (typeof p.muted === 'boolean') cmd.muted = p.muted;", '      cmd.muted = p.muted;'],
-      [HOST, "      if (typeof p.playbackRate === 'number' && Number.isFinite(p.playbackRate)) cmd.playbackRate = p.playbackRate;",
-        '      cmd.playbackRate = p.playbackRate;'],
-      [HOST, "      if (typeof p.currentTime === 'number' && Number.isFinite(p.currentTime)) cmd.currentTime = p.currentTime;",
-        '      cmd.currentTime = p.currentTime;'],
-    ],
-    expect: ['...and a value of the wrong type is dropped'],
-  },
-  {
-    id: 'M25',
-    why: 'a second clamp on the speed claim — a refusal becomes a silent drop, and the deck greys nothing',
-    fast: true,
-    edits: [[HOST, "    requestSpeed: (rate) => { bridge().pageSend({ c: 'requestSpeed', rate }); },",
-      "    requestSpeed: (rate) => { bridge().pageSend({ c: 'requestSpeed', rate: Math.min(2, rate) }); },"]],
-    expect: ['requestSpeed is NOT filtered'],
-  },
-  {
-    id: 'M26',
-    why: 'a page command that drops its payload — the Host sizes the deck to zero',
-    fast: true,
-    edits: [[HOST, "    setHeight: (px) => { bridge().pageSend({ c: 'height', px }); },",
-      "    setHeight: () => { bridge().pageSend({ c: 'height' }); },"]],
-    expect: ['the six page duties and release'],
-  },
-  {
-    id: 'M27',
-    why: 'one page listener per registration — five copies of every inbound message',
-    fast: true,
-    edits: [[HOST, '  if (pageWired) return;\n  pageWired = true;', '  if (false) return;']],
-    expect: ['INSTRUMENT CHECK: the five inbound duties registered exactly one'],
-  },
-  {
-    id: 'M28',
-    why: 'inbound routing that ignores the type — every handler sees every message',
-    fast: true,
-    edits: [[HOST, '    const h = inbound.get(msg.t);\n    if (h) h(msg);', '    for (const h of inbound.values()) h(msg);']],
-    expect: ['...and each inbound type reaches its own handler'],
-  },
-
-  {
-    id: 'M38',
-    why: 'a module-scope statement that touches the bridge — a throw there does not produce a red in the vendored group, it CRASHES it',
-    fast: true,
-    edits: [[HOST, 'const HOSTED = (() => {', 'const HOSTED = (() => {\n  globalThis.window.__wbDeck.hosted;']],
-    expect: ['importing the hole module is INERT', '...and a Host that COULD NOT ASK', '...and it says so ONCE'],
-  },
-
-  // ---------------------------------------------------------- storage.js, §1b
-  {
-    id: 'M29',
-    why: 'an absent key answered with undefined in main',
-    fast: true,
-    edits: [[STORAGE, '      return m.has(key) ? m.get(key) : null;', '      return m.get(key);']],
-    expect: ['a fresh profile answers `null`', '`local` OUTLIVES THE RUN and `session` does not'],
-  },
-  {
-    id: 'M30',
-    why: 'a Host that persists the SESSION area — a 60-second arm refusal painting as current after a reboot',
-    fast: true,
-    edits: [[STORAGE, "      if (area === 'local') {", '      if (true) {'],
-      [STORAGE, '  const mem = { local: new Map(), session: new Map() };',
-        '  const mem = { local: new Map(), session: new Map() };\n  // MUTATION: one file for both lifetimes'],
-      [STORAGE, '    fs.writeFileSync(tmp, `${JSON.stringify(Object.fromEntries(mem.local), null, 2)}\\n`);',
-        '    fs.writeFileSync(tmp, `${JSON.stringify({ ...Object.fromEntries(mem.local), ...Object.fromEntries(mem.session) }, null, 2)}\\n`);'],
-      [STORAGE, '      for (const [k, v] of Object.entries(parsed)) mem.local.set(k, v);',
-        '      for (const [k, v] of Object.entries(parsed)) { mem.local.set(k, v); mem.session.set(k, v); }'],
-    ],
-    expect: ['`local` OUTLIVES THE RUN and `session` does not'],
-  },
-  {
-    id: 'M31b',
-    why: 'a read failure treated as an empty store',
-    fast: true,
-    edits: [[STORAGE, "      if (area === 'local' && localUnreadable) throw localUnreadable;", '      /* unreadable is absent */']],
-    expect: ['...and a local store that is PRESENT and cannot be read throws'],
-  },
-  {
-    id: 'M32',
-    why: 'an unreadable flag that outlives the file that caused it — one bad write and the deck can never read a preference again',
-    fast: true,
-    edits: [[STORAGE, '        localUnreadable = null;', '        /* the flag stands */']],
-    expect: ['...and a write REPLACES the file'],
-  },
-  {
-    id: 'M33',
-    why: 'main accepting a lifetime the unit has no word for',
-    fast: true,
-    edits: [[STORAGE, '  if (!AREAS.includes(area)) {', '  if (false) {']],
-    expect: ['...and every area outside the two lifetimes is refused'],
-  },
-  {
-    id: 'M34',
-    why: 'a change feed that fires for every key',
-    fast: true,
-    edits: [[STORAGE, '      const set = feeds.get(feedKey(area, key));\n      if (set) for (const fn of [...set]) { stats.changes++; fn(value); }',
-      '      for (const set of feeds.values()) for (const fn of [...set]) { stats.changes++; fn(value); }']],
-    expect: ['the change feed fires for the key it was given'],
-  },
-
-  // --------------------------------------------------------------- keys.js, §1c
-  {
-    id: 'M35',
-    why: 'a key router that never takes a key — the deck\'s shortcuts do nothing from the view the user is looking at',
-    fast: true,
-    edits: [[KEYS, "  return keys.includes(input.code) || input.key === '?';", '  return false;']],
-    expect: ['a claimed key with a deck armed', '`?` is matched by CHARACTER'],
-  },
-  {
-    id: 'M36',
-    why: 'a router that ignores `armed` — with no deck armed, 1-6 stop seeking on somebody else\'s page',
-    fast: true,
-    edits: [[KEYS, '  if (!claim || claim.armed !== true) return false;', '  if (!claim) return false;']],
-    expect: ['...and every other case is left to the page'],
-  },
-  {
-    id: 'M37',
-    why: "`?` matched by position — the shortcut overlay stops opening on every non-US layout",
-    fast: true,
-    edits: [[KEYS, "  return keys.includes(input.code) || input.key === '?';", '  return keys.includes(input.code);']],
-    expect: ['`?` is matched by CHARACTER'],
-  },
-
-  // ------------------------------------------------------- the launch half, §2
   {
     id: 'L1',
     why: 'THE DECK DOES NOT BOOT: a Host short one duty throws at ui/embed.js module scope',
+    /**
+     * The Host-side assertions stay GREEN under this one, and that is not a
+     * miss: the probe drives the hole module directly, and a module short one
+     * duty still answers the other thirteen. What goes red is everything the
+     * DECK was supposed to do with them — which is the difference this suite
+     * exists to measure.
+     */
+    atLeast: true,
     edits: [[HOST, '  storageGet: async (area, key) => {', '  storageGetX: async (area, key) => {']],
-    expect: ['assertHost accepts the SHIPPED', 'THE VENDORED DECK BOOTS UNDER THIS HOST',
-      '...and the module it imported is OURS', 'storageGet READS THE AREA IT WAS GIVEN',
-      'over the real ipc, one key held in BOTH areas', '...and the area refusals keep their two shapes',
-      '...and a change made by MAIN reaches', '...and an absent key RESOLVES null',
-      '...while a read that FAILED rejects', 'an area outside {local, session} is REFUSED'],
+    expect: ['THE VENDORED DECK BOOTS UNDER THIS HOST', '...and the module it imported is OURS',
+      'over the real ipc, one key held in BOTH areas'],
   },
   {
     id: 'L2',
@@ -393,7 +105,8 @@ const MUTATIONS = [
       [DECKHOST, '  if (!DECK_ARM_CODES.has(r.code)) {', '  if (false) {'],
       [DECKHOST, "  NOT_ARMED: { code: 'NOT_ARMED',", "  NOT_ARMED: { code: 'NO_SOURCE',"],
     ],
-    expect: ['ARM_ERROR: pressing Start with nothing armed', '...and because the code is one the deck knows'],
+    expect: ['ARM_ERROR: pressing Start with nothing armed', '...and because the code is one the deck knows',
+      '...and ARM_ERROR_CLEARED, with the seq the deck was showing'],
   },
   {
     id: 'L8',
@@ -466,8 +179,7 @@ const MUTATIONS = [
     id: 'L19',
     why: 'a `local` area that never reaches the disk — the preference does not survive a restart',
     edits: [[STORAGE, '        persist();', '        /* nothing is written */']],
-    expect: ['...and `local` really is on disk', '`local` OUTLIVES THE RUN and `session` does not',
-      '...and a local store that is PRESENT and cannot be read throws', '...and a write REPLACES the file'],
+    expect: ['...and `local` really is on disk'],
   },
   {
     id: 'L20',
@@ -478,8 +190,30 @@ const MUTATIONS = [
   {
     id: 'L21',
     why: 'the deck served without its stylesheet — a page that loads, asserts green everywhere, and is unreadable',
+    /**
+     * OPT-IN, because `src/main/assets.js` is not this slice's file: `shell`
+     * gates its content types too, and a sibling suite that launched during this
+     * row's 45-second window would go red for a mutation it knows nothing about.
+     * The same reason `deck-seam-mutations.sh` puts its three unit edits behind
+     * `ALLOW_UNIT_EDITS`.
+     *
+     *   ALLOW_SHARED_EDITS=1 node tools/suites/deck-host-mutations.mjs --only L21
+     *
+     * L22 covers the same assertion's HEIGHT half from a file this slice owns, so
+     * the default battery is not blind to it — only to the colour half, which is
+     * what an unstyled page loses.
+     */
+    shared: true,
     edits: [[ASSETS, "  '.css': 'text/css; charset=utf-8',", "  '.css': 'text/plain; charset=utf-8',"]],
     expect: ['...and the deck PAINTED before it went'],
+  },
+  {
+    id: 'L22',
+    why: 'the deck sized to the clamp ceiling whatever it measured — the surface is 900 px of mostly nothing, and "it drew something" cannot tell',
+    edits: [['src/main/deck-host.js',
+      'export const clampDeckHeight = (px) => Math.max(DECK_MIN_H, Math.min(DECK_MAX_H, Math.round(Number(px) || 0)));',
+      'export const clampDeckHeight = () => DECK_MAX_H;']],
+    expect: ['page.setHeight is ADVICE the Host clamps', '...and the deck PAINTED before it went'],
   },
 ];
 
@@ -487,11 +221,17 @@ const MUTATIONS = [
 const args = process.argv.slice(2);
 const only = (args.find((a) => a.startsWith('--only=')) || '').slice(7)
   || (args.includes('--only') ? args[args.indexOf('--only') + 1] : '');
-const fastOnly = args.includes('--fast');
 
+/**
+ * A row marked `shared` edits a file this slice does not own, so it is off the
+ * default battery: a sibling suite launching inside its window would go red for
+ * a mutation it knows nothing about. `--only` still runs it, and so does
+ * ALLOW_SHARED_EDITS=1 — deliberately, and on a quiet machine.
+ */
+const allowShared = process.env.ALLOW_SHARED_EDITS === '1';
 const rows = MUTATIONS.filter((m) => !m.skip)
   .filter((m) => (only ? m.id === only : true))
-  .filter((m) => (fastOnly ? m.fast : true));
+  .filter((m) => (only || allowShared ? true : !m.shared));
 
 const OUTDIR = path.join(ROOT, 'out', 'deck-host-mutations');
 fs.mkdirSync(OUTDIR, { recursive: true });
@@ -503,11 +243,9 @@ function assertionNames(out) {
 }
 const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL')).map((l) => l.slice(6).split('  ')[0].trim());
 
-function runSuite(fast) {
-  const env = { ...process.env };
-  if (fast) env.DECK_HOST_ONLY = 'conformance';
-  else delete env.DECK_HOST_ONLY;
-  const r = spawnSync('node', ['tools/suites/deck-host.mjs'], { cwd: ROOT, env, encoding: 'utf8', timeout: 300000 });
+function runSuite() {
+  const r = spawnSync('node', ['tools/suites/deck-host.mjs'],
+    { cwd: ROOT, env: { ...process.env }, encoding: 'utf8', timeout: 300000 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 
@@ -515,11 +253,10 @@ console.log(`deck-host-mutations: ${rows.length} rows\n`);
 
 // The clean run is the reference: every assertion that exists, and the proof
 // that the tree is green BEFORE anything is broken.
-const cleanFast = runSuite(true);
-const cleanFull = fastOnly ? cleanFast : runSuite(false);
-fs.writeFileSync(path.join(OUTDIR, 'clean.log'), `${cleanFast}\n${cleanFull}`);
-const allNames = new Set([...assertionNames(cleanFast), ...assertionNames(cleanFull)]);
-const cleanReds = [...failedNames(cleanFast), ...failedNames(cleanFull)];
+const clean = runSuite();
+fs.writeFileSync(path.join(OUTDIR, 'clean.log'), clean);
+const allNames = new Set(assertionNames(clean));
+const cleanReds = failedNames(clean);
 if (cleanReds.length) {
   console.error(`the tree is NOT GREEN before mutating: ${cleanReds.join(' | ')}`);
   process.exit(2);
@@ -529,8 +266,33 @@ console.log(`clean: ${allNames.size} assertions, 0 failed\n`);
 const covered = new Set();
 let bad = 0;
 
+/**
+ * A `finally` DOES NOT RUN ON A SIGNAL, and this battery is long enough that
+ * somebody will kill it. Measured the expensive way: a `pkill` mid-row left the
+ * relay mutation on `src/main/deck-host.js`, where the next reader would have
+ * found a defect this file had written and not put back.
+ *
+ * So the row in flight is held here and the same restore runs from a handler.
+ * `process.exit` afterwards, deliberately: a battery that was interrupted has
+ * not produced a verdict and must not look like one that did.
+ */
+let inFlight = null;
+const restoreInFlight = () => {
+  if (!inFlight) return;
+  for (const [file, src] of inFlight) fs.writeFileSync(path.join(ROOT, file), src);
+  inFlight = null;
+};
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, () => {
+    restoreInFlight();
+    console.error(`\n${sig} — the mutation in flight was put back. No verdict was produced.`);
+    process.exit(130);
+  });
+}
+
 for (const m of rows) {
   const originals = m.edits.map(([file]) => [file, fs.readFileSync(path.join(ROOT, file), 'utf8')]);
+  inFlight = originals;
   let applied = 0;
   try {
     for (const [file, from, to] of m.edits) {
@@ -540,13 +302,21 @@ for (const m of rows) {
       fs.writeFileSync(p, src.replace(from, to));
       applied++;
     }
-    const out = runSuite(m.fast);
+    const out = runSuite();
     fs.writeFileSync(path.join(OUTDIR, `${m.id}.log`), out);
     const reds = failedNames(out);
     for (const r of reds) covered.add(r);
 
     const missing = m.expect.filter((want) => !reds.some((r) => r.startsWith(want)));
-    const unexpected = reds.filter((r) => !m.expect.some((want) => r.startsWith(want)));
+    /**
+     * `atLeast` MEANS THE LIST IS A MINIMUM, and exactly one row needs it: a deck
+     * that does not boot takes most of the surface with it, so enumerating the
+     * sixteen assertions that go red would be a list nobody maintains and every
+     * new assertion would "fail" that row. Everywhere else the set is EXACT, on
+     * purpose — an unexpected red is how an interaction between two mutations, or
+     * an assertion that is not measuring what it says, shows up.
+     */
+    const unexpected = m.atLeast ? [] : reds.filter((r) => !m.expect.some((want) => r.startsWith(want)));
     const verdict = reds.length === 0 ? 'NO RED' : (missing.length || unexpected.length ? 'WRONG SET' : 'red');
     if (verdict !== 'red') bad++;
     console.log(`${verdict === 'red' ? 'ok  ' : 'FAIL'}  ${m.id}  ${m.why}`);
@@ -560,6 +330,7 @@ for (const m of rows) {
     // ALWAYS, even on a throw: a mutation left on the tree is a defect that
     // outlives the run that made it.
     for (const [file, src] of originals) fs.writeFileSync(path.join(ROOT, file), src);
+    inFlight = null;
     if (applied !== m.edits.length && applied !== 0) console.log(`        (restored after ${applied}/${m.edits.length} edits)`);
   }
 }
@@ -568,6 +339,11 @@ for (const m of rows) {
 // THE COVERAGE REPORT — the half that is invisible from inside a green run.
 const uncovered = [...allNames].filter((n) => !covered.has(n));
 console.log(`\ncoverage: ${covered.size}/${allNames.size} assertions were turned red by some mutation`);
+const skipped = MUTATIONS.filter((r) => r.shared && !allowShared && !only).map((r) => r.id);
+if (skipped.length) {
+  console.log(`(not run on the default battery, because they edit a file this slice does not own: ${skipped.join(', ')} `
+    + '— ALLOW_SHARED_EDITS=1 runs them)');
+}
 if (uncovered.length) {
   console.log('NO MUTATION EVER TURNED THESE RED:');
   for (const n of uncovered) console.log(`  - ${n}`);
