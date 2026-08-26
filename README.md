@@ -238,12 +238,17 @@ a careless level check calls a pass.
   against the site on 2026-08-15 and the page has moved since. It is a YouTube-side
   drift, which is the class of thing the manual `youtube` step exists to catch —
   the `transport` suite is green about a local fixture whose toggle does respond.
-- **`vendor-unit` is RED, on purpose.** The vendored `test.js` is both the
-  unit's largest suite and a conformance suite over the two hole modules, and
-  with a non-Chrome Host in them it crashes at `:5833` instead of failing. The
-  verdict for that file is the `conformance` step — 612 assertions, 593 passed,
-  19 failed, every red pinned by name — and the rest is an upstream fix.
-  [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) is the long form.
+- **One suite in the vendored gate CRASHES rather than runs, and the crash is
+  pinned rather than hidden.** The vendored `test.js` is both the unit's largest
+  suite and a conformance suite over the two hole modules; with a non-Chrome Host
+  in them it dies at `:5833` — an instrument check that reports an absence and
+  then dereferences the thing it just proved absent. `vendor-unit` therefore
+  passes on the eleven suites it can run (544 assertions) and holds the crash
+  against a pinned expectation, so the crash CHANGING is as red as a new failure.
+  The verdict for `test.js` itself is the `conformance` step — 612 assertions,
+  593 passed, 19 failed, every red pinned by name and argued in
+  [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). The fix is upstream
+  (`stem-splitter-live#30`), not here: rule V1.
 
 ### The spike
 
@@ -358,24 +363,27 @@ proves six stems come out of the engine inside this app.
 
 ### Where the gate stands, as of this commit
 
-`node tools/verify.mjs` is **RED**, and both reds are known, named and not this
-step's:
+`node tools/verify.mjs` — one run, on this tree, 2026-08-26:
 
 | step | | |
 |---|---|---|
-| `void-canary` | PASS | 21 passed |
-| `vendor-intact` | PASS | 5 passed |
-| `vendor-unit` | **FAIL** | 11 of 12 vendored suites pass (544 assertions); `unit` CRASHES at `test.js:5833` under any non-Chrome Host. Documented in `tools/verify.mjs` and [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md); the verdict for that file is the `conformance` step |
-| `deck-seam` | PASS | 49 passed |
-| `shell` | **FAIL** | 31 passed, 3 failed — the deck slot now loads the real vendored `embed.html`, so two probes that lived in `src/renderer/deck-placeholder.js` are no longer on that page. A measurement that lost its carrier, and it belongs in `src/preload/deck.cjs` |
-| `engine-host` | PASS | 37 passed |
-| `transport` | PASS | 63 passed |
-| `deck-host` | PASS | 27 passed |
-| `p1` | PASS | 19 passed |
-| `conformance` | PASS | 11 passed |
-| `smoke` | PASS | 18 passed |
-| `capture-mute` | PASS | 15 passed |
-| `youtube` | *manual* | **25 passed** — not on this plan; run it by hand |
+| `void-canary` | PASS | 21 passed, 0 failed |
+| `vendor-intact` | PASS | 5 passed, 0 failed |
+| `vendor-unit` | PASS | 11 suites PASS, **544 assertions**; `unit` CRASHES at `test.js:5833` **as pinned** — 17 reds before it dies, upstream `stem-splitter-live#30`. The verdict for that file is `conformance` |
+| `deck-seam` | PASS | 49 passed, 0 failed |
+| `shell` | PASS | 35 passed, 0 failed |
+| `engine-host` | PASS | 37 passed, 0 failed |
+| `transport` | PASS | 63 passed, 0 failed |
+| `deck-host` | PASS | 27 passed, 0 failed |
+| `p1` | PASS | 19 passed, 0 failed |
+| `conformance` | PASS | 11 passed, 0 failed |
+| `smoke` | PASS | 18 passed, 0 failed |
+| `capture-mute` | PASS | 15 passed, 0 failed |
+| `youtube` | *manual* | **25 passed, 0 failed** — run by hand; never on a default plan |
+
+**`GREEN (partial — 12 of 13 steps ran)`**, and the word *partial* is the point:
+the thirteenth step is `youtube`, the only one that proves six stems come out of
+the engine, and the runner names it under *WHAT DID NOT RUN* every single time.
 
 The runner never prints an unqualified `GREEN` over a partial plan, and it names
 every step that did not run.
