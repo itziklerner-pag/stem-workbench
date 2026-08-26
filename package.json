@@ -1,0 +1,34 @@
+{
+  "name": "stem-workbench",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Non-commercial Electron desktop product for stem-splitter-live: six live stems from a YouTube view or a local file. Pre-alpha — currently the step-1 capture/mute spike only.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itziklerner-pag/stem-workbench.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itziklerner-pag/stem-workbench/issues"
+  },
+  "keywords": [
+    "electron",
+    "stem-separation",
+    "source-separation",
+    "demucs",
+    "onnxruntime",
+    "webgpu",
+    "audio",
+    "music",
+    "on-device"
+  ],
+  "scripts": {
+    "spike": "spike/bin/run-all.sh",
+    "spike:summarise": "python3 spike/bin/summarise.py spike/results",
+    "spike:mutations": "spike/bin/mutations.sh"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0"
+  }
+}

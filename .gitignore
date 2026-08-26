@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+.DS_Store
+*.wav
+*.onnx
+*.asar
+
+# the spike's raw measurements: the app's own output and the external meter's
+# recordings. The merged per-run JSON in spike/results/*.json IS committed.
+spike/results/*.probe.json
+spike/results/*.sink*.json
+spike/results/*.electron.log
+spike/results/.*.ready*
+spike/mutations/
