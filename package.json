@@ -24,6 +24,9 @@
     "on-device"
   ],
   "scripts": {
+    "verify": "node tools/verify.mjs",
+    "verify:quick": "node tools/verify.mjs --quick",
+    "verify:self-check": "node tools/verify.mjs --self-check",
     "spike": "spike/bin/run-all.sh",
     "spike:summarise": "python3 spike/bin/summarise.py spike/results",
     "spike:mutations": "spike/bin/mutations.sh"

@@ -86,14 +86,50 @@ Limitations section before citing any number from the write-up.
 than deleted because the permanent capture-mute gate will be built from it — it
 is **not** the product, and nothing should be built on top of it.
 
+## The documents
+
+They are written for a product that **does not work yet**, and each of them says
+so where it matters. That is deliberate: it is easier to keep a document honest
+than to make one honest afterwards.
+
+| | |
+|---|---|
+| [`CONTEXT.md`](CONTEXT.md) | the domain model and the glossary. Most of the words are defined in `stem-splitter-live`, and are quoted verbatim here rather than paraphrased — a glossary that disagrees with that one is worse than no glossary |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the process topology, the Host seam and its thirty-two duties, the capture path — and §7, which defines the difference between *verified*, *configured but never built*, and *written down only* |
+| [`docs/adr/0001-…`](docs/adr/0001-the-shape-of-the-desktop-product.md) | the decisions this product had already taken and had nowhere to record: Electron, the capture path, the player window, non-commercial, the bundled model, and the release story |
+| [`docs/TESTING.md`](docs/TESTING.md) | how this repository is gated, and the VOID rule |
+| [`PRIVACY.md`](PRIVACY.md) | one host for the app's own code; the YouTube view's traffic is your own browsing; what is stored on disk and where |
+| [`FAQ.md`](FAQ.md) | including the three disclosures — the Chrome user-agent, the export, and why this is non-commercial permanently |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | L1, P1′, M1 — and V1, the rule that the vendored copy is never edited |
+| [`NOTICE.md`](NOTICE.md) | the non-commercial statement and the attribution |
+
 ## Layout
 
 ```
+docs/ARCHITECTURE.md         how the product is put together, and what is pending
+docs/adr/                    the decisions, with their alternatives
 docs/spike-capture-mute.md   step 1's findings, limitations, and the gate spec
+docs/TESTING.md              how this repo is gated, and the four host suites
+tools/verify.mjs             the gate. `node tools/verify.mjs`
+tools/suites/                the host suites (one built, four specified)
 spike/                       the throwaway Electron app + every recorded run
 spike/harness/               the external speaker meter it is measured with
+CONTEXT.md                   the glossary
 NOTICE.md                    the non-commercial statement and attribution
 ```
+
+## Testing
+
+```bash
+node tools/verify.mjs                # the gate
+node tools/verify.mjs --self-check   # the runner's own classifier, ~0 s
+```
+
+The engine and the deck are gated by **their own** suites, which travel with the
+vendored copy (`node tools/verify.mjs --unit` inside `vendor/`); this repository
+adds host-specific suites only. A step that exits 0 having asserted nothing is a
+**hard failure**, and the runner never prints an unqualified `GREEN` over a
+partial plan. See [`docs/TESTING.md`](docs/TESTING.md).
 
 The plan itself (`desktop-app-plan.md`) still lives in the `stem-splitter-live`
 working tree and migrates here once step 2 lands.
