@@ -765,7 +765,21 @@ function hasBin(name) {
   }
   return false;
 }
-const lastLine = (s) => String(s).trimEnd().split('\n').pop() || '(no output)';
+/**
+ * A DECLARATION, NOT A `const` — and that is the whole fix.
+ *
+ * The only caller is the launch assertion at the top of section 5, in the branch
+ * that runs when the launch wrote no report; the declaration sat 300 lines below
+ * it, in this plumbing block. `const` is not hoisted, so ANY launch failure —
+ * the one case that branch exists for — reached it inside its temporal dead zone
+ * and threw `ReferenceError: Cannot access 'lastLine' before initialization`.
+ * A named red became an unhandled crash, and it cost one full-gate run to find.
+ *
+ * The nine other suites that carry a `lastLine` all declare it as a function,
+ * which is why this was the only one. Same defect class as upstream #30: a suite
+ * that dies instead of reporting.
+ */
+function lastLine(s) { return String(s).trimEnd().split('\n').pop() || '(no output)'; }
 function run(cmd, args, { cwd, timeoutMs }) {
   return new Promise((resolve) => {
     const p = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
