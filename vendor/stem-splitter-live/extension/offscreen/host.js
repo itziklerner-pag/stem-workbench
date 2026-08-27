@@ -397,7 +397,40 @@ export const onTeardown = (fn) => { addEventListener('pagehide', fn); };
  * `assetUrl` is passed as this module's own function, UNBOUND, exactly as
  * `engine.js` passes it to `MasterBus` and to the decks. It reads no `this`.
  */
-export const createBackend = (hooks) => new WorkerBackend({ ...hooks, assetUrl });
+export const createBackend = (hooks) => {
+  /**
+   * READ LAZILY, NEVER AT IMPORT — the module header's rule, and the reason it
+   * exists: `test.js`'s `group('host')` imports this file from plain Node, where
+   * a module-scope global read takes the whole `unit` step out AT IMPORT rather
+   * than turning one assertion red.
+   *
+   * TWO THINGS HAVE TO BE TRUE, and either one absent means the worker. The
+   * choice comes from `src/main/backend.js` across the preload's `sendSync`
+   * (the same synchronous crossing `deck:profile` uses, and for the same
+   * stated reason: this duty is SYNCHRONOUS and the unit reads it at module
+   * scope). The factory is installed by `src/renderer/engine-boot.js`, which
+   * this page runs BEFORE the unit's entry.
+   *
+   * NEITHER IS A SPECIFIER THIS FILE COULD IMPORT. A relative import out of the
+   * vendored tree cannot resolve in both worlds: over `app://workbench/` the
+   * root is `src/renderer/`, while in plain Node it is the repository root, so
+   * one specifier would be wrong in one of the two places this module has to
+   * load. The handoff is therefore a global, looked up per call.
+   */
+  const g = globalThis;
+  const choice = (g.__wbEngine && g.__wbEngine.backend) || null;
+  const native = g.__wbNativeBackend || null;
+  /**
+   * A NATIVE CHOICE WITH NO FACTORY IS STILL THE WORKER. The two halves are
+   * installed by different files at different moments, and "the Host said
+   * native and nothing can build one" must degrade to a working deck rather
+   * than to a `TypeError` at engine module scope.
+   */
+  if (choice && choice.kind === 'native' && typeof native === 'function') {
+    return native({ ...hooks, choice, assetUrl });
+  }
+  return new WorkerBackend({ ...hooks, assetUrl });
+};
 
 /* ------------------------------------------------------------------ the model
  * THE WEIGHTS — and the half of this seam no grep for `chrome.` could ever see.
