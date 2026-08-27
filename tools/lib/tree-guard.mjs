@@ -151,25 +151,25 @@ export function claimMutation(root, battery, kase, files, pid) {
   // survive the `out/` wipe that takes the sentinel's backups with it (the
   // incident the shell-mutations.sh header documents). `bak` holds the
   // PRE-EDIT bytes — claim is called after the backups exist and before the
-  // first edit. See beginBattery for the owner semantics: the marker was
-  // created by `begin` with the battery's own pid, so the upsert keeps that
-  // pid (a JS battery that claims without a `begin` creates the marker here,
-  // owned by the pid IT was called with).
-  const marker = markerPath(root);
+  // first edit.
+  //
+  // THE UPSERT ONLY WRITES INTO A MARKER THAT `begin` CREATED. The marker
+  // exists iff a battery began, and a claim must never make one: a battery
+  // that claims without a `begin` (the s2-file-bytes driver, whose child
+  // battery does the actual edits) would otherwise hold the tree under its
+  // own name, and its child's `begin` would then refuse its own parent —
+  // measured: shell-mutations refused s2-file-bytes with exit 4. Claims are
+  // sentinel acts; only `begin` and `end` own the marker.
   let m = null;
-  try { m = JSON.parse(fs.readFileSync(marker, 'utf8')); } catch { m = null; }
-  const filesByRel = { ...((m && m.files) || {}) };
-  for (const f of files) {
-    try { filesByRel[f.rel] = b64(fs.readFileSync(f.bak)); }
-    catch (err) { process.stdout.write(`claim(${battery} ${kase}): no original bytes for ${f.rel} (${f.bak}): ${err.message}\n`); }
+  try { m = JSON.parse(fs.readFileSync(markerPath(root), 'utf8')); } catch { m = null; }
+  if (m) {
+    const filesByRel = { ...((m.files) || {}) };
+    for (const f of files) {
+      try { filesByRel[f.rel] = b64(fs.readFileSync(f.bak)); }
+      catch (err) { process.stdout.write(`claim(${battery} ${kase}): no original bytes for ${f.rel} (${f.bak}): ${err.message}\n`); }
+    }
+    fs.writeFileSync(markerPath(root), `${JSON.stringify({ ...m, files: filesByRel }, null, 2)}\n`);
   }
-  fs.writeFileSync(marker, `${JSON.stringify({
-    pid: (m && Number(m.pid)) || pid,
-    started: (m && m.started) || ISO(),
-    battery: (m && m.battery) || battery,
-    root,
-    files: filesByRel,
-  }, null, 2)}\n`);
   return file;
 }
 
