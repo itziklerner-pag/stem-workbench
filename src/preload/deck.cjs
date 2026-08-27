@@ -95,10 +95,15 @@ const onPage = fanout(PAGE_CHANNEL);
 const onStorage = fanout(STORAGE_CHANGED);
 
 /**
- * What main knows about this deck before it has drawn anything. One field
- * today; it is an object rather than a bare boolean because the second field
- * (which Source kind this deck is bound to, once the File source exists) is a
- * fact of the same shape and should not be a second synchronous round trip.
+ * What main knows about this deck before it has drawn anything. It is an object
+ * rather than a bare boolean because the second field — which Source kind this
+ * deck is bound to — is a fact of the same shape and must not cost a second
+ * synchronous round trip at boot. That reservation is now spent: the profile
+ * carries `{ hosted, sourceKind }`.
+ *
+ * STILL EXACTLY ONE `sendSync`. A second one is a second thing that can hang
+ * before the deck has drawn anything, and the deck reads both answers at module
+ * scope.
  */
 const profile = ipcRenderer.sendSync(PROFILE);
 
@@ -120,6 +125,17 @@ contextBridge.exposeInMainWorld('__wbDeck', {
    * it, because the coercion of a missing answer is the dangerous direction.
    */
   hosted: profile && profile.hosted,
+
+  /**
+   * Which kind of Source this deck is bound to — `'live'` or `'file'`. Handed
+   * over as whatever main said, wrong type included, for the same reason
+   * `hosted` is: the hole module refuses what it does not recognise rather than
+   * coercing it, and the coercion of a missing answer is the dangerous
+   * direction. `main` validates this against a closed set at install
+   * (`src/main/deck-host.js` SOURCE_KINDS), so a value arriving here that is not
+   * in that set means the bridge, not the decision, is what went wrong.
+   */
+  sourceKind: profile && profile.sourceKind,
 
   /**
    * `{ok:true, value}` or `{ok:false, error}`, never a bare value. An ipc

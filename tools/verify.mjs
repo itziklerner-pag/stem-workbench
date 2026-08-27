@@ -413,7 +413,7 @@ export const STEPS = [
   },
   {
     id: 'deck-seam',
-    assertions: 49,
+    assertions: 53,
     title: 'node tools/suites/deck-seam.mjs — the DeckHost conformance suite: the shipped hole module over a stubbed preload bridge',
     cmd: ['node', 'tools/suites/deck-seam.mjs'],
     /**
@@ -510,7 +510,7 @@ export const STEPS = [
   },
   {
     id: 'deck-host',
-    assertions: 27,
+    assertions: 29,
     title: "node tools/suites/deck-host.mjs — the DECK half of the seam: fourteen members over a stub AND one real launch, the three messages the Host originates, and the autoplay-next wire",
     cmd: ['node', 'tools/suites/deck-host.mjs'],
     window: true,

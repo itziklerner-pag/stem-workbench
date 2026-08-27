@@ -171,12 +171,38 @@ export const TRANSPORT_METHODS = Object.freeze([
 ]);
 
 /**
+ * WHICH KIND OF SOURCE THIS DECK IS BOUND TO — a CLOSED set, and refusing a
+ * third value is a rule of the seam rather than type theatre.
+ *
+ *   'live'  the audio arrives in real time and something else owns the clock —
+ *           a YouTube watch page today. Anything derived from it is bound by
+ *           real time, which is why a live Export is a recording.
+ *   'file'  the whole signal is on disk before separation starts, so the deck
+ *           owns the clock and seeking is free.
+ *
+ * IT IS NOT `hosted` SPELLED TWICE. `hosted` answers "is there a player above
+ * this deck", which decides how the deck BOOTS; this answers "what kind of thing
+ * is playing", which decides what the surface may OFFER. They move together
+ * today because there is one Source kind; they are two questions, and a File
+ * source is the case that separates them — it is NOT hosted by somebody else's
+ * player and it DOES have a transport of its own.
+ *
+ * `vendor/…/extension/ui/host.js` refuses a value outside this set too. That is
+ * not redundant, and it is the same argument `storage.js` and that file already
+ * make about the two storage areas: this check gives the DECK a defined answer
+ * with no ipc round trip, and main's stops any other caller in this process
+ * putting a kind on the wire that the deck has no branch for.
+ */
+export const SOURCE_KINDS = Object.freeze(['live', 'file']);
+
+/**
  * @param {object} o
  * @param {ReturnType<import('./storage.js').createStorage>} o.storage
  * @param {{originate: Function, onHostMessage: Function}} o.bus
  * @param {() => Electron.WebContents|null} o.deck    read at CALL time, never captured
  * @param {() => Electron.WebContents|null} o.source  the Source the session record describes
  * @param {object|null} o.transport   `src/main/transport.js`'s object, or null for a Host with no player
+ * @param {'live'|'file'} o.sourceKind  which kind of Source this deck is bound to — see SOURCE_KINDS
  * @param {() => Electron.WebContents|null} [o.chrome]  our own bar, for the key relay
  * @param {(px: number) => void} [o.onHeight]  the deck measured itself — already clamped
  * @param {() => void} [o.onClose]             the deck asked to be taken off the page
@@ -185,7 +211,7 @@ export const TRANSPORT_METHODS = Object.freeze([
  * @param {boolean} [o.installMenu]  build the application menu (the arm chord lives on it)
  */
 export function installDeckHost({
-  storage, bus, deck, source, transport, chrome = () => null,
+  storage, bus, deck, source, transport, sourceKind, chrome = () => null,
   onHeight = () => {}, onClose = () => {},
   engine = null, ensureEngine = null, installMenu = true,
 }) {
@@ -208,6 +234,18 @@ export function installDeckHost({
     }
   }
 
+  /**
+   * SPELLED, LIKE `transport`, AND FOR THE SAME REASON. There is no defensible
+   * default: guessing `'live'` for a caller that forgot would put a Source kind
+   * on the wire that nobody decided, and the deck cannot tell a considered answer
+   * from a filled-in one. A Host says what it is bound to or it does not boot.
+   */
+  if (!SOURCE_KINDS.includes(sourceKind)) {
+    throw new Error(`installDeckHost: \`sourceKind\` is ${JSON.stringify(sourceKind)}, which is not one of `
+      + `${SOURCE_KINDS.join(', ')}. It is required and it is not defaulted - the deck asks once, `
+      + 'synchronously, at boot, and a kind nobody decided is a kind the deck has no branch for.');
+  }
+
   const stats = {
     sessions: 0, armErrors: 0, armErrorsCleared: 0, arms: 0, disarms: 0,
     sw: {}, prefs: 0, keysRelayed: 0, storageRefusals: 0,
@@ -227,10 +265,15 @@ export function installDeckHost({
   /**
    * `ui/embed.js` reads `host.transport != null` at MODULE SCOPE. There is no
    * promise the unit would await, so the preload asks with `sendSync` and this
-   * is what answers: one boolean, derived from a fact this process already
-   * knows — is there a source-view transport wired up at all.
+   * is what answers — from facts this process already holds, in ONE round trip
+   * because a second synchronous hop at boot is a second thing that can hang:
+   *
+   *   hosted      is there a source-view transport wired up at all
+   *   sourceKind  which kind of Source this deck is bound to (SOURCE_KINDS)
+   *
+   * Both are validated at install, above, so neither can be invented here.
    */
-  const onProfile = (event) => { event.returnValue = { hosted: transport !== null }; };
+  const onProfile = (event) => { event.returnValue = { hosted: transport !== null, sourceKind }; };
   ipcMain.on(CH.profile, onProfile);
 
   // =========================================================================

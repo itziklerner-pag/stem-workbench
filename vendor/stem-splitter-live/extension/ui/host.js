@@ -203,8 +203,17 @@ const bridge = () => {
  *
  *   true   `main` said a Live source is bound to this deck. `transport` is the
  *          six duties.
- *   false  `main` said there is none — a File source, or a deck opened alone.
- *          `transport` is `null`, which is a sentence the deck acts on.
+ *   false  `main` said there is none — a deck opened with no player above it at
+ *          all. `transport` is `null`, which is a sentence the deck acts on.
+ *
+ *          NOT A FILE SOURCE. An earlier version of this comment listed one
+ *          here, and `docs/HOST-DESIGN.md` §3.3 said the same, and both were
+ *          wrong — see §3.3b. A File source has a player: the engine's own
+ *          playback clock. It gets a REAL six-duty transport over that clock,
+ *          and answering `null` for it walks straight into the paragraph
+ *          below. `sourceKind` is the question "what kind of thing is
+ *          playing"; `hosted` is "is there a player at all". A File source
+ *          separates them, which is why they are two fields.
  *   null   THERE WAS NO BRIDGE TO ASK, or it answered with something that is not
  *          a boolean. `transport` is a namespace whose every duty THROWS.
  *
@@ -223,6 +232,34 @@ const HOSTED = (() => {
   const b = w && w[BRIDGE];
   if (!b) return null;
   return typeof b.hosted === 'boolean' ? b.hosted : null;
+})();
+
+/**
+ * WHICH KIND OF SOURCE THIS DECK IS BOUND TO — the same three states as
+ * `HOSTED`, for the same reason, and the third is again the one that matters:
+ *
+ *   'live'  the audio arrives in real time and something else owns the clock.
+ *   'file'  the whole signal is on disk; the deck owns the clock.
+ *   null    THERE WAS NO BRIDGE TO ASK, or it answered with something outside
+ *           the closed set. A surface must render this as "not known yet",
+ *           never as either kind.
+ *
+ * REFUSED, NOT COERCED, and not defaulted to `'live'`. A default here would be
+ * this module inventing a Source kind on a boot where the preload did not run —
+ * and a File source rendered as live is a surface offering engine-speed export
+ * for something that cannot do it.
+ *
+ * `src/main/deck-host.js` refuses a value outside the set too, at install. That
+ * is not redundant, and it is the argument the storage areas below already make:
+ * this check gives the DECK a defined answer with no ipc round trip, and main's
+ * stops any other caller in that process putting an undecided kind on the wire.
+ */
+const SOURCE_KINDS = ['live', 'file'];
+const SOURCE_KIND = (() => {
+  const w = globalThis.window;
+  const b = w && w[BRIDGE];
+  if (!b) return null;
+  return SOURCE_KINDS.includes(b.sourceKind) ? b.sourceKind : null;
 })();
 
 /**
@@ -282,6 +319,15 @@ const on = (type) => (fn) => {
 
 /** @type {import('../shared/host.js').DeckHost} */
 export const host = {
+  /**
+   * `'live' | 'file' | null` — what kind of Source is bound to this deck, or
+   * `null` for "could not ask". NOT a duty: `DECK_HOST_DUTIES` is frozen at
+   * v0.2.0 and this is a fact the Host offers, not a call the unit makes. It is
+   * read by the Host's own surfaces today; the deck gains a reader when the
+   * File-source transport lands (issue #5).
+   */
+  sourceKind: SOURCE_KIND,
+
   /**
    * ONE FINISHED MESSAGE, PUT ON THE BUS UNTOUCHED.
    *

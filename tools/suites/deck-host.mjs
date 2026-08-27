@@ -165,8 +165,8 @@ ok('THE VENDORED DECK BOOTS UNDER THIS HOST: every assertHost at ui/embed.js mod
   boot.booted === true && /ui\/embed\.html$/.test(String(boot.url)),
   `${boot.url} in ${boot.waitedMs} ms · bridge ${boot.bridge} · a Host short one duty defines no __embed at all`);
 
-ok('...and the module it imported is OURS: six duties, `page` and `transport`, all callable',
-  eq(A(boot.duties), ['armShortcut', 'onMessage', 'onStorageChanged', 'page', 'send', 'storageGet', 'storageSet', 'transport']),
+ok('...and the module it imported is OURS: six duties, `page` and `transport`, all callable, plus the `sourceKind` fact',
+  eq(A(boot.duties), ['armShortcut', 'onMessage', 'onStorageChanged', 'page', 'send', 'sourceKind', 'storageGet', 'storageSet', 'transport']),
   A(boot.duties).join(', '));
 
 const shapes = O(boot.shapes);
@@ -175,6 +175,33 @@ ok('...with `transport` SPELLED and non-null over a Live source, and all six Dec
   && eq(A(shapes.transportMembers), ['drive', 'onJump', 'onSpeedReport', 'onState', 'release', 'requestSpeed'])
   && eq(A(shapes.pageMembers), ['claimKeys', 'close', 'onAutonav', 'onKey', 'ready', 'setHeight']),
   `transport ${shapes.transport} [${A(shapes.transportMembers).join(' ')}] · page [${A(shapes.pageMembers).join(' ')}]`);
+
+/**
+ * THE PROFILE'S SECOND FIELD, ACROSS THE REAL BRIDGE.
+ *
+ * `deck:profile` is answered with `event.returnValue` because `ui/embed.js` reads
+ * the deck's shape at MODULE SCOPE — there is no promise the unit would await.
+ * This is the only place the whole path is exercised: `main` decides,
+ * `sendSync` carries, the preload exposes, the hole module refuses or accepts.
+ * `deck-seam` drives the last hop over a stub; only a launch can say the first
+ * three agree.
+ */
+ok('the deck profile carries the SOURCE KIND across the real ipc, and the shipped hole module accepts it  '
+  + '[entry point: onProfile in src/main/deck-host.js -> deck:profile -> __wbDeck.sourceKind -> ui/host.js]',
+  boot.sourceKindFlag === 'live' && boot.sourceKind === 'live',
+  `bridge said ${JSON.stringify(boot.sourceKindFlag)} · the module resolved ${JSON.stringify(boot.sourceKind)}`);
+
+/**
+ * ...AND IT IS A DIFFERENT QUESTION FROM `hosted`, WHICH IS THE WHOLE POINT OF
+ * THE FIELD. They agree today because there is one Source kind. A File source is
+ * the case that separates them: not hosted by somebody else's player, and still
+ * carrying a transport of its own over the engine's playback clock
+ * (docs/HOST-DESIGN.md §3.3b). Asserting both here is what stops a later change
+ * collapsing one into the other on the grounds that they happen to match.
+ */
+ok('...and it is carried BESIDE `hosted`, not derived from it — two facts, one round trip',
+  boot.hostedFlag === true && boot.sourceKindFlag === 'live',
+  `hosted ${JSON.stringify(boot.hostedFlag)} · sourceKind ${JSON.stringify(boot.sourceKindFlag)}`);
 
 // --------------------------------------------------------------- storage
 const st = O(R.storage);

@@ -99,6 +99,13 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     url: deckWc.getURL(),
     bridge: await evalIn(deckWc, 'typeof window.__wbDeck'),
     hostedFlag: await evalIn(deckWc, 'window.__wbDeck && window.__wbDeck.hosted'),
+    /**
+     * THE PROFILE'S SECOND FIELD, read off the bridge the preload really built.
+     * `sendSyncs` counts how many synchronous round trips the preload made at
+     * boot: the profile must cost exactly ONE, because a second `sendSync`
+     * before the deck has drawn anything is a second thing that can hang.
+     */
+    sourceKindFlag: await evalIn(deckWc, 'window.__wbDeck && window.__wbDeck.sourceKind'),
   };
 
   // The shipped module instance, out of the page's own graph.
@@ -106,6 +113,11 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     "import('./host.js').then((m) => { window.__wbHost = m.host; return typeof m.host; })");
   R.boot.duties = await evalIn(deckWc,
     'window.__wbHost ? Object.keys(window.__wbHost).sort() : null');
+  // What the SHIPPED hole module made of the bridge's answer, which is not the
+  // same question as what the bridge carried: the module refuses a kind outside
+  // its closed set rather than passing it through.
+  R.boot.sourceKind = await evalIn(deckWc,
+    'window.__wbHost ? window.__wbHost.sourceKind : null');
   R.boot.shapes = await evalIn(deckWc, `(() => {
     const h = window.__wbHost;
     if (!h) return null;
