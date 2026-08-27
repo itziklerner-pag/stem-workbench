@@ -309,5 +309,8 @@ echo "=== $ran mutation(s): ${C_G}$caught caught${C_X}, ${C_R}$missed missed${C_
 if [ "${#ONLY[@]}" -eq 0 ]; then
   echo
   python3 "$ROOT/tools/suites/coverage.py" "$OUT" || missed=$((missed + 1))
+else
+  echo
+  echo "${C_D}coverage is only claimed after a FULL battery — a subset cannot make it${C_X}"
 fi
 [ "$missed" -eq 0 ]

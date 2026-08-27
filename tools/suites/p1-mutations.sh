@@ -490,7 +490,14 @@ fi
 echo
 echo "========================================================================"
 if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ] && [ "$cover" -eq 0 ]; then
-  echo "${C_G}all $caught of $ran mutations were caught${C_X}, and every assertion in the suite has been watched red."
+  # A SUBSET MAY NOT MAKE THE COVERAGE CLAIM. `coverage.py` only runs for a full
+  # battery, so on a case list the second half of that sentence would be an
+  # assertion nobody made — the shape of overclaim these files exist to refuse.
+  if [ "${#ONLY[@]}" -eq 0 ]; then
+    echo "${C_G}all $caught of $ran mutations were caught${C_X}, and every assertion in the suite has been watched red."
+  else
+    echo "${C_G}all $caught of $ran selected mutations were caught${C_X} — a subset, so nothing is claimed about coverage."
+  fi
   exit 0
 fi
 [ "$missed" -gt 0 ] && echo "${C_R}$missed of $ran mutations were NOT caught${C_X} (caught $caught). Logs in out/p1-mutations/."

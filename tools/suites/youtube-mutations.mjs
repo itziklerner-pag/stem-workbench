@@ -536,9 +536,19 @@ if (live) {
 // ---------------------------------------------------------------------------
 // THE COVERAGE REPORT — the half that is invisible from inside a green run.
 const uncovered = [...allNames].filter((nm) => !covered.has(nm));
-console.log(`\ncoverage: ${covered.size}/${allNames.size} assertions were turned red by some row`);
+/**
+ * A SUBSET MAY NOT MAKE THE COVERAGE CLAIM. With `--only` the numerator is one
+ * row's names and the denominator is the whole suite's, so this prints a low
+ * fraction that reads as a failing battery rather than as a subset. The verdict
+ * below already exempts `only`; the transcript has to say so too.
+ */
+if (only) {
+  console.log(`\ncoverage: not claimed — --only ${only} ran a subset, and coverage is a claim about the whole battery`);
+} else {
+  console.log(`\ncoverage: ${covered.size}/${allNames.size} assertions were turned red by some row`);
+}
 if (!live) console.log('(the product rows L1-L3 were NOT run — `--live` runs them, one real launch each)');
-if (uncovered.length) {
+if (uncovered.length && !only) {
   console.log('NO ROW EVER TURNED THESE RED:');
   for (const nm of uncovered) console.log(`  - ${nm}`);
 }

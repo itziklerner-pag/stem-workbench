@@ -465,13 +465,25 @@ for (const m of rows) {
 // ---------------------------------------------------------------------------
 // THE COVERAGE REPORT — the half that is invisible from inside a green run.
 const uncovered = [...allNames].filter((n) => !covered.has(n));
-console.log(`\ncoverage: ${covered.size}/${allNames.size} assertions were turned red by some mutation`);
+/**
+ * A SUBSET MAY NOT MAKE THE COVERAGE CLAIM, and here it would not overclaim so
+ * much as MISREAD: `--only` runs one row, so `covered` is that row's names and
+ * `allNames` is the whole suite's, and the line prints something like
+ * `coverage: 3/27` — a number that looks like a failing suite rather than a
+ * subset. The exit code below already exempts `only`; the transcript has to say
+ * so too, or the next reader acts on a measurement nobody took.
+ */
+if (only) {
+  console.log(`\ncoverage: not claimed — --only ${only} ran a subset, and coverage is a claim about the whole battery`);
+} else {
+  console.log(`\ncoverage: ${covered.size}/${allNames.size} assertions were turned red by some mutation`);
+}
 const skipped = MUTATIONS.filter((r) => r.shared && !allowShared && !only).map((r) => r.id);
 if (skipped.length) {
   console.log(`(not run on the default battery, because they edit a file this slice does not own: ${skipped.join(', ')} `
     + '— ALLOW_SHARED_EDITS=1 runs them)');
 }
-if (uncovered.length) {
+if (uncovered.length && !only) {
   console.log('NO MUTATION EVER TURNED THESE RED:');
   for (const n of uncovered) console.log(`  - ${n}`);
 }

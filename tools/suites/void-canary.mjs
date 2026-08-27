@@ -417,6 +417,48 @@ ok('...and every battery under tools/suites is one of those two kinds, so a thir
     : `${allBatteries.length} batteries: ${batteries.length} bash, ${jsBatteries.length} js`);
 
 /**
+ * ...AND A BATTERY THAT COMPUTES COVERAGE SAYS WHEN IT DID NOT.
+ *
+ * `coverage.py` — and the `covered`/`allNames` pair in the two `.mjs`
+ * batteries — answers ONE question: has every assertion in the suite been
+ * turned red by SOME mutation? It is a claim about a whole battery, so it is
+ * only computed for a whole battery. **Two batteries printed it anyway.**
+ * `shell-mutations.sh 33 34` and `p1-mutations.sh 14` ran two cases each, never
+ * ran the coverage pass, and closed with *"and every assertion in the suite has
+ * been watched red"* — an instrument reporting a measurement it did not take,
+ * which is the failure `verify.mjs`'s VOID rule exists to refuse one level out.
+ * The two `.mjs` batteries had the mirror image: a numerator from one row over a
+ * denominator from the whole suite, printing `coverage: 3/27` about a subset,
+ * which reads as a battery in trouble rather than as a battery not asked.
+ *
+ * `smoke-mutations.sh` already had the right shape, which is why this is a
+ * search for a WORD rather than a wording anybody had to invent: a battery that
+ * computes coverage must also, in code, tell a subset reader that it did not.
+ *
+ * WHY A WORD AND NOT THE SENTENCE. The six batteries that already did this
+ * spell it six ways, and rewording them to one canonical string would be churn
+ * with its own risk of a typo going unnoticed. `subset` is the load-bearing
+ * word in every one of them, it is in printed text rather than prose (the
+ * comment strip below removes the prose), and the mutation that falsifies this
+ * row is exactly the edit that would reintroduce the defect.
+ */
+const coverageBatteries = allBatteries.filter((n) => {
+  const t = code(readSuite(n), n.endsWith('.sh') ? 'sh' : 'js');
+  return /coverage\.py|covered\.size/.test(t);
+});
+const silentOnSubset = coverageBatteries.filter((n) => {
+  const t = code(readSuite(n), n.endsWith('.sh') ? 'sh' : 'js');
+  return !/subset/.test(t);
+});
+ok('every battery that COMPUTES coverage also tells a subset run that it did not — a coverage claim over a case '
+  + 'list is a measurement nobody took  [entry point: the same tools/suites/*-mutations.* glob, comments stripped]',
+  coverageBatteries.length > 0 && silentOnSubset.length === 0,
+  silentOnSubset.length
+    ? `SILENT ON A SUBSET: ${silentOnSubset.join(', ')}`
+    : `${coverageBatteries.length} of ${allBatteries.length} batteries compute coverage, and all of them say so: `
+      + coverageBatteries.join(' '));
+
+/**
  * ...AND THE OBLIGATION IS REAL, NOT A GREP. The four rows above are textual, in
  * both languages, and a textual assertion about a runtime property is an
  * assumption with a regex in front of it. So the property itself is watched:

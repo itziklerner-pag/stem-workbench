@@ -133,7 +133,7 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 50 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 51 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 53 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |

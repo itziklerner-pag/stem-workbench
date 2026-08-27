@@ -493,6 +493,8 @@ echo
 if [ "${#ONLY[@]}" -eq 0 ]; then
   echo "${C_D}=== coverage — did every assertion go red at least once?${C_X}"
   python3 "$HERE/coverage.py" "$OUT" || missed=$((missed + 1))
+else
+  echo "${C_D}coverage is only claimed after a FULL battery — a subset cannot make it${C_X}"
 fi
 echo
 echo "capture-mute-mutations: $ran run, ${C_G}$caught caught${C_X}, ${C_R}$missed missed${C_X}"

@@ -269,6 +269,31 @@ The allowlist is a **refusal**, not a redirect: a blocked navigation raises a
 visible message in the chrome view. A silent cancel is how a sign-in flow becomes
 "the button does nothing".
 
+#### `did-start-navigation` cannot tell you the guard said yes `[measured]`
+
+Anyone gating navigation here will want a POSITIVE witness — not "it is absent
+from the refusal ledger", which is also what a navigation nobody attempted looks
+like, so an allowlist that admitted **nothing at all** would satisfy it. The
+obvious candidate is `did-start-navigation`, and it does not work:
+
+> **Measured, Electron 44.0.0 / Chromium 152.0.7977.54, Linux: it fires for a
+> navigation `will-navigate` has already `preventDefault()`ed.** A renderer-
+> initiated navigation to `accounts.google.com.evil.test` was refused by the
+> guard above and raised `did-start-navigation` anyway. Admitted and refused
+> produce the same event, so it can witness neither.
+
+**Use the session's own request log instead** (`sessions.onRequest` /
+`sessions.log()`, `src/main/sessions.js`). A cancelled navigation never becomes a
+request at all, so a row on the `user`-owned session carrying the URL is the
+navigation having really reached Chromium's network stack — the wire, not an
+intention. It is also the instrument P1′ already depends on, so it is not a
+second one nobody watches.
+
+This cost a green assertion that could not fail, caught only because the
+assertion was written to name what it was witnessing and then disagreed with the
+transcript. `src/main/youtube.js` carries the same finding at the handler where
+it bit, so it is discoverable from the code as well as from here.
+
 ---
 
 ## 2. Cross-origin isolation
