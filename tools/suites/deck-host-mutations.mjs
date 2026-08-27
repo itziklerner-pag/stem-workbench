@@ -43,7 +43,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { mutationGuard } from '../lib/mutation-guard.mjs';
 
+const ID = 'deck-host-mutations';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const HOST = 'vendor/stem-splitter-live/extension/ui/host.js';
 const DECKHOST = 'src/main/deck-host.js';
@@ -243,13 +245,49 @@ function assertionNames(out) {
 }
 const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL')).map((l) => l.slice(6).split('  ')[0].trim());
 
+/**
+ * THE TREE GUARD HAS TO BE TOLD, AND UNTIL IT WAS THIS BATTERY CAUGHT NOTHING.
+ *
+ * Found and first fixed on `phase4/s9-source-kind-profile` (dea6292), and taken
+ * from there.
+ *
+ * `tools/lib/tree-guard.mjs` refuses to run a suite while `src/` has
+ * uncommitted changes — the correct default, and one a mutation battery
+ * violates ON PURPOSE on every single row. This battery told it nothing, so the
+ * suite printed `REFUSING TO RUN` instead of measuring, `failedNames()` found no
+ * `FAIL` lines in the refusal, and all 24 rows reported the same thing:
+ *
+ *     0 reds: (none — the suite is blind to this)
+ *
+ * A battery that cannot see is strictly worse than no battery: it reports the
+ * shape of a clean sweep. Measured on a row nobody had touched — `--only L2`,
+ * `main` reading one storage area whatever the deck asked for, an edit that
+ * unquestionably breaks a shipped assertion — which came back 0 reds.
+ *
+ * TWO THINGS TELL IT, AND THEY ARE NOT THE SAME THING:
+ *
+ *   THE SENTINEL is what unblinds a MUTATED row. `guard.claim()` records this
+ *       process as the owner and `refuseIfCompromised()` skips the dirty check
+ *       for a sentinel owned by one of the suite's own ancestors — which the
+ *       battery is. That is the mechanism the bash batteries have always used,
+ *       and it is the one that also survives a `kill -9`.
+ *
+ *   ALLOW_DIRTY covers the CLEAN reference run, which happens before any
+ *       sentinel exists, so that this battery can be run by the author of an
+ *       unlanded slice — which is exactly when a mutation battery is most
+ *       needed. It is announced rather than silent: the suite prints every
+ *       dirty path into this battery's own per-row log, so a run that measured
+ *       a dirty tree says so in its transcript.
+ */
 function runSuite() {
   const r = spawnSync('node', ['tools/suites/deck-host.mjs'],
-    { cwd: ROOT, env: { ...process.env }, encoding: 'utf8', timeout: 300000 });
+    { cwd: ROOT,
+      env: { ...process.env, STEM_WORKBENCH_ALLOW_DIRTY: '1' },
+      encoding: 'utf8', timeout: 300000 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 
-console.log(`deck-host-mutations: ${rows.length} rows\n`);
+console.log(`${ID}: ${rows.length} rows\n`);
 
 // The clean run is the reference: every assertion that exists, and the proof
 // that the tree is green BEFORE anything is broken.
@@ -259,6 +297,22 @@ const allNames = new Set(assertionNames(clean));
 const cleanReds = failedNames(clean);
 if (cleanReds.length) {
   console.error(`the tree is NOT GREEN before mutating: ${cleanReds.join(' | ')}`);
+  process.exit(2);
+}
+/**
+ * THE VOID RULE, ONE LEVEL OUT — and the assertion that would have caught the
+ * blindness above on its first run.
+ *
+ * `cleanReds` is empty for a green reference run AND for a reference run that
+ * asserted nothing at all, because a refusal transcript carries no `FAIL` lines
+ * either. Every row is then measured against an empty set of names, every row
+ * finds 0 reds, and the battery reports the shape of a clean sweep. A baseline
+ * with no assertions in it is not a baseline (`docs/TESTING.md` §2).
+ */
+if (allNames.size === 0) {
+  console.error(`${ID}: THE REFERENCE RUN ASSERTED NOTHING — there is no baseline to mutate against, and`);
+  console.error(`${ID}: every row below would report "0 reds" whatever it broke. out/${ID}/clean.log says why;`);
+  console.error(`${ID}: a REFUSING TO RUN in it means the suite declined to measure this tree.`);
   process.exit(2);
 }
 console.log(`clean: ${allNames.size} assertions, 0 failed\n`);
@@ -272,27 +326,21 @@ let bad = 0;
  * relay mutation on `src/main/deck-host.js`, where the next reader would have
  * found a defect this file had written and not put back.
  *
- * So the row in flight is held here and the same restore runs from a handler.
- * `process.exit` afterwards, deliberately: a battery that was interrupted has
- * not produced a verdict and must not look like one that did.
+ * This used to be a hand-rolled pair of handlers over an in-memory copy of the
+ * original, which closed `timeout` and Ctrl-C and closed NOTHING for `kill -9`:
+ * the only copy of the file was in the memory of the process that was killed,
+ * and there was no sentinel, so the next suite measured the mutated tree and
+ * called it a red. `tools/lib/mutation-guard.mjs` is the belt and the braces
+ * together, and it is the same mechanism the ten bash batteries use.
  */
-let inFlight = null;
-const restoreInFlight = () => {
-  if (!inFlight) return;
-  for (const [file, src] of inFlight) fs.writeFileSync(path.join(ROOT, file), src);
-  inFlight = null;
-};
-for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-  process.on(sig, () => {
-    restoreInFlight();
-    console.error(`\n${sig} — the mutation in flight was put back. No verdict was produced.`);
-    process.exit(130);
-  });
-}
+const guard = mutationGuard({ battery: ID, root: ROOT });
 
 for (const m of rows) {
-  const originals = m.edits.map(([file]) => [file, fs.readFileSync(path.join(ROOT, file), 'utf8')]);
-  inFlight = originals;
+  // BEFORE THE FIRST EDIT: back the files up on disk and claim the sentinel.
+  // Both halves matter — the backup is what `restore-all` copies back after a
+  // `kill -9`, and the sentinel is what stops anybody else measuring meanwhile.
+  const files = [...new Set(m.edits.map(([file]) => file))];
+  guard.claim(m.id, files);
   let applied = 0;
   try {
     for (const [file, from, to] of m.edits) {
@@ -328,9 +376,11 @@ for (const m of rows) {
     console.log(`FAIL  ${m.id}  could not be applied: ${err.message}`);
   } finally {
     // ALWAYS, even on a throw: a mutation left on the tree is a defect that
-    // outlives the run that made it.
-    for (const [file, src] of originals) fs.writeFileSync(path.join(ROOT, file), src);
-    inFlight = null;
+    // outlives the run that made it. `release` VERIFIES the restored bytes and
+    // throws if they differ, leaving the sentinel standing — so a restore that
+    // did not work stops the next run instead of being reported as one.
+    guard.restore();
+    guard.release(m.id);
     if (applied !== m.edits.length && applied !== 0) console.log(`        (restored after ${applied}/${m.edits.length} edits)`);
   }
 }
@@ -349,5 +399,5 @@ if (uncovered.length) {
   for (const n of uncovered) console.log(`  - ${n}`);
 }
 
-console.log(`\ndeck-host-mutations: ${rows.length - bad} passed, ${bad} failed`);
+console.log(`\n${ID}: ${rows.length - bad} passed, ${bad} failed`);
 process.exit(bad || (uncovered.length && !only) ? 1 : 0);

@@ -81,15 +81,30 @@
  *       (recording 60 s, DECK_PREPARED 180 s, live 180 s...). That cost is the
  *       ceilings', not the battery's, and it is named here so nobody assumes the
  *       run has hung.
+ *
+ * THAT RECORD PREDATES `tools/lib/tree-guard.mjs`, and between the two this
+ * battery went BLIND: the guard refuses a suite over an uncommitted `src/`, and
+ * every product row above dirties `src/` on purpose. Re-run on that tree, all
+ * three would have reported `0 reds` — not because the suite stopped catching
+ * them, but because it was never asked. The claim above therefore stands for the
+ * tree it was measured on and NOT for any tree after the guard landed; the
+ * `guard.claim()` below is what makes it reproducible again. Reproducing it
+ * costs three real launches against real youtube.com and has not been done since
+ * the fix — the plumbing was verified without the network, by driving the row
+ * with `YOUTUBE_REPORT` set so the spawned suite judged a recorded report: the
+ * row's own log came back with 26 assertion lines in it instead of a
+ * `REFUSING TO RUN`.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { mutationGuard } from '../lib/mutation-guard.mjs';
 
+const ID = 'youtube-mutations';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const OUTDIR = path.join(ROOT, 'out', 'youtube-mutations');
+const OUTDIR = path.join(ROOT, 'out', ID);
 const argv = process.argv.slice(2);
 const only = (argv.find((a) => a.startsWith('--only')) || '').split('=')[1]
   || (argv.includes('--only') ? argv[argv.indexOf('--only') + 1] : null);
@@ -363,16 +378,50 @@ const assertionNames = (out) => out.split('\n').filter((l) => /^(ok  |FAIL)/.tes
 const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL'))
   .map((l) => l.slice(6).split('  ')[0].trim());
 
+/**
+ * THE TREE GUARD HAS TO BE TOLD, AND UNTIL IT WAS THE PRODUCT ROWS CAUGHT
+ * NOTHING.
+ *
+ * `tools/lib/tree-guard.mjs` refuses to run a suite while `src/` has
+ * uncommitted changes. Every `L*` row edits `src/` and then calls
+ * `launchAndJudge()`, so every one of them was answered with `REFUSING TO RUN`
+ * instead of a measurement; `failedNames()` finds no `FAIL` lines in a refusal,
+ * and the row reports `0 reds: (none — the suite is blind to this)`. The same
+ * defect `deck-host-mutations.mjs` had, in the battery nobody had checked.
+ *
+ * The `R*` rows go the same way whenever `src/` is dirty for ANY other reason —
+ * an unlanded slice, or a stranded edit — because the refusal comes before the
+ * report is ever opened. Measured: with one uncommitted change under `src/`,
+ * `--only R9` came back `0 reds` over a report doctored to break it.
+ *
+ * `judge()` is given the flag because a run in `YOUTUBE_REPORT` mode judges a
+ * RECORDED file and launches nothing, so the state of `src/` is not a fact
+ * about what it measured; the suite still prints every dirty path into this
+ * battery's log. `launchAndJudge()` gets the flag AND the sentinel the caller
+ * claims around it, because that one really is measuring the mutated tree.
+ */
 function judge(reportFile) {
   const r = spawnSync('node', ['tools/suites/youtube.mjs'],
-    { cwd: ROOT, env: { ...process.env, YOUTUBE_REPORT: reportFile }, encoding: 'utf8', timeout: 120_000 });
+    { cwd: ROOT,
+      env: { ...process.env, YOUTUBE_REPORT: reportFile, STEM_WORKBENCH_ALLOW_DIRTY: '1' },
+      encoding: 'utf8', timeout: 120_000 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 function launchAndJudge() {
   const r = spawnSync('node', ['tools/suites/youtube.mjs'],
-    { cwd: ROOT, env: { ...process.env }, encoding: 'utf8', timeout: 1_800_000 });
+    { cwd: ROOT,
+      env: { ...process.env, STEM_WORKBENCH_ALLOW_DIRTY: '1' },
+      encoding: 'utf8', timeout: 1_800_000 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
+
+/**
+ * THE GUARD. This battery had NO signal handling at all: three product rows that
+ * edit a shipped file, and a bare `finally` — which does not run on a signal,
+ * and `timeout` sends SIGTERM. That is stem-workbench#22 exactly, sitting in a
+ * battery `void-canary` was not looking at because it globbed `*-mutations.sh`.
+ */
+const guard = mutationGuard({ battery: ID, root: ROOT });
 
 // The clean run is the reference: every assertion that exists, and the proof
 // that the recorded report is GREEN before anything is doctored.
@@ -384,7 +433,24 @@ if (cleanReds.length) {
   console.error(`the recorded report is NOT GREEN before doctoring it: ${cleanReds.join(' | ')}`);
   process.exit(2);
 }
-console.log(`youtube-mutations: baseline ${path.relative(ROOT, BASE)} — ${allNames.size} assertions, 0 failed\n`);
+/**
+ * THE VOID RULE, ONE LEVEL OUT — and the check that would have caught the
+ * blindness above the first time it happened.
+ *
+ * `cleanReds` is empty for a green reference run AND for one that asserted
+ * nothing, because a refusal transcript carries no `FAIL` lines either. Before
+ * this, a dirty `src/` produced `baseline … — 0 assertions, 0 failed` and the
+ * battery carried on: every row measured against an empty set of names, every
+ * row `0 reds`, coverage `0/0`. A baseline with no assertions in it is not a
+ * baseline (`docs/TESTING.md` §2).
+ */
+if (allNames.size === 0) {
+  console.error(`${ID}: THE REFERENCE RUN ASSERTED NOTHING — there is no baseline to doctor, and every row`);
+  console.error(`${ID}: below would report "0 reds" whatever it broke. out/${ID}/clean.log says why; a`);
+  console.error(`${ID}: REFUSING TO RUN in it means the suite declined to measure this tree.`);
+  process.exit(2);
+}
+console.log(`${ID}: baseline ${path.relative(ROOT, BASE)} — ${allNames.size} assertions, 0 failed\n`);
 
 const covered = new Set();
 let bad = 0, ran = 0;
@@ -407,8 +473,12 @@ if (live) {
   const liveRows = PRODUCT_ROWS.filter((m) => !only || m.id === only);
   for (const m of liveRows) {
     const p = path.join(ROOT, m.file);
-    const original = fs.readFileSync(p, 'utf8');
+    // BEFORE THE FIRST EDIT: the backup on disk and the sentinel. A row here
+    // costs ~3 minutes and one of them ~12, which is long enough that somebody
+    // kills it, and the file it edits is a shipped one.
+    guard.claim(m.id, [m.file]);
     try {
+      const original = fs.readFileSync(p, 'utf8');
       if (!original.includes(m.from)) throw new Error(`the text to mutate is not in ${m.file}: ${JSON.stringify(m.from.slice(0, 60))}`);
       fs.writeFileSync(p, original.replace(m.from, m.to));
       const out = launchAndJudge();
@@ -419,7 +489,8 @@ if (live) {
       bad++;
       console.log(`FAIL  ${m.id}  could not be applied: ${err.message}`);
     } finally {
-      fs.writeFileSync(p, original);
+      guard.restore();
+      guard.release(m.id);
     }
   }
 }
@@ -433,7 +504,7 @@ if (uncovered.length) {
   console.log('NO ROW EVER TURNED THESE RED:');
   for (const nm of uncovered) console.log(`  - ${nm}`);
 }
-console.log(`\nyoutube-mutations: ${ran - bad} passed, ${bad + (only ? 0 : uncovered.length ? 1 : 0)} failed`);
+console.log(`\n${ID}: ${ran - bad} passed, ${bad + (only ? 0 : uncovered.length ? 1 : 0)} failed`);
 process.exit(bad || (uncovered.length && !only) ? 1 : 0);
 
 function report(m, out, extra = '') {

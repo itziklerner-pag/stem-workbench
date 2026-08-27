@@ -104,6 +104,62 @@ export function standingMutations(root) {
   });
 }
 
+/** Where one battery's one case is recorded. The name is the lookup key, so it is derived once. */
+export const sentinelPath = (root, battery, kase) => path.join(sentinelDir(root), `${battery}.${kase}.json`);
+
+/**
+ * WRITE THE SENTINEL, before the first edit.
+ *
+ * `pid` is the OWNER — the process whose ancestry a suite is checked against —
+ * and it is a parameter rather than `process.pid` because the two callers are
+ * different shapes. A bash battery drives the CLI below, which is a short-lived
+ * child that is gone by the time anything reads the sentinel, so it passes its
+ * PARENT. A JavaScript battery calls this in-process and passes its own pid.
+ * Getting that wrong fails CLOSED — an owner that is not one of the suite's
+ * ancestors means the battery's own suite refuses to run — which is the safe
+ * direction, and is why it is spelled at each call site rather than defaulted.
+ */
+export function claimMutation(root, battery, kase, files, pid) {
+  fs.mkdirSync(sentinelDir(root), { recursive: true });
+  const file = sentinelPath(root, battery, kase);
+  fs.writeFileSync(file, `${JSON.stringify({
+    battery, case: String(kase), pid, started: ISO(), files,
+  }, null, 2)}\n`);
+  return file;
+}
+
+/** Drop it. Already gone is the desired state, so this never throws. */
+export function releaseMutation(root, battery, kase) {
+  try { fs.unlinkSync(sentinelPath(root, battery, kase)); return true; } catch { return false; }
+}
+
+/**
+ * PUT THE TREE BACK FROM THE SENTINELS THEMSELVES — never from a naming
+ * convention each battery reinvents. One implementation, three callers: a bash
+ * battery's trap, a JavaScript battery's signal handler, and the human running
+ * `restore-all` after a `kill -9`.
+ *
+ * The sentinel is dropped only when everything it named came back. A
+ * half-restored tree that no longer refuses the next run is the bug wearing a
+ * fix.
+ *
+ * @param {string} root
+ * @param {string|null} battery  restore only this battery's, or all of them
+ */
+export function restoreStanding(root, battery = null) {
+  const restored = [], failed = [];
+  for (const s of standingMutations(root)) {
+    if (battery && s.battery !== battery) continue;
+    const before = failed.length;
+    for (const f of s.files || []) {
+      try { fs.copyFileSync(f.bak, path.join(root, f.rel)); restored.push({ ...f, battery: s.battery, case: s.case }); }
+      catch (err) { failed.push({ ...f, why: String((err && err.message) || err) }); }
+    }
+    if (failed.length === before) { try { fs.unlinkSync(s.sentinel); } catch { /* nothing left to drop */ } }
+  }
+  return { restored, failed };
+}
+
 /** `git status --porcelain -- src`, once. Empty array when clean or when git cannot answer. */
 export function dirtySrc(root) {
   const r = spawnSync('git', ['status', '--porcelain', '--', 'src'], { cwd: root, encoding: 'utf8', timeout: 20000 });
@@ -183,43 +239,24 @@ export function refuseIfCompromised(id, root) {
 function cli(argv) {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
   const [what, a, b, ...rest] = argv;
-  const nameOf = (battery, kase) => path.join(sentinelDir(root), `${battery}.${kase}.json`);
 
   if (what === 'claim') {
     if (!a || b === undefined) { process.stderr.write('usage: claim <battery> <case> <rel>=<bak> …\n'); return 2; }
-    fs.mkdirSync(sentinelDir(root), { recursive: true });
     const files = rest.map((p) => { const i = p.indexOf('='); return { rel: p.slice(0, i), bak: p.slice(i + 1) }; });
     // THE OWNER IS OUR PARENT, which is the battery — not this short-lived
     // process, which is gone by the time anything reads the sentinel.
-    fs.writeFileSync(nameOf(a, b), `${JSON.stringify({
-      battery: a, case: b, pid: process.ppid, started: ISO(), files,
-    }, null, 2)}\n`);
+    claimMutation(root, a, b, files, process.ppid);
     return 0;
   }
 
-  if (what === 'release') {
-    try { fs.unlinkSync(nameOf(a, b)); } catch { /* already gone is the desired state */ }
-    return 0;
-  }
+  if (what === 'release') { releaseMutation(root, a, b); return 0; }
 
   if (what === 'restore' || what === 'restore-all') {
-    const want = what === 'restore' ? a : null;
-    let n = 0;
-    for (const s of standingMutations(root)) {
-      if (want && s.battery !== want) continue;
-      for (const f of s.files || []) {
-        try {
-          fs.copyFileSync(f.bak, path.join(root, f.rel));
-          process.stdout.write(`restored ${s.battery} case ${s.case}: ${f.rel}\n`);
-          n++;
-        } catch (err) {
-          process.stdout.write(`COULD NOT RESTORE ${f.rel} from ${f.bak}: ${String((err && err.message) || err)}\n`);
-          return 1;
-        }
-      }
-      try { fs.unlinkSync(s.sentinel); } catch { /* nothing left to drop */ }
-    }
-    if (!n) process.stdout.write('nothing was standing\n');
+    const { restored, failed } = restoreStanding(root, what === 'restore' ? a : null);
+    for (const f of restored) process.stdout.write(`restored ${f.battery} case ${f.case}: ${f.rel}\n`);
+    for (const f of failed) process.stdout.write(`COULD NOT RESTORE ${f.rel} from ${f.bak}: ${f.why}\n`);
+    if (failed.length) return 1;
+    if (!restored.length) process.stdout.write('nothing was standing\n');
     return 0;
   }
 
