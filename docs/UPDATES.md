@@ -175,6 +175,14 @@ nowhere.
 | **Windows** — NSIS, **unsigned during beta** | **CONFIGURED, NEVER BUILT** | `build.win`. Seed §14: testers click through SmartScreen until a certificate exists |
 | **Windows** — Azure Trusted Signing | **CONFIGURED, NEVER EXECUTED** | `scripts["dist:win:signed"]` |
 
+**One thing the macOS and Windows blocks DO have behind them.** electron-builder
+validates the WHOLE `build` object against its schema before it packages
+anything, and refuses unknown properties — that is how `build.linux.desktopName`
+was caught (it is a top-level `package.json` key, not a `build.linux` one). So a
+green `dist-linux` is evidence that electron-builder itself ACCEPTS the `mac` and
+`win` blocks, not merely that the JSON has plausible keys in it. It is still not
+evidence that either builds, signs or runs.
+
 ### Why Azure Trusted Signing is on a script and not in `build.win`
 
 `app-builder-lib/out/winPackager.js:35` switches to the Azure signer **the
