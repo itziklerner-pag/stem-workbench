@@ -12,7 +12,10 @@
  * the allowlist is refused rather than silently cancelled; and that seed §9's
  * SIGN-IN DISGUISE is on exactly one session — `persist:youtube` presents a
  * stock Chrome user-agent, nothing of ours does, and the four hosts Google's
- * sign-in is redirected through can really be navigated to.
+ * sign-in is redirected through can really be navigated to. It then launches the
+ * app A SECOND TIME on the same profile, because "the session persists across
+ * restarts" is the one claim in seed §9 that a single launch cannot make at
+ * all.
  *
  * WHAT IT DOES NOT GATE, stated so the absence is on the record rather than
  * merely true:
@@ -82,6 +85,10 @@
  *  35  navigation.js: drop accounts.google.com              -> the four sign-in hosts BY NAME, and the live navigation
  *  36  useragent.js: Chrome/<full version> not <major>.0.0.0 -> the disguise's shape, and the live one
  *  37  useragent.js: UA_SESSIONS gains 'app'                -> only USER-owned sessions (+ the app cannot boot)
+ *  38  main.js: the partition is 'youtube', not 'persist:…'  -> the cookie survives a restart (+2)
+ *  39  signin.js: drop __Secure-3PSID from SESSION_COOKIES  -> ...and the second boot reads SIGNED IN
+ *  40  signin.js: the domain test becomes d.includes(base)  -> the sign-in verdict reads a Google session cookie
+ *  41  signin.js: report the matched cookies, not their names -> ...and its answer never carries a VALUE
  *
  * CASES 17-28 CAME FROM A COVERAGE AUDIT, not from a hunch: the first sixteen
  * left ELEVEN of the assertions (34 of them then) with no mutation of their own,
@@ -148,6 +155,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { isAllowedNavigation, NAV_ALLOW } from '../../src/main/navigation.js';
 import { UA_SESSIONS, userAgentFor, stockChromeUA, PLATFORM_TOKENS } from '../../src/main/useragent.js';
+import { accountFromCookies } from '../../src/main/signin.js';
 import { SESSION_OWNERS } from '../../src/main/p1.js';
 import { resolveAppPath } from '../../src/main/assets.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
@@ -336,6 +344,52 @@ const eq = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
     && appLabels.length > 0 && appLabels.every((l) => userAgentFor(l, env) === null),
     `UA_SESSIONS ${JSON.stringify(uaLabels)}; owners ${JSON.stringify(SESSION_OWNERS)}; `
     + `app-owned labels get ${JSON.stringify(appLabels.map((l) => userAgentFor(l, env)))}`);
+
+  /**
+   * THE SIGN-IN VERDICT, AS A PURE FUNCTION — including the `includes()` trap,
+   * which is the same trap the navigation allowlist has and lands in a different
+   * place. `SID` on `google.com.evil.test` is somebody else's host with a Google
+   * domain as a prefix; a domain test written as `d.includes('google.com')`
+   * would read it as a signed-in Google session, and the app would then tell the
+   * user it is signed in because a hostile page set one cookie.
+   *
+   * The anonymous row is the OTHER half and is not padding: `YSC`, `PREF` and
+   * `VISITOR_INFO1_LIVE` are what anonymous YouTube sets on every visitor, so a
+   * cookie list that included them would report everybody as signed in — an
+   * estimator that saturates before the claim begins.
+   */
+  const JARS = [
+    ['a real Google session cookie on youtube.com', [{ name: '__Secure-3PSID', domain: '.youtube.com' }], true],
+    ['...and one on google.com', [{ name: 'SID', domain: '.google.com' }], true],
+    ["anonymous YouTube's own cookies", [{ name: 'YSC', domain: '.youtube.com' },
+      { name: 'PREF', domain: '.youtube.com' }, { name: 'VISITOR_INFO1_LIVE', domain: '.youtube.com' }], false],
+    ['THE `includes()` TRAP', [{ name: 'SID', domain: 'google.com.evil.test' }], false],
+    ['...and its dotted form', [{ name: 'SID', domain: '.youtube.com.evil.test' }], false],
+    ['somebody else entirely', [{ name: 'SID', domain: '.example.com' }], false],
+    ['an empty jar', [], false],
+  ];
+  const verdicts = JARS.filter(([, jar, want]) => accountFromCookies(jar).signedIn === want);
+  ok('the sign-in verdict reads a Google session cookie on a Google domain, and NOTHING else — anonymous YouTube\'s own '
+    + 'cookies, somebody else\'s host, and the `includes()` trap all read signed OUT  '
+    + '[entry point: src/main/signin.js accountFromCookies()]',
+    verdicts.length === JARS.length,
+    `${verdicts.length}/${JARS.length}`
+    + `${verdicts.length === JARS.length ? '' : ` — WRONG: ${JARS.filter((j) => !verdicts.includes(j)).map((j) => j[0]).join(', ')}`}`);
+
+  /**
+   * ...AND THE ANSWER CANNOT CARRY A CREDENTIAL. `PRIVACY.md` says this app never
+   * reads the VALUE of a cookie, and the value of a Google session cookie is not
+   * a fact about the session — it IS the session. `readAccount()` projects to
+   * `{name, domain}` at the one place the jar is obtained so that this function
+   * never has a value in scope; this drives it with one anyway, and looks for the
+   * string anywhere in what comes back.
+   */
+  const CREDENTIAL = 'this-string-is-the-credential';
+  const withValue = accountFromCookies([{ name: '__Secure-3PSID', domain: '.youtube.com', value: CREDENTIAL }]);
+  ok("...and its answer never carries a cookie VALUE — PRIVACY.md's promise, driven with one and searched for  "
+    + '[entry point: accountFromCookies()]',
+    withValue.signedIn === true && !JSON.stringify(withValue).includes(CREDENTIAL),
+    `fed a jar carrying ${JSON.stringify(CREDENTIAL)}; got back ${JSON.stringify(withValue)}`);
 
   const roots = [{ prefix: '/vendor/', dir: '/app/vendor' }, { prefix: '/', dir: '/app/src/renderer' }];
   const maps = [
@@ -730,8 +784,63 @@ ok('the deck slot loads the vendored deck when it is present, and says so when i
   O(O(R.renderers).deck).url === wantDeck,
   `${vendored ? 'vendored' : 'NOT VENDORED — placeholder branch'}: ${O(O(R.renderers).deck).url}`);
 
+// ==========================================================================
+// 3. A SECOND LAUNCH, ON THE SAME PROFILE — does the sign-in survive a restart?
+// ==========================================================================
+/**
+ * SEED §9 SAYS THE YOUTUBE SESSION PERSISTS ACROSS RESTARTS, and
+ * stem-workbench#8 is deliberately unforgiving about how that may be shown:
+ * *"Cookies set in the partition survive an app restart — asserted by READING
+ * THEM BACK, not by asserting the partition string."* Nothing in a single launch
+ * can say it. `persist:youtube` appearing in `main.js` is a claim about
+ * INTENT — an in-memory partition is one word away and behaves identically for
+ * the whole of the first run.
+ *
+ * So: the launch above seeded one marker cookie on its way out
+ * (`tools/gate/probe.mjs`), and this launches the app AGAIN over the SAME
+ * `--user-data` with a probe that reports the jar it found before the app had
+ * touched anything (`tools/gate/restart.mjs`).
+ *
+ * IT IS ALSO THE ONLY PLACE ANY GATE REACHES `accountFromCookies`'s SIGNED-IN
+ * BRANCH. No suite anywhere can sign in to Google — that test needs somebody's
+ * real credentials — so without this second boot the app's signed-in path would
+ * ship having never run. The marker is a real Google session cookie name on a
+ * real Google domain, so the second launch's `state.account` is the product's
+ * own verdict over a restored profile.
+ */
+const OUT2 = path.join(OUT, 'restart');
+const relaunch = await run(
+  'flock', [LOCK, '-c',
+    `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
+    + `--gate=${sh(OUT2)} --gate-probe=restart --source-url=${sh(fixture)} --user-data=${sh(userData)}`],
+  { cwd: ROOT, timeoutMs: 120000, queueMs: 900000, startOn: LOCK_MARK });
+fs.writeFileSync(path.join(OUT, 'relaunch.log'), relaunch.out);
+
+let R2 = null;
+try { R2 = JSON.parse(fs.readFileSync(path.join(OUT2, 'report.json'), 'utf8')); } catch { /* asserted below */ }
+
+const seed = O(R.cookieSeed);
+const backAgain = A(O(R2).cookiesAtStart).filter((c) => O(c).name === seed.name && O(c).domain === seed.domain);
+ok('a cookie written into persist:youtube is STILL THERE after the app has quit and started again — read back by name '
+  + 'and domain over a second launch, never inferred from the partition string  '
+  + '[entry point: makeSession(\'youtube\', \'persist:youtube\') in boot(), over two launches sharing one --user-data]',
+  seed.ok === true && R2 !== null && backAgain.length === 1,
+  seed.ok !== true ? `THE SEED ITSELF FAILED, so nothing was asked of the restart: ${JSON.stringify(seed)}`
+    : R2 === null ? `exit ${relaunch.code}, no ${path.relative(ROOT, path.join(OUT2, 'report.json'))} — last line: ${lastLine(relaunch.out)}`
+      : `seeded ${seed.name} on ${seed.domain}; the second launch found `
+        + `${A(O(R2).cookiesAtStart).length} cookie(s) ${JSON.stringify(A(O(R2).cookiesAtStart))}`
+        + ` (a cookie with no expirationDate would be a SESSION cookie and would not survive at all)`);
+
+ok('...and the app makes the right thing of it on that second boot: the jar that read ANONYMOUS the first time reads '
+  + 'SIGNED IN the second, and names the cookie it found — the only path anywhere that reaches the signed-in branch  '
+  + '[entry point: readAccount() in src/main/signin.js]',
+  O(O(R).account).signedIn === false && O(O(R2).account).signedIn === true
+  && A(O(O(R2).account).session).includes(seed.name),
+  `first launch ${JSON.stringify(O(R).account)} · second launch ${JSON.stringify(O(R2).account)}`);
+
 console.log(`\n${ID}: launch log ${path.relative(ROOT, path.join(OUT, 'launch.log'))} · `
-  + `report ${path.relative(ROOT, reportPath)} · screenshots ${path.relative(ROOT, OUT)}/{chrome,source,deck}.png`);
+  + `report ${path.relative(ROOT, reportPath)} · screenshots ${path.relative(ROOT, OUT)}/{chrome,source,deck}.png · `
+  + `restart ${path.relative(ROOT, path.join(OUT, 'relaunch.log'))}`);
 done();
 
 // ------------------------------------------------------------------ helpers

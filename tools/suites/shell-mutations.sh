@@ -577,6 +577,59 @@ mutate_case 37 "declare the app's own session as one that presents the disguise"
 "export const UA_SESSIONS = Object.freeze(['youtube', 'app']);"
 
 # ==========================================================================
+# 38-39  SEED §9 — THE SESSION THAT SURVIVES A RESTART
+#
+# `persist:youtube` in `main.js` is ONE WORD away from an in-memory partition
+# that behaves identically for the whole of a single run, which is exactly why
+# stem-workbench#8 refuses to accept the partition string as evidence. 38 takes
+# the `persist:` off and the second launch finds an empty profile; 39 leaves the
+# profile alone and stops the app RECOGNISING what is in it.
+# ==========================================================================
+mutate_case 38 "an in-memory partition — indistinguishable from persist: for one whole run" \
+  "src/main/main.js" \
+  "a cookie written into persist:youtube is STILL THERE after the app has quit" \
+  -- src/main/main.js \
+"  const theirs = state.sessions.makeSession('youtube', 'persist:youtube');" \
+"  const theirs = state.sessions.makeSession('youtube', 'youtube');"
+
+# THE PROFILE IS INTACT AND THE APP NO LONGER KNOWS WHAT IS IN IT. The cookie is
+# read back exactly as before, so the row above stays green and only the verdict
+# moves — which is what makes these two separate assertions rather than one.
+mutate_case 39 "the app stops recognising the cookie Google's sign-in actually sets" \
+  "src/main/signin.js" \
+  "...and the app makes the right thing of it on that second boot" \
+  -- src/main/signin.js \
+"  '__Secure-3PSID',
+  'LOGIN_INFO'," \
+"  'LOGIN_INFO',"
+
+# ==========================================================================
+# 40-41  THE SIGN-IN VERDICT, AND THE PROMISE PRIVACY.md MAKES ABOUT IT
+#
+# 40 is the `includes()` trap landing somewhere new: a domain test written as
+# `d.includes('google.com')` reads `google.com.evil.test` as a signed-in Google
+# session, so one cookie from a hostile page would have the app tell the user it
+# is signed in. 41 is PRIVACY.md's promise — never the VALUE of a cookie — with
+# the value put back into what the function reports.
+# ==========================================================================
+mutate_case 40 "the domain test becomes includes(), so somebody else's host reads as Google's" \
+  "src/main/signin.js" \
+  "the sign-in verdict reads a Google session cookie on a Google domain" \
+  -- src/main/signin.js \
+"  return COOKIE_DOMAINS.some((base) => d === base || d.endsWith(\`.\${base}\`));" \
+"  return COOKIE_DOMAINS.some((base) => d.includes(base));"
+
+mutate_case 41 "report the matched cookies rather than their names — the credential goes into the report" \
+  "src/main/signin.js" \
+  "...and its answer never carries a cookie VALUE" \
+  -- src/main/signin.js \
+"  const session = [...new Set(all
+    .filter((c) => c && SESSION_COOKIES.includes(c.name) && isGoogles(c.domain))
+    .map((c) => c.name))].sort();" \
+"  const session = all
+    .filter((c) => c && SESSION_COOKIES.includes(c.name) && isGoogles(c.domain));"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
 # "32 mutations were caught" is not the claim worth making. The claim is that

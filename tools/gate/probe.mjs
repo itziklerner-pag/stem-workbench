@@ -451,6 +451,57 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     deck: await capture(state.deck, path.join(outDir, 'deck.png')),
   };
 
+  // ------------------------------------------------- what the app made of the jar
+  // Launch 1's verdict over an EMPTY partition. The pair with `R.cookieSeed`
+  // below is what lets the suite say the second launch's `signedIn` came from
+  // the restored jar rather than from having always been true.
+  R.account = state.account ? JSON.parse(JSON.stringify(state.account)) : null;
+
+  // ------------------------------------------- SEED, FOR THE SECOND LAUNCH
+  /**
+   * ONE MARKER COOKIE, WRITTEN LAST, SO THAT A SECOND LAUNCH CAN READ IT BACK.
+   *
+   * Seed §9 says the YouTube session persists across restarts, and
+   * stem-workbench#8 is deliberately unforgiving about how that may be shown:
+   * *"asserted by READING THEM BACK, not by asserting the partition string."*
+   * `persist:youtube` is a claim about intent; Chromium finding a cookie a
+   * previous process wrote is a claim about the product. `tools/gate/restart.mjs`
+   * is the second look and `tools/suites/shell.mjs` runs both launches over one
+   * `--user-data`.
+   *
+   * `expirationDate` IS NOT OPTIONAL AND IS THE WHOLE TRAP. A cookie with no
+   * expiry is a SESSION cookie: Chromium never writes it to disk and it is gone
+   * the moment this process is, so the readback would fail for a reason that has
+   * nothing to do with the partition being persistent. `flushStore()` for the
+   * same reason from the other end — `app.exit()` follows this function closely
+   * and an unflushed store is a profile that was never written.
+   *
+   * THE NAME IS A REAL GOOGLE SESSION COOKIE (`src/main/signin.js`'s
+   * `SESSION_COOKIES`) on a real Google domain, so the second launch exercises
+   * `accountFromCookies`'s SIGNED-IN branch over a live partition — the branch no
+   * other gate anywhere reaches, because no gate can sign in to Google.
+   * The value is `x`: nothing reads it, and a gate report is a file people open.
+   */
+  const seedName = '__Secure-3PSID';
+  const seedDomain = '.youtube.com';
+  try {
+    const yt = state.sessions.get('youtube');
+    await yt.cookies.set({
+      url: 'https://www.youtube.com/',
+      name: seedName,
+      value: 'x',
+      domain: seedDomain,
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      expirationDate: Math.floor(Date.now() / 1000) + 3600,
+    });
+    await yt.cookies.flushStore();
+    R.cookieSeed = { ok: true, name: seedName, domain: seedDomain };
+  } catch (err) {
+    R.cookieSeed = { ok: false, name: seedName, domain: seedDomain, why: String((err && err.message) || err) };
+  }
+
   // ------------------------------------------------------------ the machine
   R.machine = { chromeSandboxSuid: suidHelper(appRoot), display: process.env.DISPLAY || null };
 

@@ -184,6 +184,18 @@ recorded by the gate and not asserted — it is Chromium's behaviour, not this
 product's — and `FAQ.md` says it to the user in as many words rather than
 promising a durability nobody can promise.
 
+**The session survives a restart, and that is measured rather than spelled.**
+`persist:youtube` is one word away from an in-memory partition that behaves
+identically for the whole of a single run, so the partition string is a claim
+about intent and nothing more. `tools/suites/shell.mjs` launches the app TWICE
+over one `--user-data`: the first seeds one marker cookie on its way out and the
+second reports the jar it found before the app touched anything. **Watched red**
+by taking the `persist:` off (case 38). The marker is a real Google session
+cookie name on a real Google domain, so that second boot is also **the only path
+any gate anywhere takes through `accountFromCookies`'s SIGNED-IN branch** — no
+suite can sign in to Google, so without it the app's signed-in path would ship
+having never run.
+
 ### 1.4b The anonymous fallback `[decided]`
 
 Seed §9's third decision, and the only one of the three that is behaviour. The
