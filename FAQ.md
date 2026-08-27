@@ -195,11 +195,19 @@ Unknown — nothing has been built. What is known:
 
 ### Does it phone home?
 
-The app's own code contacts exactly one host — GitHub Releases, to check for a
-newer version — and nothing else. No telemetry, no analytics, no crash
+The app's own code contacts exactly one host — `api.github.com`, to ask which
+releases exist — and nothing else. No telemetry, no analytics, no crash
 reporting, no fonts, no CDN, no model download. The update check has a visible
-toggle and is on by default, because this app ships its own Chromium and
-therefore owns Chromium's security patches.
+toggle in the app's own bar and is on by default, because this app ships its own
+Chromium and therefore owns Chromium's security patches. It follows the
+**pre-release** channel, because the only releases there are, are betas.
+
+**It is a check and not a download.** The app tells you a newer pre-release
+exists; fetching it is something you do yourself. Downloading a release means
+`github.com` *and* the asset host GitHub redirects to, and the rule this app
+holds itself to names **one** host — so the delivery half is configured, left
+unarmed, and written down rather than quietly widened
+([`docs/UPDATES.md`](docs/UPDATES.md)).
 
 The embedded YouTube view's traffic is your own browsing and behaves like
 YouTube in any browser. [`PRIVACY.md`](PRIVACY.md) separates the two carefully
