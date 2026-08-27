@@ -321,13 +321,25 @@ function wire(opts = {}) {
 {
   const w = wire({ hangs: true, name: 'deck B' });
   await w.backend.load(new ArrayBuffer(16));
-  const inflight = w.backend.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4));
+  /**
+   * `settle()` IS ATTACHED IMMEDIATELY, not at the await below. A promise that
+   * rejects with no handler yet attached is an UNHANDLED REJECTION, which kills
+   * node outright — so the suite would die instead of reporting the red, which
+   * is what a mutation removing the rejection is supposed to produce.
+   *
+   * AND IT IS RACED, because the failure this assertion is about is a HANG:
+   * `dispose()` that kills the process and settles nothing leaves the caller
+   * waiting for ever. An assertion that merely awaited would inherit the hang
+   * rather than report it, and the battery would see a timeout instead of a red.
+   */
+  const inflight = settle(w.backend.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4)));
   await new Promise((r) => setTimeout(r, 25));   // let it really reach the child and sit there
   await w.backend.dispose();
-  const settled = await settle(inflight);
+  const settled = await Promise.race([inflight, new Promise((r) => setTimeout(() => r({ ok: null }), 2000))]);
   ok('dispose() SETTLES a call that is genuinely inside the backend — and NAMES the backend, because two decks fail independently  '
     + '[entry point: createNativeBackend().dispose]',
-  settled.ok === false && settled.error.startsWith('deck B:'), settled.error || '(it resolved!)');
+  settled.ok === false && String(settled.error).startsWith('deck B:'),
+  settled.ok === null ? 'IT HUNG — dispose() settled nothing in 2 s' : (settled.error || '(it resolved!)'));
 
   const after = await settle(w.backend.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4)));
   ok('...and a call that arrives AFTERWARDS is refused rather than left hanging, by name',
@@ -419,7 +431,14 @@ async function createBackendUnder(globals, hooks = {}) {
   };
   try {
     const mod = await import(`${pathToFileURL(HOLE).href}?case=${Math.random()}`);
-    return mod.createBackend(hooks);
+    /**
+     * A THROW HERE IS DATA. `shell.mjs` pays for this lesson in its `A()`/`O()`
+     * helpers, "learned from a mutation that killed the suite eleven assertions
+     * before the one it was written to turn red" — and a hole that throws at
+     * `createBackend` is exactly the defect three assertions below are about.
+     */
+    try { return mod.createBackend(hooks); }
+    catch (err) { return { threw: String((err && err.message) || err) }; }
   } finally {
     globalThis.__wbEngine = before.e;
     globalThis.__wbNativeBackend = before.n;
@@ -500,9 +519,10 @@ const isWorkerBackend = (b) => !!b && b.constructor && b.constructor.name === 'W
   const w = wire({ name: 'deck A' });
   const wrapped = serialiseBackend(w.backend, 'the native backend');
   await wrapped.load(new ArrayBuffer(16));
-  const a = wrapped.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4));
-  const b = wrapped.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4));
-  await Promise.all([settle(a), settle(b)]);
+  // Handlers attached at creation — see the dispose block for why.
+  const a = settle(wrapped.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4)));
+  const b = settle(wrapped.separate(new ArrayBuffer(2 * SEG * 4), new ArrayBuffer(PLANES * SEG * 4)));
+  await Promise.all([a, b]);
   ok('the unit\'s serialiseBackend accepts this backend and runs both calls — one at a time, with no second queue in this Host  '
     + '[entry point: serialiseBackend() in the vendored shared/host.js]',
   w.engine.segs === 2, `${w.engine.segs} segment(s) reached the engine`);
@@ -533,9 +553,16 @@ const isWorkerBackend = (b) => !!b && b.constructor && b.constructor.name === 'W
  */
 {
   const present = (() => { try { return !!import.meta.resolve(B.NATIVE_MODULE); } catch { return false; } })();
-  ok(`\`${B.NATIVE_MODULE}\` is NOT installed here — the second, independent reason no CoreML claim in this repository `
-    + 'has been verified  [entry point: NATIVE_MODULE in src/main/backend.js, the same name src/utility/inference.js requires]',
-  present === false, present ? 'IT IS INSTALLED — re-read every "unverified" label' : 'absent, as documented');
+  /**
+   * THE NAME IS STABLE TEXT AND THE MODULE IS IN THE DETAIL — docs/TESTING.md
+   * §3, "measured numbers live in the detail; the name is stable text". It is
+   * load-bearing here beyond style: `coverage.py` keys on the assertion NAME, so
+   * a name that interpolated the module under test could never be matched to its
+   * own baseline and would read as an assertion nobody had ever watched fail.
+   */
+  ok('the native inference module is NOT installed here — the second, independent reason no CoreML claim in this '
+    + 'repository has been verified  [entry point: NATIVE_MODULE in src/main/backend.js, the same name src/utility/inference.js requires]',
+  present === false, present ? `${B.NATIVE_MODULE} IS INSTALLED — re-read every "unverified" label` : `${B.NATIVE_MODULE}: absent, as documented`);
 }
 
 console.log(`\n${ID}: drove chooseBackend() over ${20} table rows and the native backend over a worker_threads MessageChannel `
