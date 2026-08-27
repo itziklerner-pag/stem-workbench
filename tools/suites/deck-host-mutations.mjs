@@ -215,6 +215,36 @@ const MUTATIONS = [
       'export const clampDeckHeight = () => DECK_MAX_H;']],
     expect: ['page.setHeight is ADVICE the Host clamps', '...and the deck PAINTED before it went'],
   },
+  {
+    id: 'L23',
+    why: 'main stops putting the source kind on the profile — the deck boots knowing what it is hosted BY but not what it is bound TO',
+    /**
+     * `deck-seam` cannot make this one. It drives `ui/host.js` over a STUBBED
+     * bridge, so a mutation in `src/main/deck-host.js` is a file that battery
+     * never reaches; its case 51 breaks the same claim one layer down, at the
+     * hole module. This is the layer only a launch can see: main decides, the
+     * `sendSync` carries, the preload exposes, and all three have to agree.
+     */
+    edits: [[DECKHOST,
+      'event.returnValue = { hosted: transport !== null, sourceKind };',
+      'event.returnValue = { hosted: transport !== null };']],
+    expect: ['the deck profile carries the SOURCE KIND across the real ipc',
+      '...and it is carried BESIDE `hosted`'],
+  },
+  {
+    id: 'L24',
+    why: 'the hole module stops exposing the source kind — the bridge carries it and nothing reads it, which is the shape a surface silently loses a fact in',
+    /**
+     * THE PROPERTY IS REMOVED, NOT SET TO `undefined`, and the difference is the
+     * point of two assertions rather than one. `sourceKind: undefined` keeps the
+     * KEY, so `Object.keys(host)` is unchanged and the shape assertion stays
+     * green while the value one goes red — measured. Deleting it moves both, and
+     * that is what a Host which never learned to carry the fact looks like.
+     */
+    edits: [[HOST, '  sourceKind: SOURCE_KIND,', '  /* the Host never learned to carry it */']],
+    expect: ['...and the module it imported is OURS',
+      'the deck profile carries the SOURCE KIND across the real ipc'],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -243,9 +273,34 @@ function assertionNames(out) {
 }
 const failedNames = (out) => out.split('\n').filter((l) => l.startsWith('FAIL')).map((l) => l.slice(6).split('  ')[0].trim());
 
+/**
+ * THE TREE GUARD HAS TO BE TOLD, AND UNTIL IT WAS THIS BATTERY CAUGHT NOTHING.
+ *
+ * `tools/lib/tree-guard.mjs` refuses to run a suite while `src/` has uncommitted
+ * changes — which is the correct default, and which a mutation battery violates
+ * ON PURPOSE on every single row. Without the flag below the suite printed
+ * `REFUSING TO RUN` instead of measuring, `failedNames()` found no `FAIL` lines
+ * in the refusal, and every row reported the same thing:
+ *
+ *     0 reds: (none — the suite is blind to this)
+ *
+ * A battery that cannot see is strictly worse than no battery: it reports the
+ * shape of a clean sweep. Measured on a row nobody had touched (`--only L2`,
+ * `main` reading one storage area whatever the deck asked for) — an edit that
+ * unquestionably breaks a shipped assertion — and it came back with 0 reds.
+ *
+ * `void-canary` does not cover this: its battery check globs
+ * `tools/suites/*-mutations.sh`, and this battery is `.mjs`. That gap is the
+ * reason this went unseen, and it is worth closing separately.
+ *
+ * The flag is honest rather than a bypass: the suite still prints every dirty
+ * path it was asked to measure over, into this battery's own per-row log.
+ */
 function runSuite() {
   const r = spawnSync('node', ['tools/suites/deck-host.mjs'],
-    { cwd: ROOT, env: { ...process.env }, encoding: 'utf8', timeout: 300000 });
+    { cwd: ROOT,
+      env: { ...process.env, STEM_WORKBENCH_ALLOW_DIRTY: '1' },
+      encoding: 'utf8', timeout: 300000 });
   return `${r.stdout || ''}${r.stderr || ''}`;
 }
 

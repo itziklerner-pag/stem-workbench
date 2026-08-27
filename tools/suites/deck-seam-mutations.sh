@@ -424,6 +424,44 @@ M 45 "the addresses become a second copy in this repo" "$B" \
   "export const BUS2 = Object.freeze({ engine: 'off', deck: 'ui', host: 'sw' });" \
   "main routes on the unit's OWN addresses"
 
+# --------------------------------------------------------------------------
+# 51-54: THE SOURCE KIND, and the one that reproduces a ratified defect.
+#
+# 54 is the important one. `docs/HOST-DESIGN.md` §3.3 said a File source makes
+# `transport` null and called that "the deck becoming the transport master"; a
+# phase-4 host plan, a phase-4 contract and the comment above HOSTED in
+# ui/host.js all said the same. All four were wrong, and §3.3b records why:
+# `null` means "this Host has no player and never will", so `follow()` returns
+# 'start' on the first 10 Hz tick and the deck opens a capture and pulls 109 MB
+# of weights nobody asked for. This case is that defect, held down.
+# --------------------------------------------------------------------------
+M 51 "the Host stops carrying the source kind at all" "$H" \
+  "  sourceKind: SOURCE_KIND," \
+  "  sourceKind: undefined," \
+  "carries the SOURCE KIND the bridge gave it"
+
+M 52 "an unknown source kind is DEFAULTED to live instead of refused" "$H" \
+  "  return SOURCE_KINDS.includes(b.sourceKind) ? b.sourceKind : null;" \
+  "  return SOURCE_KINDS.includes(b.sourceKind) ? b.sourceKind : 'live';" \
+  "NEVER defaulted to"
+
+M 53 "no bridge to ask answers 'live' rather than 'could not ask'" "$H" \
+  "  if (!b) return null;
+  return SOURCE_KINDS.includes(b.sourceKind) ? b.sourceKind : null;" \
+  "  if (!b) return 'live';
+  return SOURCE_KINDS.includes(b.sourceKind) ? b.sourceKind : null;" \
+  "with no bridge at all it is"
+
+M 54 "THE RATIFIED DEFECT: a File source is given transport: null" "$H" \
+  "  transport: HOSTED === false ? null : {" \
+  "  transport: (HOSTED === false || SOURCE_KIND === 'file') ? null : {" \
+  "a FILE source does not lose its transport"
+
+# NOT HERE: "main stops putting the source kind on the profile". `deck-seam`
+# drives ui/host.js over a STUBBED bridge and never reaches src/main/deck-host.js,
+# so that mutation cannot go red in this battery — it belongs to `deck-host`,
+# which is the suite that makes the claim over a real launch.
+
 # ==========================================================================
 echo
 echo "${C_D}=== restored tree — the suite must be GREEN again${C_X}"
