@@ -27,41 +27,49 @@
  * ===========================================================================
  * WATCHED RED BY MUTATION — every row, and the exact edit
  * ===========================================================================
- * | # | assertion                                   | mutation that turns it red                                        |
- * |---|---------------------------------------------|-------------------------------------------------------------------|
- * | 1 | the check names one host                    | `UPDATE_HOST = 'api.example.com'` -> also turns `p1` red          |
- * | 2 | ...and the policy admits exactly it         | `mayRequest` -> `return u.protocol === 'https:'`                  |
- * | 3 | ...and the electron-updater feed host too    | `UPDATER_FEED.provider = 'generic'`                               |
- * | 4 | the host is the one the USER is promised     | `UPDATE_HOST = 'api.example.com'` — the ONE thing `p1` cannot see |
- * | 5 | the path is channel-capable                 | `UPDATE_PATH` -> `/releases/latest`                               |
- * | 5 | the channel is `prerelease`                 | `UPDATE_CHANNEL = 'stable'`                                       |
- * | 6 | ...and package.json says the same word      | `build.publish.releaseType` -> `'release'`                        |
- * | 7 | ...and the feed matches package.json both ways | add a key to `UPDATER_FEED` only                               |
- * | 8 | a draft is never offered                    | drop `r.draft !== true` from `pickRelease`                        |
- * | 9 | prerelease offers a prerelease              | `channel === 'prerelease' || ...` -> `r.prerelease !== true`      |
- * |10 | prerelease is not prereleases-only          | the same edit, on the stable half of the table                    |
- * |11 | stable skips a prerelease                   | drop the `channel === 'prerelease' ||` guard's second half        |
- * |12 | newest by published_at, not by array order  | `usable.sort(...)` -> `usable` unsorted                           |
- * |13 | an unknown channel throws                   | drop the `UPDATE_CHANNELS.includes` guard                         |
- * |14 | empty and malformed lists answer null       | `if (!Array.isArray(list)) return null` -> `return list`          |
- * |15 | the toggle defaults ON when absent          | `AUTO_UPDATE_DEFAULT = false`                                     |
- * |16 | ...and only an explicit false turns it off  | `autoUpdateFrom` -> `return stored === true`                      |
- * |17 | the preference lives in `local`             | `AUTO_UPDATE_AREA = 'session'` -> red HERE, on the restart        |
- * |18 | ...and it SURVIVES A RESTART                | the same edit; this is the row that measures it                   |
- * |19 | ...and `session` really would not survive   | the control: if this passes, row 18 was measuring nothing         |
- * |20 | setEnabled flips the wire, and counts       | `setEnabled` -> `return on` without assigning                     |
- * |21 | main reads the preference before the check  | move `createStorage` back below `createUpdateCheck`               |
- * |22 | main ANDs the flag with the preference      | `UPDATE_CHECK && autoUpdate` -> `autoUpdate`                      |
- * |23 | the bar exposes the toggle, three files     | delete `setAutoUpdate` from src/preload/chrome.cjs                |
- * |23a| OFF MEANS OFF — one call site, no timer     | add a `setInterval(() => state.update.check(), …)` in main.js     |
- * |24 | ...and it is a real input, not a menu item  | delete the `<input type="checkbox" id="autoupdate">`              |
- * |25 | mac: hardened runtime, entitlements, notarize | `build.mac.notarize` -> `false`                                 |
- * |26 | ...and the entitlements file is real plist  | truncate build/entitlements.mac.plist                             |
- * |27 | win: nsis, and UNSIGNED during beta         | put `azureSignOptions` into `build.win`                           |
- * |28 | ...and Azure Trusted Signing is configured  | drop `-c.win.azureSignOptions.endpoint=` from `dist:win:signed`   |
- * |29 | linux: AppImage and deb, with a maintainer  | delete `build.linux.maintainer` -> also breaks the real deb build |
- * |30 | `--publish never` on EVERY dist script      | drop it from `dist:linux`                                        |
- * |31 | ...and `publish` names the feed             | `build.publish` -> `null`                                        |
+ * Every row below was watched failing against a deliberate edit, and the battery
+ * that reproduces it is `tools/suites/updates-mutations.sh` — 33 cases, and its
+ * final line is `coverage: all 35 assertions in the suite have been watched red`.
+ * The `case` column is that script's own numbering, so a row and its mutation
+ * can be run on their own.
+ *
+ * |  # | assertion                                        | case | the edit that turns it red                                   |
+ * |----|--------------------------------------------------|------|--------------------------------------------------------------|
+ * |  1 | one host, and the URL is built from the constant  |  1   | `UPDATE_URL` -> `https://github.com${UPDATE_PATH}`           |
+ * |  2 | ...and the policy admits exactly that URL        |  2   | `mayRequest` -> `return u.protocol === 'https:'`             |
+ * |  3 | ...and the feed's provider host is NOT ours      |  3   | `UPDATER_FEED.provider` -> `'generic'`                       |
+ * |  4 | ...and the host is the one the USER is promised  | 34   | `UPDATE_HOST = 'api.example.com'` — the one `p1` CANNOT see  |
+ * |  5 | ...and the endpoint is the LIST                  |  4   | `UPDATE_PATH` -> `/releases/latest`                          |
+ * |  6 | the channel is `prerelease`                      |  5   | `UPDATE_CHANNEL = 'stable'`                                  |
+ * |  7 | ...and package.json says the same word           |  6   | `build.publish.releaseType` -> `'release'`                   |
+ * |  8 | ...and the feed matches package.json both ways   |  7   | add a key to `UPDATER_FEED` and not to `build.publish`       |
+ * |  9 | a draft is never offered, on either channel      |  8   | drop `r.draft !== true` from `pickRelease`                   |
+ * | 10 | `prerelease` offers the newest pre-release       |  9   | the channel guard -> `r.prerelease !== true`                 |
+ * | 11 | ...and a STABLE release when that is newer       | 10   | the channel guard -> `r.prerelease === true`                 |
+ * | 12 | `stable` skips a newer pre-release               | 10   | the same edit, from the other side                           |
+ * | 13 | newest by `published_at`, not by array order     | 12   | delete `usable.sort(...)`                                    |
+ * | 14 | an unknown channel THROWS                        | 13   | drop the `UPDATE_CHANNELS.includes` guard                    |
+ * | 15 | empty, absent and single-object answers are null | 14   | `if (!Array.isArray(list)) return null` -> `list = [list]`    |
+ * | 16 | the toggle DEFAULTS ON when absent               | 15   | `AUTO_UPDATE_DEFAULT = false`                                |
+ * | 17 | ...and only an explicit `false` turns it off     | 16   | `autoUpdateFrom` -> `return stored === true`                 |
+ * | 18 | ...and it lives in the `local` area              | 17   | `AUTO_UPDATE_AREA = 'session'`                               |
+ * | 19 | THE TOGGLE SURVIVES A RESTART                    | 17   | the same edit — this is the row that MEASURES it             |
+ * | 20 | ...and the CONTROL: `session` would not survive  | 19   | make `storage.js`'s two Maps one Map                         |
+ * | 21 | `setEnabled()` moves the wire, and is counted    | 20   | `setEnabled` -> count the move without making it             |
+ * | 22 | ...and a check while off DECLINES                | 21   | `if (!on)` -> `if (false)`                                   |
+ * | 23 | main creates the STORE before the check          | 22   | move `createStorage` back below `createUpdateCheck`          |
+ * | 24 | ...and ANDs the preference with the flag         | 23   | `UPDATE_CHECK && autoUpdate` -> `autoUpdate`                 |
+ * | 25 | OFF MEANS OFF — one call site, no timer          | 35   | add an hourly `setInterval(... .check())` in main.js         |
+ * | 26 | the toggle is wired across the three files       | 24   | delete `setAutoUpdate` from src/preload/chrome.cjs           |
+ * | 27 | ...and it is a real input, not a menu item       | 25   | `<input type="checkbox">` -> `<span>`                        |
+ * | 28 | mac: hardened runtime, entitlements, notarize    | 26   | `build.mac.notarize` -> `false`                              |
+ * | 29 | ...and the entitlements file is a real plist     | 27   | rename `allow-jit` in build/entitlements.mac.plist           |
+ * | 30 | win: nsis, and UNSIGNED during beta              | 28   | put `azureSignOptions` into `build.win`                      |
+ * | 31 | ...and Azure Trusted Signing IS configured       | 29   | drop `-c.win.azureSignOptions.endpoint=` from the script     |
+ * | 32 | linux: AppImage and deb, with a maintainer       | 30   | delete `build.linux.maintainer`                              |
+ * | 33 | `--publish never` on EVERY dist script           | 31   | drop it from `dist:linux`                                    |
+ * | 34 | ...and `build.publish` NAMES the feed            | 32   | `build.publish.provider` -> `null`                           |
+ * | 35 | ...and CI creates no Release                     | 33   | add a `gh release create` step to package.yml                |
  */
 import fs from 'node:fs';
 import os from 'node:os';
