@@ -355,6 +355,23 @@ if (ONLY === 'build') {
  * suite is about packaging and `p1` is the suite that measures the network.
  * `--gate=` is passed ON PURPOSE and must do nothing: see the assertion.
  */
+/**
+ * 900 s, WHICH IS `engine-host`'s NUMBER AND NOT A ROUND ONE. That step boots
+ * the vendored engine and reads the same 109 MB through the Host, and it allows
+ * 900 s for it (`tools/suites/engine-host.mjs`). This one does that AND extracts
+ * a 197 MB AppImage first, on a box that runs up to six Electron launches
+ * queued on one mutex — measured: the first draft's 180 s was not enough under
+ * that load and the run was killed mid-boot, which would have been a red about
+ * the machine (AGENTS.md: *"a gate whose verdict changes on code that did not
+ * change is measuring the machine"*).
+ *
+ * IT IS NOT AN ASSERTION AND IT IS NEVER READ AS ONE. Nothing below compares a
+ * duration to anything; this is only when to stop waiting, and the run ends on
+ * the COUNTED markers long before it. Being generous here costs nothing on a
+ * healthy box and removes a whole class of false red on a busy one.
+ */
+const LAUNCH_MS = Number(process.env.STEM_WORKBENCH_LAUNCH_TIMEOUT_MS || 900_000);
+
 const fixture = fileUrl(path.join(ROOT, 'tools', 'fixture', 'player.html'));
 const userData = path.join(OUT, 'userdata');
 const gateDir = path.join(OUT, 'gate-must-stay-empty');
@@ -364,7 +381,7 @@ const launch = await run('flock', [LOCK, '-c',
   `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(appImage[0])} `
   + `--appimage-extract-and-run --no-sandbox --source-url=${sh(fixture)} --user-data=${sh(userData)} `
   + `--gate=${sh(gateDir)} --no-update-check`],
-{ cwd: ROOT, timeoutMs: 180000, queueMs: 900000, startOn: LOCK_MARK, until: LAUNCH_DONE });
+{ cwd: ROOT, timeoutMs: LAUNCH_MS, queueMs: 900000, startOn: LOCK_MARK, until: LAUNCH_DONE });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
 const readyLines = (launch.out.match(/^\[main\] ready · /gm) || []).length;
