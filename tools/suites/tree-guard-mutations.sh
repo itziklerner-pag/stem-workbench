@@ -23,6 +23,13 @@
 # NO DISPLAY, NO BROWSER, NO MUTEX. `void-canary` and `deck-seam` are both plain
 # node and instant, which is why this can run beside a windowed battery.
 #
+# THE NAME IS NARROWER THAN THE FILE. Twelve of its fourteen cases mutate
+# something and require a named row of `void-canary` to go red, so this is in
+# practice THE `void-canary` BATTERY; only cases 4 and 5 are about the tree guard
+# specifically. It is not renamed because `docs/TESTING.md`, the battery list in
+# `void-canary` itself and every reference to case 4 name it as it is, and a
+# rename would be churn with no assertion behind it.
+#
 #   tools/suites/tree-guard-mutations.sh          # all of them
 #   tools/suites/tree-guard-mutations.sh 4        # only that one
 set -uo pipefail
@@ -161,6 +168,53 @@ if wanted 9; then
   echo "  ${C_D}exit $code · $(tail -1 "$OUT/9.log") · log out/tree-guard-mutations/9.log${C_X}"
   if [ "$ok9" = 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
 fi
+
+# ==========================================================================
+# 10-14  COVERAGE DRIFT — the instrument that names an assertion which STOPPED
+#
+# `docs/TESTING.md` §2 conditioned this on "the first time two host suites are
+# green on one tree"; all twelve are. Each case below is one of the holes the
+# implementation was built around, not a restatement of what it does — and three
+# of them are holes the EXTENSION's version has, so "port it" was not the answer.
+# ==========================================================================
+canary_case 10 "the diff cannot see a loss at all" \
+  "tools/verify.mjs" \
+  "  if (!gone.length && !added.length) return null;" \
+  "  return null;" \
+  "an assertion that stopped running is NAMED, and an unchanged run reports nothing"
+
+# THE EXTENSION'S OWN EARLY RETURN, reintroduced. Its comment names the failure
+# two paragraphs above the line that causes it: two blocks that swap cancel out
+# in a count.
+canary_case 11 "gate the diff on the count, the way the extension's does" \
+  "tools/verify.mjs" \
+  "  const tally = (a) => a.reduce" \
+  "  if (prev.names.length === names.length) return null;
+  const tally = (a) => a.reduce" \
+  "...and a SWAP is reported, though the count did not move"
+
+# A GUARD THAT HIDES WHAT IT WAS INSTALLED TO REVEAL. Measured on the real
+# watched-red run: guarded `transport` prints 63 passed, 1 failed — 64 on a count.
+canary_case 12 "count a block guard's own red as coverage" \
+  "tools/verify.mjs" \
+  "  return assertionLines(out).map((a) => a.name).filter((n) => !n.startsWith(HARNESS_PREFIX));" \
+  "  return assertionLines(out).map((a) => a.name);" \
+  "...and a block guard's own red is NOT counted as coverage"
+
+# THE ONE THAT MAKES THE INSTRUMENT STOP REPORTING AFTER ONE RUN. A truncated run
+# becomes the new baseline, the next run agrees with it, and a live regression
+# goes quiet.
+canary_case 13 "let a run that never finished become the next baseline" \
+  "tools/verify.mjs" \
+  "export const completedRun = (out) => countOf(out) !== null;" \
+  "export const completedRun = () => true;" \
+  "a run that printed NO SUMMARY LINE is not recordable as a baseline"
+
+canary_case 14 "the block guard loses the marker that keeps it out of coverage" \
+  "tools/suites/transport.mjs" \
+  "  ok('HARNESS: the launch section ran to its end without throwing" \
+  "  ok('the launch section ran to its end without throwing" \
+  "...and the block guard really spells the marker the runner excludes"
 
 # ==========================================================================
 # 4  THE DEFECT ITSELF, END TO END, WITH NO TRAP IN THE WAY

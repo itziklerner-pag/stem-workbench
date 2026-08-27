@@ -802,7 +802,12 @@ ok('...and the gate was actually listening to the transport while it drove it  [
   // `done()` is below rather than here, so the summary line still prints: the
   // count in it is the count that RAN, and one red already makes the exit
   // non-zero. Nothing compares that count to the pin on a red run (see above).
-  ok('the launch section ran to its end without throwing  [entry point: the block guard above section 5]',
+  // `HARNESS: ` IS LOAD-BEARING, not decoration. This row is about the SUITE,
+  // not about the product, and without the marker it would fill the coverage
+  // slot of the assertion that never ran — `63 passed, 1 failed` totals 64 and
+  // reads as complete. tools/verify.mjs `HARNESS_PREFIX` is the one definition;
+  // void-canary compares this literal against it.
+  ok('HARNESS: the launch section ran to its end without throwing  [entry point: the block guard above section 5]',
     false,
     `${(err && err.name) || 'Error'}: ${(err && err.message) || String(err)}`
     + ` — ${(String((err && err.stack) || '').split('\n')[1] || '(no frame)').trim()}`);

@@ -119,6 +119,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'out', 'verify');
+/** The previous run's assertion names, per step. Under `out/`, so it is per-checkout and gitignored. */
+const COVERAGE = path.join(OUT, 'coverage.json');
 const C = { r: '\x1b[31m', g: '\x1b[32m', y: '\x1b[33m', b: '\x1b[1m', d: '\x1b[2m', x: '\x1b[0m' };
 export const strip = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, '');
 
@@ -201,7 +203,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 39,
+    assertions: 44,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
@@ -794,6 +796,15 @@ function run(step) {
 
 const lastLines = (s, n) => strip(s).trimEnd().split('\n').slice(-n).join(' / ');
 
+/** Best effort in both directions: a missing or unreadable baseline is a FIRST RUN, never an error. */
+function readCoverage() {
+  try { return JSON.parse(fs.readFileSync(COVERAGE, 'utf8')); } catch { return {}; }
+}
+function writeCoverage(all) {
+  try { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(COVERAGE, `${JSON.stringify(all, null, 1)}\n`); }
+  catch { /* the gate's verdict does not depend on this file existing */ }
+}
+
 /** Assertion lines, by the convention in docs/TESTING.md: `ok`/`PASS`/`FAIL` then the name then two spaces. */
 export function assertionLines(out) {
   return strip(out).split('\n')
@@ -801,6 +812,103 @@ export function assertionLines(out) {
     .filter(Boolean)
     .map((m) => ({ pass: m[1] !== 'FAIL', name: m[2].split('  ')[0].trim(), line: m[0].trim() }))
     .filter((a) => a.name);
+}
+
+// ------------------------------------------------ coverage drift, BY NAME
+/**
+ * ===========================================================================
+ * AN ABSENT ASSERTION READS AS GREEN, AND A COUNT CANNOT SAY WHICH ONE WENT.
+ * ===========================================================================
+ * `docs/TESTING.md` §2 listed assertion-name diffing as deliberately not copied
+ * from the extension's runner, conditioned on *"the first time two host suites
+ * are green on one tree"*. All twelve are built and green, so the condition this
+ * repository set for itself has been met and the omission expires here.
+ *
+ * WHAT IT ADDS OVER THE PIN, which already exists and is not replaced. The
+ * exact `assertions` pin in `STEPS` catches a shortfall and NAMES A NUMBER;
+ * this names the assertions. They divide the work:
+ *
+ *     the pin      turns a shortfall RED, on an exit-0 run
+ *     this         says WHICH assertions stopped running, on ANY run
+ *
+ * It is deliberately a WARNING and not a verdict. A legitimate suite change
+ * moves names on purpose, and a fresh worktree has no baseline at all, so a
+ * red here would fire on correct work and be routed around within a week. The
+ * pin is what reds a shortfall; this is what lets you diagnose one.
+ *
+ * ---------------------------------------------------------------------------
+ * THREE THINGS IT DOES DIFFERENTLY FROM THE EXTENSION'S, EACH FROM A MEASURED
+ * HOLE RATHER THAN A PREFERENCE
+ * ---------------------------------------------------------------------------
+ * 1. IT DOES NOT GATE ON THE COUNT. The extension's returns early unless the
+ *    total moved (`verify.mjs:399`, `if (!prev || prev.n === names.length)`),
+ *    which reintroduces the blindness its own comment names two paragraphs
+ *    earlier: *"two blocks that swap cancel out in a count."* The diff is over
+ *    NAMES here, so a swap is reported.
+ *
+ * 2. HARNESS ROWS ARE NOT COVERAGE. A suite's block guard
+ *    (`docs/TESTING.md` §5c) prints a row about ITSELF when the run stops
+ *    early, and that row would otherwise fill the slot of the assertion that
+ *    never ran: `transport` guarded reports `63 passed, 1 failed`, which totals
+ *    64 and, on a count, looks complete. Measured on the watched-red run. Any
+ *    row whose name starts with `HARNESS_PREFIX` is excluded, which is exactly
+ *    what stops a guard from hiding what it was installed to reveal.
+ *
+ * 3. A RUN THAT DID NOT FINISH DOES NOT BECOME THE BASELINE. The extension's
+ *    writes the baseline unconditionally, so a truncated run silently becomes
+ *    the new normal and the drift it should have reported for ever is reported
+ *    ONCE and then goes quiet — the second run compares truncated against
+ *    truncated and agrees. An instrument that stops reporting a live regression
+ *    after one run is the failure this whole phase has been about. The baseline
+ *    is written only when the suite printed the summary line `docs/TESTING.md`
+ *    §3 rule 6 requires, so the comparison keeps firing until it is fixed.
+ *
+ * NOT COPIED, and named so an unlisted omission is not mistaken for an
+ * oversight: the extension's `FLAKY` carve-out and its model-seed preflight,
+ * both of which `docs/TESTING.md` §2 records as deliberately absent here and
+ * neither of which this brings in by the back door.
+ *
+ * WHAT IT STILL CANNOT SEE, kept from the extension's own honesty block because
+ * it is true of any denominator: a VACUOUS assertion — one that ran and checked
+ * nothing — moves neither the count nor the names. That is caught by reading the
+ * assertion and by the rule that an assertion must FAIL when it cannot look, not
+ * by this. And an ALTERNATING NAME — one check that spells itself two ways by
+ * branch — reports gone-and-replaced for ever, on correct code. §3 rule 4 is the
+ * fix for that, on the assertion side: one check, one name, branch in the detail.
+ */
+
+/**
+ * A row a suite prints ABOUT ITSELF rather than about the product. One prefix,
+ * defined once, so a block guard's red cannot be counted as coverage.
+ */
+export const HARNESS_PREFIX = 'HARNESS: ';
+
+/** What this run actually checked about the product. */
+export function coveredNames(out) {
+  return assertionLines(out).map((a) => a.name).filter((n) => !n.startsWith(HARNESS_PREFIX));
+}
+
+/**
+ * Did the suite run to its end? The summary line is the suite's own statement
+ * that it did (§3 rule 6), and `countOf` already decides what counts as one — a
+ * second copy of that formula is a copy that drifts.
+ */
+export const completedRun = (out) => countOf(out) !== null;
+
+/**
+ * The diff, pure so `tools/suites/void-canary.mjs` can drive it over transcripts
+ * instead of over a previous run of the gate. Multiplicity is preserved: a
+ * name that ran three times and now runs twice is `gone`, because a block that
+ * lost an iteration is the failure this exists for.
+ */
+export function coverageDrift(names, prev) {
+  if (!prev || !Array.isArray(prev.names)) return null;
+  const tally = (a) => a.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {});
+  const now = tally(names), was = tally(prev.names);
+  const gone = Object.keys(was).filter((k) => (now[k] || 0) < was[k]).sort();
+  const added = Object.keys(now).filter((k) => (was[k] || 0) < now[k]).sort();
+  if (!gone.length && !added.length) return null;
+  return { from: prev.names.length, to: names.length, gone, added, when: prev.when };
 }
 
 /** The one-line detail beside the verdict. A shape it does not know reads `exit N`, which is a shrug. */
@@ -1324,6 +1432,7 @@ async function main(argv) {
 
   console.log(`${C.b}verify${C.x} ${C.d}${new Date().toISOString()} · ${plan.map((s) => s.id).join(' -> ')}${C.x}`);
   const results = [];
+  const baseline = readCoverage();
   for (const step of plan) {
     const pre = step.precheck ? step.precheck(step) : null;
     if (pre) {
@@ -1332,8 +1441,20 @@ async function main(argv) {
       continue;
     }
     const res = await run(step);
-    results.push({ ...res, ...classify(res) });
+    /**
+     * ON EVERY RUN, WHATEVER THE EXIT CODE. A red run is exactly when knowing
+     * which assertions stopped running is worth most — a suite that died
+     * halfway is the case this instrument was asked for — so the comparison is
+     * NOT behind `code === 0` the way the `assertions` pin is. The RECORD is
+     * conditional instead: see `completedRun`.
+     */
+    const names = coveredNames(res.out);
+    const drift = coverageDrift(names, baseline[step.id] || null);
+    const finished = completedRun(res.out);
+    if (names.length && finished) baseline[step.id] = { names, when: new Date().toISOString() };
+    results.push({ ...res, ...classify(res), drift, truncated: !finished && names.length > 0 });
   }
+  writeCoverage(baseline);
 
   const v = verdict(results, STEPS, plan);
   const pad = (s, n) => String(s) + ' '.repeat(Math.max(0, n - String(s).length));
@@ -1351,6 +1472,33 @@ async function main(argv) {
     console.log(`\n${C.y}${C.b}WHAT DID NOT RUN${C.x} ${C.d}— an unlisted absence is indistinguishable from a pass${C.x}`);
     for (const n of v.notRun) console.log(`  ${C.y}-${C.x} ${pad(n.id, 14)} ${n.why}`);
   }
+  const drifted = results.filter((r) => r.drift);
+  if (drifted.length) {
+    console.log(`\n${C.y}${C.b}COVERAGE DRIFT — this run did not check the same things as the last one${C.x}`);
+    for (const r of drifted) {
+      const d = r.drift;
+      console.log(`  ${C.y}~${C.x} ${r.id}: ${d.from} -> ${d.to} assertions (previous run ${String(d.when).slice(0, 19)}Z)`);
+      for (const n of d.gone.slice(0, 8)) console.log(`      ${C.r}-${C.x} no longer runs: ${n}`);
+      for (const n of d.added.slice(0, 8)) console.log(`      ${C.g}+${C.x} newly runs:     ${n}`);
+      if (d.gone.length > 8 || d.added.length > 8) console.log(`      ${C.d}...and more, see ${COVERAGE}${C.x}`);
+    }
+    console.log(`  ${C.d}An ABSENT assertion reads as green. "N/N" is only comparable between runs when N is.${C.x}`);
+    console.log(`  ${C.d}If nothing in the tree changed, a block is silently conditional — that is a harness bug.${C.x}`);
+    console.log(`  ${C.d}This is a WARNING, not the verdict: the exact `+ '`assertions`' + ` pin is what turns a shortfall red.${C.x}`);
+  }
+
+  /**
+   * SAID OUT LOUD, because a baseline that quietly did not move is how this
+   * instrument would stop reporting a live regression after one run.
+   */
+  const truncated = results.filter((r) => r.truncated);
+  if (truncated.length) {
+    console.log(`\n${C.y}${C.b}BASELINE NOT UPDATED${C.x} ${C.d}— these steps printed assertions but no summary line, so `
+      + `they did not run to their end. The coverage baseline still holds the last COMPLETE run, and the drift above `
+      + `will keep reporting until one happens.${C.x}`);
+    for (const r of truncated) console.log(`  ${C.y}~${C.x} ${r.id}: ${coveredNames(r.out).length} assertions, no summary line`);
+  }
+
   console.log(`\n${C.d}logs -> ${OUT}${C.x}`);
   const code = exitFor(v, STRICT);
   if (v.colour === 'RED') {

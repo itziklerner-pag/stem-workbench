@@ -36,7 +36,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STEPS, classify, verdict } from '../verify.mjs';
+import { STEPS, classify, verdict, coveredNames, completedRun, coverageDrift, HARNESS_PREFIX } from '../verify.mjs';
 import { LOCK_MARKERS, sinkLock, strayLockPaths } from '../lib/locks.mjs';
 import { standingMutations } from '../lib/tree-guard.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
@@ -467,6 +467,87 @@ ok('INSTRUMENT CHECK: a SIGTERM delivered while a JS battery\'s edit is standing
   `guarded: exit ${kGuard.status}${kGuard.signal ? `/${kGuard.signal}` : ''}, file `
   + `${kGuard.restored ? 'restored' : 'STILL MUTATED'}, ${kGuard.sentinels} sentinel(s) left · `
   + `control (finally only): ${kBare.restored ? 'RESTORED — the control cannot lose' : 'still mutated, as it must be'}`);
+
+// -------------------------------- 2d. an ABSENT assertion reads as green
+/**
+ * COVERAGE DRIFT, AGAINST THE REAL FUNCTIONS. `docs/TESTING.md` §2 conditioned
+ * this instrument on "the first time two host suites are green on one tree";
+ * all twelve are, so it exists now, and these five rows are the holes it was
+ * built around rather than a restatement of what it does.
+ *
+ * The transcripts are literal `docs/TESTING.md` §3 output, so what is asserted
+ * here is what the runner will do to a real suite tomorrow.
+ */
+const trans = (names, summary = 'transport: N passed, 0 failed') =>
+  `${names.map((n) => `ok    ${n}  detail`).join('\n')}\n\n${summary.replace('N', String(names.length))}\n`;
+const base = (names) => ({ names, when: '2026-08-26T00:00:00Z' });
+
+{
+  const was = ['alpha', 'beta', 'gamma'];
+  const lost = coverageDrift(coveredNames(trans(['alpha', 'gamma'])), base(was));
+  const same = coverageDrift(coveredNames(trans(was)), base(was));
+  // A CONTROL THAT CAN LOSE: an unchanged list must report NOTHING. An
+  // instrument that cried drift on every run would be routed around in a week,
+  // which is the same death as one that never cries at all.
+  ok('an assertion that stopped running is NAMED, and an unchanged run reports nothing  '
+    + '[entry point: coverageDrift() in tools/verify.mjs]',
+    lost !== null && lost.gone.length === 1 && lost.gone[0] === 'beta' && lost.added.length === 0 && same === null,
+    `lost -> ${lost ? `gone ${JSON.stringify(lost.gone)} added ${JSON.stringify(lost.added)}` : 'NOTHING (it cannot see a loss)'}`
+    + ` · unchanged -> ${same === null ? 'nothing, as it must be' : 'DRIFT ON AN IDENTICAL RUN'}`);
+
+  /**
+   * THE HOLE IN THE EXTENSION'S VERSION, WHICH THIS ONE DOES NOT INHERIT. Its
+   * `coverageDrift` returns early unless the TOTAL moved, which reintroduces
+   * the blindness its own comment names: two blocks that swap cancel out in a
+   * count. Same total, different names, and it must still be reported.
+   */
+  const swapped = coverageDrift(coveredNames(trans(['alpha', 'delta', 'gamma'])), base(was));
+  ok('...and a SWAP is reported, though the count did not move — a name diff, never a count gate  '
+    + '[entry point: coverageDrift()]',
+    swapped !== null && swapped.from === 3 && swapped.to === 3
+    && swapped.gone.join() === 'beta' && swapped.added.join() === 'delta',
+    swapped ? `${swapped.from} -> ${swapped.to}, -${swapped.gone.join()} +${swapped.added.join()}`
+      : 'NOTHING — 3 -> 3 was treated as no change');
+
+  /**
+   * AND THE ROW A BLOCK GUARD PRINTS IS NOT COVERAGE. Measured on the real
+   * watched-red run: a guarded `transport` prints `63 passed, 1 failed`, which
+   * totals 64 against a pin of 64 and reads as complete while one assertion
+   * never ran. If the guard's row counted, this instrument would agree with it.
+   */
+  const guarded = trans(['alpha', 'gamma']).replace(/\n\n/,
+    `\nFAIL  ${HARNESS_PREFIX}the launch section ran to its end without throwing  TypeError: …\n\n`);
+  const hid = coverageDrift(coveredNames(guarded), base(was));
+  ok('...and a block guard\'s own red is NOT counted as coverage, so it cannot hide the assertion it replaced  '
+    + `[entry point: coveredNames() and HARNESS_PREFIX in tools/verify.mjs]`,
+    hid !== null && hid.gone.join() === 'beta' && hid.to === 2,
+    hid ? `3 -> ${hid.to}, no longer runs: ${hid.gone.join(' | ')}`
+      : 'NOTHING — the guard row filled the slot of the assertion that never ran');
+}
+
+/**
+ * A TRUNCATED RUN MUST NOT BECOME THE NEW NORMAL. The extension's writes its
+ * baseline unconditionally, so the drift it should report for ever is reported
+ * ONCE and then goes quiet: the next run compares truncated against truncated
+ * and agrees. The summary line is the suite's own statement that it finished.
+ */
+{
+  const finished = completedRun(trans(['alpha', 'beta']));
+  const died = completedRun('ok    alpha  d\nok    beta  d\nTypeError: it threw here\n');
+  ok('a run that printed NO SUMMARY LINE is not recordable as a baseline, and one that did is  '
+    + '[entry point: completedRun() in tools/verify.mjs, and the `if (names.length && finished)` in its run loop]',
+    finished === true && died === false,
+    `with a summary -> ${finished} · died mid-run -> ${died}`);
+}
+
+const guardRow = fs.readFileSync(path.join(SUITES, 'transport.mjs'), 'utf8')
+  .split('\n').filter((l) => /^\s*ok\('/.test(l)).map((l) => (l.match(/^\s*ok\('([^']*)/) || [])[1])
+  .filter((n) => /ran to its end without throwing/.test(n));
+ok('...and the block guard really spells the marker the runner excludes — two files, compared rather than assumed  '
+  + '[entry point: tools/suites/transport.mjs\'s guard row vs HARNESS_PREFIX in tools/verify.mjs]',
+  guardRow.length === 1 && guardRow[0].startsWith(HARNESS_PREFIX),
+  guardRow.length === 1 ? JSON.stringify(guardRow[0].slice(0, 60))
+    : `${guardRow.length} guard rows found in transport.mjs — expected exactly 1`);
 
 // ---------------------------------------- 3. the VOID rule, against the real classifier
 /**

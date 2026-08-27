@@ -133,7 +133,7 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 39 | the runner's own VOID rule, the steps table against this document, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 44 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 53 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
@@ -179,6 +179,69 @@ impossible until it is built. `void-canary` asserts it in both directions, so a
 built suite left marked `todo` (a suite nothing runs) is as red as a step marked
 built with no file behind it — it caught exactly that when `tools/suites/youtube.mjs`
 landed.
+
+### Coverage drift — which assertion stopped running
+
+> **An ABSENT assertion reads as green.** `N/N` is only comparable between runs
+> when `N` is.
+
+The `assertions` pin above catches a shortfall and names a NUMBER. This names
+the assertions. They divide the work and neither replaces the other:
+
+| | |
+|---|---|
+| the **pin** | turns a shortfall RED — on an exit-0 run |
+| **coverage drift** | says WHICH assertions stopped running — on ANY run |
+
+The last run's assertion names live per step in `out/verify/coverage.json`
+(gitignored, per-checkout, so a fresh worktree simply has no baseline and the
+first run reports nothing). When the names move, the runner prints
+`no longer runs: <name>` / `newly runs: <name>` after `FAILED ASSERTIONS`.
+
+**It is a WARNING, not a verdict, and that is deliberate.** A legitimate suite
+change moves names on purpose. A red here would fire on correct work and be
+routed around within a week, which is the same death as an instrument that never
+fires. The pin is what reds a shortfall; this is what lets you diagnose one.
+
+#### Three things it does differently from the extension's, each from a measured hole
+
+1. **It does not gate on the count.** The extension's returns early unless the
+   total moved (`verify.mjs:399`), which reintroduces the blindness its own
+   comment names two paragraphs earlier — *"two blocks that swap cancel out in a
+   count."* The diff here is over NAMES, so a swap is reported.
+2. **HARNESS rows are not coverage.** A block guard (§5c) prints a row about the
+   SUITE when a run stops early, and that row would otherwise fill the slot of
+   the assertion that never ran: guarded `transport` prints `63 passed, 1
+   failed`, which totals 64 and, on a count, reads as complete. Any row whose
+   name starts with `HARNESS: ` is excluded — one prefix, defined once at
+   `tools/verify.mjs` `HARNESS_PREFIX`, and `void-canary` compares the literal in
+   the suite against it rather than assuming they agree.
+3. **A run that did not finish does not become the baseline.** The extension's
+   writes it unconditionally, so a truncated run silently becomes the new normal:
+   the drift is reported ONCE and then goes quiet, because the next run compares
+   truncated against truncated and agrees. Here the baseline is written only when
+   the suite printed the summary line §3 rule 6 requires, and the run says
+   **BASELINE NOT UPDATED** when it did not. Watched end to end on `deck-seam`
+   with a throw inserted mid-file:
+
+   | run | what it printed |
+   |---|---|
+   | 1 — clean | `PASS deck-seam 49 passed` · baseline holds 49 names |
+   | 2 — dies mid-file | `FAIL` · `49 -> 29 assertions` · 8 `no longer runs:` lines · **BASELINE NOT UPDATED** |
+   | 3 — still broken | **the same drift again** — where the extension's would now be silent |
+   | 4 — restored | `PASS 49 passed`, and the drift goes quiet with no spurious `newly runs` flood, because the baseline was never poisoned |
+
+**Not copied**, named so an unlisted omission is not mistaken for an oversight:
+the extension's `FLAKY` carve-out and its model-seed preflight, both of which
+this table already records as deliberately absent, and neither of which came in
+behind this.
+
+**What it still cannot see**, kept from the extension's own honesty block because
+it is true of any denominator: a **VACUOUS** assertion — one that ran and checked
+nothing — moves neither the count nor the names, and is caught by reading the
+assertion and by §3 rule 7, not by this. An **ALTERNATING NAME** — one check
+spelled two ways by branch — would report gone-and-replaced for ever on correct
+code; §3 rule 4 is the fix, on the assertion side.
 
 ### The VOID rule
 
@@ -248,7 +311,7 @@ one nobody noticed.
 | not copied | why | trigger to add it |
 |---|---|---|
 | the `FLAKY` carve-out | no measured flake here yet, and `AGENTS.md`: an assertion parked on an expected-red list stops being read at all | a reproduced, distribution-measured flake — with an expiry condition |
-| coverage drift (assertion-name diffing) | needs a baseline from a previous run; four of five suites do not exist | the first time two host suites are green on one tree. The pinned assertion **total** on `vendor-unit` is the cheap half, and is here today. **THIS TRIGGER HAS FIRED and the omission has not been revisited:** all twelve suites are built and green on one tree, and the exact per-step `assertions` pin now catches a shortfall — but it names a NUMBER, not the assertions that stopped running. That gap is what a block guard (§5c) leaves behind |
+| ~~coverage drift (assertion-name diffing)~~ **BUILT — the trigger fired.** See §2b | — | — |
 | `reapOrphanBrowsers()` | it `pkill`s every Playwright Chromium on the box, including a sibling agent's | never. The shared `flock` mutex is the answer here |
 | the model-seed preflight, `--live-fixture`, `--soak-fixture`, `--audible`, `--strict` | seed §15 bundles the weights in the installer: "where the model is" is a Host duty and a packaging question | the first host suite that needs the weights brings a `heavy` flag and its own preflight |
 | a plan derived from `extension/unit.json` | the unit's own runner already builds its plan from that manifest and already asserts the two agree, both ways | never — a second copy of a list is a list that drifts |
@@ -1034,8 +1097,10 @@ half, 0.3 s).
 
 Section 5 of this suite — everything after the launch — is wrapped in one
 `try`/`catch` that turns a throw into one named red,
-`the launch section ran to its end without throwing`, with the error and its
-first stack frame in the detail.
+`HARNESS: the launch section ran to its end without throwing`, with the error and
+its first stack frame in the detail. The `HARNESS: ` prefix is load-bearing: it
+is what keeps the guard's own red out of the coverage baseline (§2b), so a guard
+cannot hide the assertion it replaced.
 
 It is there because a `const lastLine` declared 296 lines below its only caller
 put that caller in a temporal dead zone, and the branch it sat in is the one that
@@ -1063,10 +1128,9 @@ watched-red run below printed `transport: 63 passed, 1 failed`, which totals 64
 and looks complete while one assertion never ran. Read a guarded red as *"the
 suite stopped here"*, never as a count.
 
-Two things this runner therefore does not do, and both are gaps rather than
-decisions: it does not compare the count on a red run, and it does not name
-WHICH assertions went missing — the assertion-name coverage diff listed as a
-deliberate omission in §2, whose stated trigger has since fired.
+The runner still does not compare the COUNT on a red run. What names the
+assertions a guard leaves unrun is **coverage drift** (§2b), which runs on any
+exit code and excludes this row from the baseline for exactly that reason.
 
 Nothing is restored in a `finally`, deliberately: the section installs nothing on
 the tree and holds no lock of its own. The mutation that watches the guard red is
