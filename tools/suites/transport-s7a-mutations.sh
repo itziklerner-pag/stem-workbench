@@ -42,6 +42,27 @@
 # A STATIC CASE COSTS ~0.5 s AND A LIVE CASE ~90 s, because a live case is a real
 # Electron launch under the machine-global browser mutex.
 set -uo pipefail
+
+# THE ID VALIDATOR, BEFORE anything costs anything — the mutex, the baseline,
+# the `rm -rf "$OUT"`. A typo must not spend five minutes of queue and one
+# windowed launch to print nothing (the incident is measured in
+# `shell-mutations.sh`'s header and pinned by void-canary's positional check).
+# THE KNOWN SET IS READ OUT OF THIS FILE, so it cannot go stale as cases are
+# added, and it makes NO ASSUMPTION ABOUT THE SHAPE OF AN ID. Field two,
+# verbatim, whatever it is. `-*` is skipped so flags (`--static`, and anything
+# a battery adds) pass through to the parsing below untouched.
+_CASE_KNOWN=$(grep -oE '^(mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
+_CASE_BAD=''
+for _c in "$@"; do
+  case "$_c" in -*) continue ;; esac
+  case " $_CASE_KNOWN " in *" $_c "*) ;; *) _CASE_BAD="$_CASE_BAD $_c" ;; esac
+done
+if [ -n "$_CASE_BAD" ]; then
+  echo "no such case:$_CASE_BAD" >&2
+  echo "known cases: $_CASE_KNOWN" >&2
+  echo "nothing ran, and the shared browser mutex was not taken." >&2
+  exit 2
+fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/transport-s7a-mutations"
