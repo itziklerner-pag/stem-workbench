@@ -202,7 +202,40 @@ const MODEL_DIR = app.isPackaged
   ? path.join(process.resourcesPath, 'model')
   : path.join(APP_ROOT, 'models');
 
+/**
+ * THE ONE-SHOT HANDLES THE `/file/` ROOT ANSWERS, AND WHY THEY ARE MINTED HERE.
+ *
+ * `src/main/files.js` mints one when the user picks a file, and the ROOT below
+ * spends it. Both halves need the SAME registry, and the ROOT is read the first
+ * time a renderer fetches — which is before `boot()` gets as far as building the
+ * intake. So the registry is made here, at module scope, beside the table that
+ * consumes it; `boot()` hands this same object to `createFileIntake()` and puts
+ * it on `state`. THERE IS EXACTLY ONE, and a second would be a mint whose
+ * handles nothing could spend.
+ */
+const PATH_TOKENS = createPathTokens();
+
 const ROOTS = [
+  /**
+   * FILE BYTES GO OVER `app://`, NOT OVER IPC, and that is a measurement rather
+   * than a preference: HOST-DESIGN.md §7 / P4 read the 109 MB of weights —
+   * 114,559,139 bytes — in 179 ms through `fetch` over this scheme, and the
+   * alternative it rejected was *"one 109 MB structured clone per load"* into
+   * `webContents.send`. A decoded audio file is the same shape of problem: it
+   * can be large, and a structured clone of one is not acceptable.
+   *
+   * THIS ROOT HAS NO DIRECTORY, AND THAT IS THE POINT. The tail is not a path,
+   * it is an opaque handle `createPathTokens()` minted for exactly one file,
+   * once — so the renderer that fetches the bytes never names a path, and a
+   * renderer asking for a traversal is asking for a handle nobody minted.
+   * `resolveHandle()` in `src/main/assets.js` is the whole rule.
+   *
+   * THE ISOLATION HEADERS COME FOR FREE. `installAppProtocol()` puts COOP, COEP
+   * and CORP on EVERY response (`src/main/assets.js`), so a served file is
+   * cross-origin isolated like every other byte on this origin, and there is no
+   * second header path to keep in step.
+   */
+  { prefix: '/file/', resolve: (handle) => PATH_TOKENS.spend(handle) },
   // Longest prefix wins in `resolveAppPath`, so `/model/` is reachable even
   // though `/` maps the renderer directory.
   { prefix: '/model/', dir: MODEL_DIR },
@@ -653,7 +686,10 @@ async function boot() {
    * worked (`src/renderer/chrome.js`'s header). An intake with no control is
    * incomplete; a control with no outcome is a defect.
    */
-  state.pathTokens = createPathTokens();
+  // THE SAME REGISTRY THE `/file/` ROOT SPENDS FROM — see `PATH_TOKENS` above.
+  // Not a second `createPathTokens()`: the intake mints and the ROOT spends, and
+  // two registries would be a handle the scheme could never resolve.
+  state.pathTokens = PATH_TOKENS;
   state.files = createFileIntake({
     dialog,
     window: () => state.win,

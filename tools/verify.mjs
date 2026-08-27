@@ -465,8 +465,8 @@ export const STEPS = [
   },
   {
     id: 'shell',
-    assertions: 45,
-    title: 'node tools/suites/shell.mjs — one real launch of `electron .`: the window, isolation, the capture grant, the mute, the allowlist, the sign-in user-agent',
+    assertions: 50,
+    title: 'node tools/suites/shell.mjs — one real launch of `electron .`: the window, isolation, the `/file/` ROOT, the capture grant, the mute, the allowlist, the sign-in user-agent',
     cmd: ['node', 'tools/suites/shell.mjs'],
     window: true,
   },

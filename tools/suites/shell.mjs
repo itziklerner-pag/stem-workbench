@@ -6,7 +6,9 @@
  * with the three views in the stated order; that our four renderers are locked
  * down and the source view's page can see nothing of ours; that the `app://`
  * origin is cross-origin isolated in the DOCUMENT and inside a MODULE WORKER,
- * which is the half ORT's threaded wasm actually needs; that the capture grant
+ * which is the half ORT's threaded wasm actually needs; that the `/file/` ROOT
+ * hands the engine renderer a picked file's EXACT bytes over `app://` and refuses
+ * the second fetch of a one-shot handle; that the capture grant
  * answers the engine with the SOURCE view's frame and refuses everybody else;
  * that the source view is muted BEFORE it loads anything; that a navigation off
  * the allowlist is refused rather than silently cancelled; and that seed §9's
@@ -89,6 +91,19 @@
  *  39  signin.js: drop __Secure-3PSID from SESSION_COOKIES  -> ...and the second boot reads SIGNED IN
  *  40  signin.js: the domain test becomes d.includes(base)  -> the sign-in verdict reads a Google session cookie
  *  41  signin.js: report the matched cookies, not their names -> ...and its answer never carries a VALUE
+ *  42  files.js spend(): do not delete the spent entry        -> ONE handle buys ONE resolution (pure) AND
+ *                                                                the SECOND fetch (live) — a second 200
+ *  43  assets.js resolveHandle: drop the `tail.includes('/')` -> a `/file/` request is refused unless (pure)
+ *  44  assets.js resolveHandle: drop the `if (!r.mime)`       -> refused unless (pure) + 403 over the wire (live)
+ *  45  protocol.js: `contentType(hit.file)`, not `hit.mime`   -> the EXACT bytes (live) — served as octet-stream
+ *  46  main.js: a SECOND createPathTokens() in boot()         -> the EXACT bytes, the SECOND fetch, and 403 (live)
+ *
+ * CASES 42-46 ARE THE `/file/` ROOT (slice S2), and 42 is the one the slice was
+ * gated on: it makes a spent handle spendable again, and what goes red is a
+ * SECOND `fetch()` COMING BACK 200 WITH THE FILE IN IT — not a flag reading
+ * differently. 46 is the mistake this root is easiest to make: two token
+ * registries, one minting and one spending, so every handle the intake ever
+ * mints is unknown to the scheme.
  *
  * CASE 16 WENT FROM CAUGHT TO A MISS WHEN THE SIGN-IN SECTION LANDED, and the
  * battery is what said so — 0 reds over `shell: 45 passed, 0 failed`, on an
@@ -162,6 +177,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -170,6 +186,7 @@ import { UA_SESSIONS, userAgentFor, stockChromeUA, PLATFORM_TOKENS } from '../..
 import { accountFromCookies } from '../../src/main/signin.js';
 import { SESSION_OWNERS } from '../../src/main/p1.js';
 import { resolveAppPath } from '../../src/main/assets.js';
+import { createPathTokens } from '../../src/main/files.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
 
@@ -432,6 +449,67 @@ const eq = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
   ok('...and a host that is not `workbench` is not served at all  [entry point: resolveAppPath()]',
     resolveAppPath('not-workbench', '/engine.html', roots).status === 404,
     JSON.stringify(resolveAppPath('not-workbench', '/engine.html', roots)));
+
+  /**
+   * THE `/file/` ROOT AS A PURE FUNCTION — the second KIND of root, and the one
+   * that has no directory at all.
+   *
+   * The store is the SHIPPED `createPathTokens()` out of `src/main/files.js`,
+   * over a clock this suite holds, so what is driven here is the real minter and
+   * the real one-shot rule rather than a stand-in for them. The three directory
+   * roots are the same ones above, because `/file/` has to WIN the longest-prefix
+   * comparison against `/` — a `/file/` root that lost it would quietly resolve
+   * every handle into `src/renderer/` and 404 at `stat` time, which reads as a
+   * missing file rather than as a broken table.
+   */
+  const store = createPathTokens({ now: () => 5_000_000 });
+  const froots = [{ prefix: '/file/', resolve: (h) => store.spend(h) }, ...roots];
+  const PICKED = '/music/Deep Cuts - Track 01.flac';
+  const handle = store.mint(PICKED);
+  const firstResolve = resolveAppPath('workbench', `/file/${handle}`, froots);
+  const secondResolve = resolveAppPath('workbench', `/file/${handle}`, froots);
+  ok('a `/file/` handle resolves to its absolute path and the ALLOWLIST\'s MIME, and ONE handle buys ONE resolution  '
+    + '[entry point: src/main/assets.js resolveAppPath()]',
+    firstResolve.file === PICKED && firstResolve.mime === 'audio/flac' && firstResolve.root === '/file/'
+    && secondResolve.file === undefined && secondResolve.status === 404
+    && String(secondResolve.why).startsWith('unknown-token:'),
+    `first ${JSON.stringify(firstResolve)} · second ${JSON.stringify(secondResolve)}`);
+
+  /**
+   * THE SHAPES THAT NEVER REACH THE STORE, AND THE ONES THAT DO AND ARE REFUSED.
+   *
+   * The first three are refused on SHAPE — a tail that is empty or carries a `/`
+   * is not one handle — and the counter check is the point of the assertion: a
+   * traversal must not even be OFFERED to the token store, because "no path is
+   * ever derived from the URL" is the containment property this root has instead
+   * of a directory to be contained in.
+   *
+   * The last two do reach it. A handle nobody minted is 404 and reads EXACTLY
+   * like a replay, which is deliberate; a handle whose file the File source's
+   * allowlist cannot type is 403, because the handle was real and the file is
+   * not one this Source takes.
+   */
+  const shapes = [
+    ['a percent-encoded traversal', '/file/%2e%2e%2f%2e%2e%2fpackage.json'],
+    ['a path rather than one handle', '/file/a/b'],
+    ['an empty handle', '/file/'],
+  ];
+  const consultedBefore = { spent: store.stats.spent, refused: store.stats.refused };
+  const shapeRefusals = shapes.map(([, p]) => resolveAppPath('workbench', p, froots));
+  const consultedAfter = { spent: store.stats.spent, refused: store.stats.refused };
+  const neverMinted = resolveAppPath('workbench', '/file/00000000-0000-4000-8000-000000000000', froots);
+  const notAudio = resolveAppPath('workbench', `/file/${store.mint('/music/sleeve-notes.txt')}`, froots);
+  ok('...and a `/file/` request is refused unless it is ONE live handle naming a file the allowlist admits  '
+    + '[entry point: resolveAppPath()]',
+    shapeRefusals.every((r) => r.status === 404 && r.file === undefined && /is not one/.test(String(r.why)))
+    && eq(consultedBefore, consultedAfter)
+    && neverMinted.status === 404 && String(neverMinted.why).startsWith('unknown-token:')
+    && String(neverMinted.why) === String(secondResolve.why)
+    && notAudio.status === 403 && notAudio.file === undefined && /cannot name/.test(String(notAudio.why)),
+    `${shapes.map(([w], i) => `${w} -> ${shapeRefusals[i].status}`).join(', ')}; `
+    + `the store was not consulted for any of them (spent ${consultedAfter.spent}, refused ${consultedAfter.refused}, `
+    + 'unchanged); never-minted -> 404 word for word the same as a replay; '
+    + `a .txt handle -> ${notAudio.status}`);
 }
 
 // ==========================================================================
@@ -446,6 +524,57 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const userData = path.join(OUT, 'userdata');
 const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
+
+/**
+ * THE FILE THE `/file/` ROOT WILL BE ASKED FOR, AND THIS SUITE WRITES IT.
+ *
+ * The probe inside the launch mints a handle for this path over the app's own
+ * registry and has the ENGINE RENDERER fetch it; what comes back is hashed
+ * there. The comparison is only worth something because the bytes were written
+ * HERE, in a different process, and are hashed HERE too — a probe that wrote the
+ * file and then checked what came back would be one instrument agreeing with
+ * itself.
+ *
+ * THREE MEGABYTES, NOT THREE HUNDRED. `Readable.toWeb(createReadStream())` in
+ * `src/main/protocol.js` hands the body over in ~64 KiB chunks, so a file that
+ * fits in one chunk would prove nothing about the streamed path — this one is
+ * about fifty of them. It is a REAL 16-bit PCM WAV, header and all, because the
+ * root's job is to serve a file the File source admits and `.wav` has to mean
+ * `.wav`; the samples themselves are a deterministic LCG, which is what makes
+ * the hash a fact about transport rather than about a random number generator.
+ *
+ * AND A SECOND FILE THE ALLOWLIST DOES NOT ADMIT. `src/main/files.js` answers
+ * `mime: null` for a `.txt`, and a root that served it anyway would be handing
+ * the renderer a byte stream to sniff.
+ */
+const FILE_FRAMES = 400_000;                       // 400k frames x 2ch x 2 bytes = 1.6 MB of samples
+function fixtureWav(frames) {
+  const data = Buffer.alloc(frames * 4);
+  let x = 0x2f6e2b1;                               // a fixed seed: the same bytes on every run
+  for (let i = 0; i < frames; i++) {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    data.writeInt16LE(((x >>> 16) & 0xffff) - 0x8000, i * 4);
+    data.writeInt16LE(((x >>> 8) & 0xffff) - 0x8000, i * 4 + 2);
+  }
+  const head = Buffer.alloc(44);
+  head.write('RIFF', 0); head.writeUInt32LE(36 + data.length, 4); head.write('WAVE', 8);
+  head.write('fmt ', 12); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(2, 22); head.writeUInt32LE(44100, 24); head.writeUInt32LE(44100 * 4, 28);
+  head.writeUInt16LE(4, 32); head.writeUInt16LE(16, 34);
+  head.write('data', 36); head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
+const fileDir = path.join(OUT, 'library');
+fs.mkdirSync(fileDir, { recursive: true });
+const fileFixture = path.join(fileDir, 'Deep Cuts - Track 01.wav');
+const fileNotAudio = path.join(fileDir, 'sleeve-notes.txt');
+const fileBytes = fixtureWav(FILE_FRAMES);
+fs.writeFileSync(fileFixture, fileBytes);
+fs.writeFileSync(fileNotAudio, 'liner notes, not audio\n');
+const fileSha = crypto.createHash('sha256').update(fileBytes).digest('hex');
+// Inherited by the launch below — `run()` spawns without an `env` of its own.
+process.env.WB_SHELL_FILE_FIXTURE = fileFixture;
+process.env.WB_SHELL_FILE_NOTAUDIO = fileNotAudio;
 
 /**
  * THE QUEUE AND THE MEASUREMENT ARE TWO DIFFERENT WAITS, AND ONE STOPWATCH
@@ -656,6 +785,74 @@ ok('...and the live handler refuses a percent-encoded traversal and a missing fi
   O(O(R.appScheme).traversal).status === 403 && O(O(R.appScheme).missing).status === 404,
   `traversal -> ${O(O(R.appScheme).traversal).status}, missing -> ${O(O(R.appScheme).missing).status}, `
   + `cross-origin app:// fetch -> ${JSON.stringify(O(R.appScheme).otherHostFetch)}`);
+
+// ------------------------------------------------------------ the /file/ ROOT
+/**
+ * FILE BYTES REACH THE ENGINE RENDERER OVER `app://`, AND THE HASH IS THE CLAIM.
+ *
+ * The three assertions below are the live half of the two pure ones in §1: the
+ * real protocol handler, the real registry, a real `fetch()` from the real
+ * engine page — over a file THIS PROCESS wrote and hashed before the app
+ * existed. `bytes` and `sha256` come back from `crypto.subtle` in the renderer,
+ * so a truncated stream, a re-encoded one and an empty one are three different
+ * numbers rather than three ways of getting `200`.
+ *
+ * THE LENGTH CONJUNCT IS THE DYNAMIC-RANGE GUARD. Two hashes of nothing are
+ * equal, so the assertion also requires the fixture to be over a megabyte — the
+ * claim is about a streamed body, and a fixture that fitted in one chunk would
+ * be an assertion whose estimator saturates before the claim range begins.
+ */
+const FR = O(R.fileRoot);
+const FF = O(FR.fetches);
+const fileFirst = O(FF.first);
+ok('a one-shot handle serves its file\'s EXACT bytes over app://, with the allowlist\'s MIME and this origin\'s '
+  + 'isolation headers  [entry point: installAppProtocol() in src/main/protocol.js, over the `/file/` ROOT]',
+  fileFirst.status === 200 && fileFirst.bytes === fileBytes.length && fileFirst.sha256 === fileSha
+  && Number(fileFirst.len) === fileBytes.length && fileFirst.type === 'audio/wav'
+  && fileFirst.coop === 'same-origin' && fileFirst.coep === 'require-corp' && fileFirst.corp === 'same-origin'
+  && fileBytes.length > 1_000_000,
+  `${fileFirst.status} ${fileFirst.type} ${fileFirst.bytes} of ${fileBytes.length} bytes `
+  + `(content-length ${fileFirst.len}), sha256 ${String(fileFirst.sha256).slice(0, 16)}… `
+  + `${fileFirst.sha256 === fileSha ? 'matches' : `!= ${fileSha.slice(0, 16)}…`} the ${fileBytes.length}-byte WAV `
+  + `this suite wrote; coop=${fileFirst.coop} coep=${fileFirst.coep} corp=${fileFirst.corp}`);
+
+/**
+ * A REFUSAL HAS A BODY, AND ASSERTING `bytes === 0` WOULD BE ASSERTING THE WRONG
+ * THING. `src/main/protocol.js` answers every refusal with the reason as
+ * `text/plain`, so the second fetch comes back with ~74 bytes of sentence. What
+ * has to be true is that those bytes are the REFUSAL AND NOT THE FILE, which is
+ * three facts: the status, the content type, and a hash that is not the first
+ * response's. Under the mutation that makes a handle reusable all three flip at
+ * once, because what comes back is the file.
+ */
+const fileSecond = O(FF.second);
+const fileNever = O(FF.neverMinted);
+const isRefusal = (r) => /^text\/plain/.test(String(r.type)) && r.sha256 !== fileFirst.sha256;
+ok('...and the SECOND fetch of that same handle is refused BY NAME, carrying the reason instead of the file — one '
+  + 'handle, one response, and a replay is word for word what a handle nobody minted gets  '
+  + '[entry point: createPathTokens() spend()]',
+  fileSecond.status === 404 && isRefusal(fileSecond)
+  && String(fileSecond.body).startsWith('unknown-token:')
+  && fileNever.status === 404 && isRefusal(fileNever)
+  && String(fileNever.body) === String(fileSecond.body)
+  && O(FR.liveAfter).live === 0,
+  `first ${fileFirst.status} ${fileFirst.type} ${fileFirst.bytes} bytes, then ${fileSecond.status} `
+  + `${fileSecond.type} ${fileSecond.bytes} bytes: ${JSON.stringify(String(fileSecond.body).slice(0, 80))}; `
+  + `a handle nobody minted -> ${fileNever.status} ${JSON.stringify(String(fileNever.body).slice(0, 40))}; `
+  + `${O(FR.liveAfter).live} handles still live`);
+
+const fileNotAudioR = O(FF.notAudio);
+const fileNotHandle = O(FF.notAHandle);
+ok('...and over the wire a handle for a file the allowlist does not admit is refused 403, while a `/file/` URL that '
+  + 'is not one handle never becomes a path  [entry point: resolveAppPath() -> resolveHandle()]',
+  fileNotAudioR.status === 403 && isRefusal(fileNotAudioR) && /cannot name/.test(String(fileNotAudioR.body))
+  && fileNotHandle.status === 404 && isRefusal(fileNotHandle) && /is not one/.test(String(fileNotHandle.body))
+  && FR.fixture === fileFixture && FR.notAudio === fileNotAudio,
+  `${path.basename(fileNotAudio)} -> ${fileNotAudioR.status} ${fileNotAudioR.type} `
+  + `${JSON.stringify(String(fileNotAudioR.body).slice(0, 60))}; `
+  + `/file/%2e%2e%2f%2e%2e%2fpackage.json -> ${fileNotHandle.status} ${fileNotHandle.type} `
+  + `${JSON.stringify(String(fileNotHandle.body).slice(0, 60))}; `
+  + `tokens ${JSON.stringify(O(FR.statsAfter))}`);
 
 // ----------------------------------------------------------------- 2.3 bus
 // THE INSTRUMENT FIRST, AND IT IS A SEPARATE CLAIM FROM THE ONE BELOW.

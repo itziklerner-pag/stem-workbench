@@ -246,6 +246,69 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   })()`);
   R.protocolStats = { ...state.protocol.stats };
 
+  // ------------------------------------------------------- the `/file/` ROOT
+  /**
+   * FILE BYTES OVER `app://`, DRIVEN FROM THE ENGINE RENDERER — the real
+   * handler, the real registry, the real scheme.
+   *
+   * THE SUITE OWNS THE BYTES. `tools/suites/shell.mjs` writes the fixture before
+   * this app is launched and names it in `WB_SHELL_FILE_FIXTURE`, so the hash
+   * this file reports back is compared against bytes a SEPARATE PROCESS wrote
+   * and hashed. A probe that both wrote the file and checked what came back
+   * would be one instrument agreeing with itself.
+   *
+   * THE HANDLE IS MINTED OVER `state.pathTokens` — the app's own registry, the
+   * same object `src/main/files.js`'s intake mints from when a user picks a
+   * file. Nothing here is a stand-in: the only thing this replaces is the native
+   * file chooser, which is `tools/suites/export.mjs`'s question and not this
+   * one's. What is under test is the `/file/` ROOT, and it sees a handle it
+   * cannot tell from the intake's.
+   *
+   * FIVE FETCHES, IN THIS ORDER, AND THE ORDER IS THE CLAIM. `first` and
+   * `second` use the SAME handle back to back: one handle buys one response, so
+   * the second must be refused. A gate that read a flag instead would stay green
+   * over a handler that answered both.
+   */
+  const fileFixture = process.env.WB_SHELL_FILE_FIXTURE || '';
+  const fileNotAudio = process.env.WB_SHELL_FILE_NOTAUDIO || '';
+  R.fileRoot = { fixture: fileFixture, notAudio: fileNotAudio };
+  if (!fileFixture) {
+    R.fileRoot.why = 'WB_SHELL_FILE_FIXTURE was not set — the suite did not write a fixture to fetch';
+  } else {
+    const before = { ...state.pathTokens.stats };
+    const good = state.pathTokens.mint(fileFixture);
+    const bad = fileNotAudio ? state.pathTokens.mint(fileNotAudio) : 'no-fixture-for-this-case';
+    R.fileRoot.minted = { good: typeof good === 'string' && good.length > 0, bad: typeof bad === 'string' };
+    R.fileRoot.statsBefore = before;
+    const url = (h) => `app://workbench/file/${h}`;
+    R.fileRoot.fetches = await evalIn(engineWc, `(async () => {
+      const hex = (b) => Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, '0')).join('');
+      const probe = async (u) => {
+        try {
+          const r = await fetch(u);
+          const buf = await r.arrayBuffer();
+          const out = { status: r.status, len: r.headers.get('content-length'),
+            type: r.headers.get('content-type'), coop: r.headers.get('cross-origin-opener-policy'),
+            coep: r.headers.get('cross-origin-embedder-policy'), corp: r.headers.get('cross-origin-resource-policy'),
+            bytes: buf.byteLength };
+          out.sha256 = buf.byteLength ? await crypto.subtle.digest('SHA-256', buf).then(hex) : '';
+          if (r.status !== 200) out.body = new TextDecoder().decode(buf).slice(0, 200);
+          return out;
+        } catch (e) { return { threw: e.name + ': ' + String(e.message || e) }; }
+      };
+      return {
+        first: await probe(${JSON.stringify(url(good))}),
+        second: await probe(${JSON.stringify(url(good))}),
+        notAudio: await probe(${JSON.stringify(url(bad))}),
+        notAHandle: await probe('app://workbench/file/%2e%2e%2f%2e%2e%2fpackage.json'),
+        neverMinted: await probe('app://workbench/file/00000000-0000-4000-8000-000000000000'),
+      };
+    })()`);
+    R.fileRoot.statsAfter = { ...state.pathTokens.stats };
+    R.fileRoot.liveAfter = state.pathTokens.inspect();
+    R.fileRoot.protocolAfter = { ...state.protocol.stats };
+  }
+
   // ------------------------------------------------------------------- bus
   /**
    * THE RECORDER IS INSTALLED THROUGH THE DECK'S OWN BRIDGE, AND BEFORE THE

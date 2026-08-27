@@ -90,11 +90,28 @@ export function installAppProtocol(ses, roots) {
       return new Response('not found', { status: 404, headers: { ...headers, 'content-type': 'text/plain; charset=utf-8' } });
     }
 
-    const full = { ...headers, 'content-type': contentType(hit.file), 'content-length': String(st.size) };
+    /**
+     * THE TYPE COMES FROM THE ROOT WHEN THE ROOT KNOWS IT.
+     *
+     * `TYPES` in `src/main/assets.js` is keyed by the extensions OUR OWN pages
+     * and the vendored tree are made of, and it has no audio in it at all — an
+     * `.mp3` through it would be `application/octet-stream`, which is a byte
+     * stream the renderer has to sniff. A `/file/` handle resolves with the MIME
+     * the File source's allowlist named for that extension
+     * (`src/main/files.js` `mimeForSourceFile()`), and `resolveHandle` has
+     * already refused the handle if there was none. So the allowlist decides the
+     * type for a picked file and the extension table decides it for everything
+     * else, and neither one guesses.
+     */
+    const full = { ...headers, 'content-type': hit.mime || contentType(hit.file), 'content-length': String(st.size) };
     stats.served++;
 
     // A `HEAD` answers `workerbackend.js:214`'s probe without reading a byte —
-    // P4 measured that shape against the 109 MB model.
+    // P4 measured that shape against the 109 MB model. IT IS NOT A FREE LOOK AT A
+    // `/file/` HANDLE: the handle was spent by `resolveAppPath` above, so a HEAD
+    // buys the one response that handle was worth and the bytes are then gone.
+    // Nothing probes a `/file/` handle, and nothing should — `content-length` is
+    // on the real response, which is what a probe would have been for.
     if (req.method === 'HEAD') return new Response(null, { headers: full });
 
     stats.bytes += st.size;
@@ -102,6 +119,12 @@ export function installAppProtocol(ses, roots) {
     // is what turns the model into 1383 chunks instead of one 109 MB buffer in
     // the main process. NOTE: no `Range` support — nothing in this product seeks
     // over `app://` yet, and a media element that did would need it.
+    //
+    // AND FOR A `/file/` HANDLE THAT IS A CONSTRAINT RATHER THAN A GAP. A ranged
+    // read is several requests, and a one-shot handle is worth one; so the engine
+    // renderer must `fetch()` the bytes whole — which is what it does with the
+    // model — and must never point a media element at a `/file/` URL. A Host that
+    // wanted the second thing would have to mint per request and say why.
     return new Response(Readable.toWeb(fs.createReadStream(hit.file)), { headers: full });
   });
 
