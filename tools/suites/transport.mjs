@@ -191,6 +191,22 @@ const VENDOR = path.join(ROOT, 'vendor', 'stem-splitter-live', 'extension');
 
 /** The shared browser mutex — one path, `tools/lib/locks.mjs`, never spelled here. */
 const LOCK = BROWSER_LOCK;
+/**
+ * WHEN THE QUEUE ENDED AND THE LAUNCH BEGAN. Echoed inside the `flock`, so the
+ * launch budget starts when the mutex is TAKEN rather than when the process is
+ * spawned. `shell.mjs:209` and `dist-linux.mjs` already do this, and this suite
+ * did not: its one 240 s budget covered the queue and the launch together, so on
+ * a busy box it expired while WAITING and reported
+ * `the app launches and the transport gate writes a report` as a FAILED
+ * ASSERTION. Measured 2026-08-27 behind four other agents' windowed suites.
+ *
+ * That is the shape `docs/TESTING.md` §4 forbids in as many words —
+ * *"contention is a SKIP, never a failed assertion"* — and it is worse than a
+ * skip, because a red that depends on how many siblings are running is a red
+ * nobody can reproduce. Two budgets: a long one for the queue, the real one for
+ * the launch.
+ */
+const LOCK_MARK = '__WB_LOCKED__';
 // One line, and only when this run has stepped out of the shared queue — a run
 // holding the wrong mutex looks exactly like a run making progress. See tools/lib/locks.mjs.
 announceLock();
@@ -878,9 +894,10 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
 const launch = await run('flock', [LOCK, '-c',
-  `xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . --gate=${sh(OUT)} --gate-probe=transport `
+  `echo ${LOCK_MARK}; `
+  + `xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . --gate=${sh(OUT)} --gate-probe=transport `
   + `--source-url=${sh(fixture)} --user-data=${sh(path.join(OUT, 'userdata'))}`],
-{ cwd: ROOT, timeoutMs: 240000 });
+{ cwd: ROOT, timeoutMs: 240000, queueMs: 900000, startOn: LOCK_MARK });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
 let R = null;
@@ -1295,14 +1312,52 @@ function hasBin(name) {
  * that dies instead of reporting.
  */
 function lastLine(s) { return String(s).trimEnd().split('\n').pop() || '(no output)'; }
-function run(cmd, args, { cwd, timeoutMs }) {
+/**
+ * TWO BUDGETS, NOT ONE — the same shape as `shell.mjs`'s `run()`, and see
+ * `LOCK_MARK` above for what one budget cost. `queueMs` covers waiting for the
+ * machine-global mutex, which is other agents' windowed suites and has no
+ * bearing on this Host; `timeoutMs` starts when `startOn` appears in the output,
+ * which is the first thing echoed inside the `flock`. Whichever expires says
+ * WHICH in the transcript, so a red never has to be guessed at.
+ */
+function run(cmd, args, { cwd, timeoutMs, queueMs = 0, startOn = null }) {
   return new Promise((resolve) => {
-    const p = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
     let out = '';
-    const grab = (b) => { out += b.toString(); };
+    let waiting = startOn;
+    let timer = null;
+    /**
+     * THE GROUP, NOT THE PROCESS. `flock` is the child and the launch is its
+     * GRANDCHILD through `sh`; killing the one released the mutex and left the
+     * other running — an Electron holding an X display that nobody can see the
+     * owner of, on a box where every windowed suite queues on one lock.
+     */
+    const stop = () => {
+      try { process.kill(-p.pid, 'SIGKILL'); } catch { try { p.kill('SIGKILL'); } catch { /* already gone */ } }
+    };
+    const arm = (ms, why) => { clearTimeout(timer); timer = setTimeout(() => { out += `\n[suite] ${why}\n`; stop(); }, ms); };
+    arm(waiting ? queueMs : timeoutMs, waiting
+      ? `NEVER TOOK THE SHARED BROWSER MUTEX after ${queueMs} ms — killing. Somebody else is holding ${LOCK}`
+      : `TIMEOUT after ${timeoutMs} ms — killing`);
+    const grab = (b) => {
+      out += b.toString();
+      if (waiting && out.includes(waiting)) { waiting = null; arm(timeoutMs, `TIMEOUT after ${timeoutMs} ms — killing`); }
+    };
     p.stdout.on('data', grab); p.stderr.on('data', grab);
-    const timer = setTimeout(() => { out += '\n[suite] TIMEOUT — killing\n'; p.kill('SIGKILL'); }, timeoutMs);
-    p.on('close', (code) => { clearTimeout(timer); resolve({ code, out }); });
-    p.on('error', (err) => { clearTimeout(timer); resolve({ code: -1, out: `${out}\n[suite] spawn failed: ${err.message}` }); });
+    // WE DIE, IT DIES. `exit` covers a normal end and an uncaught throw; the two
+    // signals cover `timeout` (which sends TERM), Ctrl-C, and a battery being
+    // torn down mid-case.
+    const onExit = () => stop();
+    const onSignal = () => { stop(); process.exit(130); };
+    process.on('exit', onExit);
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
+    const finish = (res) => {
+      clearTimeout(timer);
+      process.off('exit', onExit); process.off('SIGINT', onSignal); process.off('SIGTERM', onSignal);
+      resolve(res);
+    };
+    p.on('close', (code) => finish({ code, out }));
+    p.on('error', (err) => finish({ code: -1, out: `${out}\n[suite] spawn failed: ${err.message}` }));
   });
 }
