@@ -360,6 +360,12 @@ export async function runGate({ state, outDir }) {
        */
       R.chosen = state.file
         ? { title: state.file.title, mime: state.file.mime, file: state.file.file,
+            // THE TOKEN'S VALUE, so the suite can require it to be ABSENT from the
+            // bar. Half of that assertion's name is about the token, and a claim
+            // nobody checks is the kind this repository keeps paying for. It is
+            // spent twice a few lines below and dies with this process either
+            // way; the report lives in the gitignored `out/` tree.
+            token: state.file.token,
             tokenIsString: typeof state.file.token === 'string' && state.file.token.length > 0 }
         : null;
       // The token, over the RUNNING app's own registry — spent once, then

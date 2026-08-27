@@ -916,10 +916,16 @@ ok('...and the bar was told the title and the MIME and NEITHER the path NOR the 
   && String(O(pickBar.file).title).includes('audio/wav')
   && !barText.includes(String(A1.fixture))
   && !barText.includes(path.dirname(String(A1.fixture)))
+  // AND THE TOKEN, which is the other half of this row's name. It is a
+  // capability, not a string: a renderer holding one can fetch the bytes.
+  && typeof picked.token === 'string' && picked.token.length > 0
+  && !barText.includes(picked.token)
   && O(pickBar.sourceBtn).outcome === 'ok',
   `the bar reads file=${JSON.stringify(O(pickBar.file).text)} title=${JSON.stringify(O(pickBar.file).title)}; `
   + `the fixture's directory ${JSON.stringify(path.dirname(String(A1.fixture)))} appears `
-  + `${barText.includes(path.dirname(String(A1.fixture))) ? 'IN THE BAR' : 'nowhere in the bar'}`);
+  + `${barText.includes(path.dirname(String(A1.fixture))) ? 'IN THE BAR' : 'nowhere in the bar'}, `
+  + `and the ${String(picked.token).length}-character path token appears `
+  + `${barText.includes(String(picked.token)) ? 'IN THE BAR' : 'nowhere in the bar'}`);
 
 ok('...and that token resolves to that file exactly once, over the running app\'s own registry  '
   + '[entry point: createPathTokens() spend(), through src/main/main.js state.pathTokens]',
