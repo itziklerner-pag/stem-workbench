@@ -617,7 +617,7 @@ export const STEPS = [
   },
   {
     id: 'export',
-    assertions: 22,
+    assertions: 23,
     title: 'node tools/suites/export.mjs — file intake: the allowlist, the title, the one-shot path token, and the export folder asked exactly once over two real launches',
     cmd: ['node', 'tools/suites/export.mjs'],
     window: true,
@@ -641,14 +641,15 @@ export const STEPS = [
      * is the thing under test, so there is nothing to fall back to.
      *
      * IT LAUNCHES WITH `DBUS_SESSION_BUS_ADDRESS=disabled:`. On a box with a
-     * session bus and no `xdg-desktop-portal` — this one, and every hosted CI
-     * runner — Chromium asks the portal for a file dialog and never falls back to
-     * GTK: nothing maps and the promise never settles. The suite's header carries
-     * the measurement and what the substitution costs.
+     * session bus and no `xdg-desktop-portal` — which is this one — Chromium asks
+     * the portal for a file dialog and never falls back to GTK: nothing maps and
+     * the promise never settles. Removing the bus is what makes the in-process
+     * GTK chooser appear, so it is done for the launch rather than left to the
+     * machine. The suite's header carries the measurement and what it costs.
      *
      * HALF OF IT NEEDS NO DISPLAY. Nine assertions drive the allowlist, the title
      * derivation and the path tokens in plain node, and `--quick` therefore drops
-     * assertions it did not have to — the same trade `deck-host` makes and for the
+     * fourteen assertions it did not have to — the same trade `deck-host` makes and for the
      * same reason: splitting them would let the pure half go green over an app
      * that cannot ask for a folder at all.
      *

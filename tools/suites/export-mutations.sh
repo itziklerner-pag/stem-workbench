@@ -8,7 +8,7 @@
 #   — the allowlist, the title derivation and the path tokens, in plain node, in
 #   under a second each. No display, no Electron, no mutex.
 #
-#   THE LAUNCHED LANE (cases 12-22) runs the whole suite, which is TWO REAL
+#   THE LAUNCHED LANE (cases 12-23) runs the whole suite, which is TWO REAL
 #   LAUNCHES of the app sharing one profile, each opening the real GTK file
 #   chooser and having it answered with `xdotool`. That is about two minutes a
 #   case, and it queues on the shared browser mutex behind every other windowed
@@ -17,7 +17,7 @@
 # WHY THE LAUNCHED LANE CANNOT BE AVOIDED: the plan's G3 says the dialog count
 # must be instrumented by counting invocations IN MAIN and must NOT be measured
 # by replacing, stubbing or monkey-patching `dialog.showOpenDialog`. So there is
-# no cheap in-process stand-in for these eleven — the thing under test is a
+# no cheap in-process stand-in for these twelve — the thing under test is a
 # native operating-system dialog, and the only honest way to count it is to open
 # one.
 #
@@ -151,8 +151,12 @@ M='src/main/main.js'
 G='tools/gate/export.mjs'
 
 # --------------------------------------------- 0. green before mutating
-echo "${C_D}=== baseline — the pure lane must be GREEN before anything is broken${C_X}  $(date +%H:%M:%S)"
-if ! eval "$PURE" > "$OUT/baseline.log" 2>&1; then
+# THE BASELINE IS THE FULL SUITE, not the pure lane, and that is what makes the
+# coverage check below possible: `coverage.py` takes the list of assertion NAMES
+# out of this log, so a baseline missing the launched half would quietly declare
+# thirteen assertions out of scope.
+echo "${C_D}=== baseline — the whole suite must be GREEN before anything is broken${C_X}  $(date +%H:%M:%S)"
+if ! eval "$FULL" > "$OUT/baseline.log" 2>&1; then
   echo "${C_R}BASELINE IS RED${C_X} — nothing below would prove anything. Last lines:"
   tail -20 "$OUT/baseline.log"; exit 2
 fi
@@ -344,12 +348,35 @@ mutate_case 22 "the folder is answered without a native picker ever opening" \
       : await dialog.showOpenDialog(stats.lastFolderOptions);" \
 "    const r = { canceled: false, filePaths: [process.env.WB_EXPORT_TARGET] };"
 
+# ISSUE #6's BRANCH. A remembered path is a claim about a filesystem nobody told
+# us had changed; without the directory check the app writes six stems into a
+# folder that is gone, and finds out on the fourth one.
+mutate_case 23 "a remembered folder that no longer exists is used anyway" \
+  "$S" "$FULL" \
+  "FAIL  ...and a remembered folder that has been DELETED is not used" \
+  -- "$S" \
+"      if (!fs.statSync(dir).isDirectory()) { stats.folderGone++; stats.lastAskReason = 'gone'; return null; }" \
+"      if (false) { stats.folderGone++; stats.lastAskReason = 'gone'; return null; }"
+
 # ==========================================================================
 echo
 echo "========================================================================"
-if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ]; then
+# COVERAGE ONLY AFTER A FULL BATTERY. "22 of 22 mutations were caught" is not the
+# claim worth making — the claim is that no assertion has gone unbroken, and a
+# subset cannot make it. `coverage.py` reads the names out of `baseline.log` and
+# refuses any that never appeared on a FAIL line in the case logs.
+cov=0
+if [ "${#ONLY[@]}" -eq 0 ]; then
+  python3 "$ROOT/tools/suites/coverage.py" "$OUT" || cov=$?
+else
+  echo "${C_D}coverage not checked — a subset of cases cannot make that claim${C_X}"
+fi
+
+if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ] && [ "$cov" -eq 0 ]; then
   echo "${C_G}all $caught of $ran mutations were caught${C_X} — the intake, the title, the token, and the folder asked once."
   exit 0
 fi
+[ "$cov" -eq 0 ] || echo "${C_R}an assertion in this suite has never been watched red${C_X}"
+
 echo "${C_R}$missed of $ran mutations were NOT caught${C_X} (caught $caught). Logs in out/export-mutations/."
 exit 1

@@ -144,7 +144,7 @@ node tools/verify.mjs --list         # the steps table
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
 | `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
-| `export` | `tools/suites/export.mjs` | window | 22 | **file intake** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, and **the export folder asked exactly once** over two real launches sharing one profile. The dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog`. The export WRITER (G1, G2a, G2b-path) lands in this step later and moves the count |
+| `export` | `tools/suites/export.mjs` | window | 23 | **file intake** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, and **the export folder asked exactly once** over two real launches sharing one profile. The dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog`. The export WRITER (G1, G2a, G2b-path) lands in this step later and moves the count |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
 
@@ -1289,6 +1289,103 @@ is nothing of ours to break, and it is recorded because it is the reason the
 launch half cannot test late binding at all.
 
 ---
+
+## 5f. `export` — file intake, and the folder chosen once
+
+`tools/suites/export.mjs`, 23 assertions, `window`. **The only suite anywhere in
+this repository that answers a native operating-system dialog.**
+
+Nine of the twenty-three need no display at all — the extension/MIME allowlist, the
+title derivation and the one-shot path tokens are plain functions in
+`src/main/files.js`, which keeps no `electron` import for the reason
+`src/main/claims.js` keeps none. The other fourteen come out of **two real
+launches of `electron .` sharing one profile**.
+
+### The dialog is never stubbed, and that is a requirement rather than a taste
+
+The phase-4 host plan states it as a rule with its own heading:
+
+> The dialog count MUST be instrumented by counting invocations in the main
+> process and reporting them over the gate channel. It must NOT be measured by
+> replacing, stubbing, or monkey-patching `dialog.showOpenDialog`.
+
+The reasoning is §3 rule 7 from the other side. A gate that substitutes its own
+`dialog` is asserting a fact about the substitute: the real picker could then be
+opened twice, never, or with `openFile` where it wanted `openDirectory`, and the
+count would stay green through all three.
+
+So `src/main/files.js` increments a counter beside its own call, the app opens
+the **real GTK chooser**, and `tools/gate/export.mjs` answers it the way a person
+does — Ctrl+L, type the path, click **Open** — with `xdotool` against the display
+the suite launched under.
+
+The first launched assertion is the instrument check that makes the rest mean
+anything: the intake the running app is holding compares equal, by identity, to
+`electron`'s own `dialog`. Its mutation (case 16) builds the intake over a
+*wrapper* that still opens the real dialog, so every count stays correct and only
+that one assertion notices — `21 passed, 1 failed`. Its opposite (case 22) leaves
+the instrument alone and answers the folder without opening a picker at all, and
+the count alone stays at 1. Neither of the two would have found the other, which
+is why both are in the battery.
+
+### Three machine facts, measured, because each one costs an afternoon
+
+- **Chromium asks `xdg-desktop-portal` and never falls back to GTK.** On a box
+  with a D-Bus session bus and no portal — which is this one — no window maps at
+  all and `showOpenDialog`'s promise never settles, for as long as you care to
+  wait. The Chromium log line is *"Failed to register with
+  org.freedesktop.host.portal.Registry"*. The suite therefore launches with
+  `DBUS_SESSION_BUS_ADDRESS=disabled:`, at which point the in-process GTK chooser
+  maps in under a second. That is a property of the box, like `$DISPLAY`, and it
+  is set on the launch rather than in `src/` so the app under test is the
+  shipping app.
+- **The Open button must be clicked over XTEST.** `xdotool click --window <id>`
+  delivers the button event with `XSendEvent`, which GTK ignores
+  (`send_event=True`). Measured: the pointer was on the button, the click was
+  delivered, and the dialog did not move. `mousemove` to absolute coordinates
+  followed by a bare `click` works.
+- **Return in the location entry CANCELS.** With the path typed and visible in
+  the entry, `xdotool key Return` closed the chooser with
+  `{canceled: true, filePaths: []}` every time. The Open button is what accepts.
+
+### What it asserts
+
+| | |
+|---|---|
+| the allowlist | every extension `SOURCE_TYPES` declares is admitted in either case; everything else is refused, including `track.wav.txt` and a file named `.wav`; every admitted extension has a MIME of its own and the picker's filter names the same set |
+| the title | it is the file's own name without its directory or its last extension; and it can never BE a path — no separator, traversal, control byte, reserved device name or trailing dot survives, and joining any of a 22-entry adversarial table to the chosen folder resolves to a child of it |
+| the path token | one shot, so a replay is refused as `unknown-token`; expired on an injected clock is a different answer from never-minted; `revokeAll` drops every live one |
+| the instrument | the intake holds electron's own `dialog`; a launch on its own asks for nothing |
+| **G3** | the first export opens the real chooser and is answered; the options are a folder picker that may create one; a second export while the chooser is up JOINS that ask rather than stacking a second modal; **the folder is asked exactly once across two consecutive exports**, and export #2 resolves to the remembered folder with no chooser |
+| **G4** | **the remembered folder survives a restart** — a second launch on the same profile asks zero times — and it is the same folder, out of the `local` area, with `session` empty; and a folder DELETED behind the app's back is not used: it asks again, with reason `gone`, and takes the new answer (issue #6) |
+| the file picker | it admits a real audio file, derives its title and mints a one-shot token that resolves over the running app's own registry; and a file the allowlist does not admit is refused BY NAME over that same chooser |
+
+### Deliberately not asserted here
+
+- **THE EXPORT WRITER.** Six 32-bit-float / 44.1 kHz / stereo WAVs in `STEMS`
+  order at unity, bit-exact headers, and a title that cannot escape the folder ON
+  DISK — the plan's G1, G2a and G2b-path. They belong to this step and land with
+  the writer, and **the pinned count moves when they do**. Nothing here writes or
+  reads a WAV.
+- **THE PORTAL CHOOSER.** See §11.
+- **THE GESTURE IN FRONT OF THE DIALOG.** Nothing a user can press reaches the
+  intake yet, so the probe calls `ensureExportFolder()` and `chooseSourceFile()`
+  directly from inside main. That is the entry point the writer and the chrome
+  bar will both use, and every assertion names it — but it is one step short of
+  §5c's standard, and the export COMMAND is what closes the gap. When the writer
+  lands, this suite should drive the export rather than the intake.
+
+### Watched red
+
+`tools/suites/export-mutations.sh`, 23 cases in two lanes: eleven run
+`EXPORT_ONLY=pure` in under a second each, twelve are the whole suite and take
+two real launches apiece. `tools/suites/coverage.py` over the full battery
+refuses an assertion that has never appeared on a `FAIL` line. The suite's header
+block carries the case-by-case table.
+
+Two of the cases are the plan's own, verbatim: **case 12** deletes the
+persisted-folder read and the count becomes 2 (G3), and **case 13** keeps the
+folder in the `session` area instead of `local` and the relaunch asks again (G4).
 
 ## 6. `smoke` — Playwright-for-Electron against a local fake player
 
@@ -2536,6 +2633,15 @@ Two further honesty items, carried from the spike's write-up:
 - **There are no speakers on this box.** `aplay -l` finds no soundcards. Silence
   here is measured off the monitor of a null sink wired to no hardware. It has
   never been *heard*.
+- **The portal file chooser has never been exercised.** `export` drives the
+  in-process GTK chooser, because it removes `DBUS_SESSION_BUS_ADDRESS` to make a
+  chooser appear at all on this box (§5f). On a desktop that has
+  `xdg-desktop-portal` — most modern Linux installs, and the sandboxed packaging
+  targets in particular — a different chooser implementation runs. The app's own
+  code path is identical, one `dialog.showOpenDialog` call with one set of
+  options, and **which chooser answers it is not gated by anything**. On macOS and
+  Windows nobody has opened this dialog at all.
+
 - **`capture-mute` never runs in GitHub CI, so CI never checks the premise.** A
   hosted runner has no PipeWire daemon, no sink and no audio device, so the suite
   SKIPS there — honestly, with three lines under its own `SKIPPED` saying that

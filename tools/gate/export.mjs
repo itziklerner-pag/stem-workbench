@@ -258,6 +258,33 @@ export async function runGate({ state, outDir }) {
     R.restartChooser = await watch;
     R.asksAfterRestart = files.stats.folderAsks;
     R.stored = readStored(state);
+
+    /**
+     * AND THEN THE FOLDER IS DELETED BEHIND THE APP'S BACK — issue #6's case.
+     *
+     * A remembered path is a claim about a filesystem nobody told us had
+     * changed. The user deletes the folder, or unmounts the drive it was on, and
+     * the next export must ask rather than write six stems into a path that is
+     * gone. It runs LAST in this phase, after the assertions above have read
+     * their counts, so nothing before it sees a moved folder.
+     *
+     * The replacement is a DIFFERENT directory, so "it asked again" and "it took
+     * the new answer" are two facts rather than one: a build that asked and then
+     * kept the dead path would satisfy the first on its own.
+     */
+    const moved = `${target} (moved)`;
+    fs.mkdirSync(moved, { recursive: true });
+    fs.rmSync(target, { recursive: true, force: true });
+    R.deleted = target;
+    R.moved = moved;
+    const p4 = files.ensureExportFolder();
+    const seen4 = await waitForChooser(FOLDER_DIALOG.title, 30000);
+    R.goneChooserMapped = !!seen4;
+    R.goneAnswered = seen4 ? await answerChooser(FOLDER_DIALOG.title, moved, 5000) : { answered: false, why: 'no chooser to answer' };
+    R.export4 = await within(30000, p4, 'the export after the folder was deleted');
+    R.asksAfterGone = files.stats.folderAsks;
+    R.askReason = files.stats.lastAskReason;
+    R.storedAfterGone = readStored(state);
   }
 
   R.stats = { ...files.stats };

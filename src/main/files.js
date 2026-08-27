@@ -379,11 +379,20 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
     folderAsks: 0,          // REAL invocations of dialog.showOpenDialog for a folder
     fileAsks: 0,            // ...and for a file
     folderFromMemory: 0,    // exports that needed no picker at all
+    folderGone: 0,          // the remembered folder was no longer a directory
     remembered: 0,          // successful picks written to the `local` area
     joinedPending: 0,       // requests that joined an ask already in flight
     unreadable: 0,          // the `local` area could not be read (see below)
     refused: 0,
     lastRefusal: null,
+    /**
+     * WHY the last export had to ask: `absent`, `gone` or `unreadable`. It is a
+     * counter's worth of diagnosis rather than a decision — the surface that
+     * eventually asks the user a second time needs a sentence to put in front of
+     * them, and "we asked again because the folder you chose is not there any
+     * more" is a different sentence from "we could not read your preferences".
+     */
+    lastAskReason: null,
     /** The options the last REAL invocation was made with. Read by the gate. */
     lastFolderOptions: null,
   };
@@ -408,10 +417,17 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
    * "the user never chose a folder" and not to fail the export. It is counted,
    * so a run that asked for that reason says so in its own numbers.
    *
-   * A folder that is no longer THERE also answers null. The user may have
-   * deleted or unmounted it since, and writing six stems into a path that no
-   * longer exists is a failure at the end of a long operation rather than a
-   * question at the start of it.
+   * A folder that is no longer THERE also answers null, and this is the branch
+   * issue #6 names: the user may have deleted, renamed or unmounted it since, and
+   * discovering that while writing the fourth of six stems is a failure at the
+   * END of a long operation, half a track on disk, rather than a question at the
+   * start of one. It is checked on every export because a remembered path is a
+   * claim about a filesystem that nobody told us had changed.
+   *
+   * ALL THREE ANSWER null AND EACH SAYS WHY, in `stats.lastAskReason`. They are
+   * one answer to "can we export without asking?" and three different sentences
+   * to put in front of a person, and a Host that collapsed them would be unable
+   * to tell them apart later.
    */
   function rememberedFolder() {
     let dir = null;
@@ -419,11 +435,18 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
       dir = storage.get(EXPORT_FOLDER_AREA, EXPORT_FOLDER_KEY);
     } catch (err) {
       stats.unreadable++;
+      stats.lastAskReason = 'unreadable';
       stats.lastRefusal = `unreadable: ${(err && err.message) || err}`;
       return null;
     }
-    if (typeof dir !== 'string' || !dir) return null;
-    try { if (!fs.statSync(dir).isDirectory()) return null; } catch { return null; }
+    if (typeof dir !== 'string' || !dir) { stats.lastAskReason = 'absent'; return null; }
+    try {
+      if (!fs.statSync(dir).isDirectory()) { stats.folderGone++; stats.lastAskReason = 'gone'; return null; }
+    } catch {
+      stats.folderGone++;
+      stats.lastAskReason = 'gone';
+      return null;
+    }
     return dir;
   }
 

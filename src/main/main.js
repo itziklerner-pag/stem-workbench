@@ -504,28 +504,6 @@ async function boot() {
    * of. A Host with no player passes `transport: null` — spelled, never omitted.
    */
   state.storage = createStorage({ dir: app.getPath('userData') });
-
-  /**
-   * THE FILE INTAKE, and `dialog` is handed to it rather than imported by it.
-   *
-   * `src/main/files.js` keeps no `electron` import for `claims.js`'s reason —
-   * its allowlist, its title derivation and its path tokens are worth asserting
-   * in plain node. THIS IS THE ONE PLACE AN INTAKE IS BUILT, and it is built
-   * over electron's own `dialog`: `tools/suites/export.mjs` asserts exactly that
-   * (`files.usesDialog()`) before it counts anything, because a dialog count is
-   * only a fact about this app if the picker it counts is the real one.
-   *
-   * THE STORAGE IS PASSED, NEVER IMPORTED, like the transport below it: the
-   * export folder is a preference and lives in the `local` area, which is the
-   * half of `src/main/storage.js` that survives a restart.
-   */
-  state.pathTokens = createPathTokens();
-  state.files = createFileIntake({
-    dialog,
-    window: () => state.win,
-    storage: state.storage,
-    tokens: state.pathTokens,
-  });
   state.deckHost = installDeckHost({
     storage: state.storage,
     bus: state.bus,
@@ -561,6 +539,35 @@ async function boot() {
       layout();
       pushStatus();
     },
+  });
+
+  /**
+   * THE FILE INTAKE, and `dialog` is handed to it rather than imported by it.
+   *
+   * `src/main/files.js` keeps no `electron` import for `claims.js`'s reason —
+   * its allowlist, its title derivation and its path tokens are worth asserting
+   * in plain node. THIS IS THE ONE PLACE AN INTAKE IS BUILT, and it is built
+   * over electron's own `dialog`: `tools/suites/export.mjs` asserts exactly that
+   * (`files.usesDialog()`) before it counts anything, because a dialog count is
+   * only a fact about this app if the picker it counts is the real one.
+   *
+   * THE STORAGE IS PASSED, NEVER IMPORTED, like the transport above it: the
+   * export folder is a preference and lives in the `local` area, which is the
+   * half of `src/main/storage.js` that survives a restart.
+   *
+   * NOTHING A USER CAN PRESS REACHES IT YET. The chrome bar's File controls and
+   * the export writer are both later slices. That absence is named here rather
+   * than left to be discovered, because this file has shipped the opposite
+   * mistake — an Arm button that was `disabled` for a whole wave after arming
+   * worked (`src/renderer/chrome.js`'s header). An intake with no control is
+   * incomplete; a control with no outcome is a defect.
+   */
+  state.pathTokens = createPathTokens();
+  state.files = createFileIntake({
+    dialog,
+    window: () => state.win,
+    storage: state.storage,
+    tokens: state.pathTokens,
   });
 
   // Only the chrome view may ask for a status push. Nothing else has the

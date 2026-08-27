@@ -9,6 +9,18 @@
  * exactly once, that the second export writes into the remembered folder, and
  * that the memory survives a restart.
  *
+ * WHERE THE PROBE ENTERS, AND THE LIMITATION THAT COMES WITH IT. Nothing a user
+ * can press reaches the intake yet — the chrome bar's File controls and the
+ * export writer are both later slices — so `tools/gate/export.mjs` calls
+ * `ensureExportFolder()` and `chooseSourceFile()` directly, from inside main,
+ * which is where the counter lives. That is the entry point BOTH of those slices
+ * will use, and every assertion below names it (`docs/TESTING.md` §3 rule 5).
+ * It is nevertheless one step short of `docs/TESTING.md` §5c's standard — "it
+ * drives the real interface, not a private door" — and the step that closes the
+ * gap is the export COMMAND, once there is one. **When the writer lands, this
+ * suite should drive the export rather than the intake.** The dialog it counts
+ * is already the real one; what is not yet driven is the gesture in front of it.
+ *
  * WHAT IT WILL GATE AND DOES NOT YET, named rather than left to be discovered:
  * THE WRITER. Six 32-bit-float / 44.1 kHz / stereo WAVs in `STEMS` order at
  * unity, bit-exact headers, and a title that cannot escape the chosen folder ON
@@ -41,8 +53,7 @@
  * `DBUS_SESSION_BUS_ADDRESS` IS SET TO `disabled:` FOR THE LAUNCH, DELIBERATELY.
  *
  * On a box with a D-Bus session bus but no `xdg-desktop-portal` — which is this
- * box, and every hosted CI runner — Chromium's file dialog asks the portal and
- * **never falls back to GTK**. Measured: no window maps at all, and
+ * one — Chromium's file dialog asks the portal and **never falls back to GTK**. Measured: no window maps at all, and
  * `showOpenDialog`'s promise never settles. The Chromium log says
  * *"Failed to register with org.freedesktop.host.portal.Registry"*. With the bus
  * out of the way the in-process GTK chooser maps in under a second and can be
@@ -63,44 +74,55 @@
  * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux. The right column is what
  * ACTUALLY went red, not what was expected to.
  *
- *   1  files.js:117 isAllowedSourceFile -> `true`            -> ...and everything else is refused
- *   2  files.js:82  SOURCE_TYPES: drop the `.flac` entry     -> every extension is admitted (+MIME)
- *   3  files.js:129 mimeForSourceFile -> `'audio/x'`         -> every admitted extension has a MIME
- *   4  files.js:196 deriveTitle: keep the extension          -> a title is the file's own name
- *   5  files.js:172 sanitiseTitle: drop the separator strip  -> a title can never be a path,
- *                                                               and joining stays inside the folder
- *   6  files.js:175 sanitiseTitle: drop the trailing strip   -> a title can never be a path
- *   7  files.js:266 spend(): do not delete the entry         -> a path token is ONE SHOT
- *   8  files.js:268 spend(): ignore expiresAt                -> ...and an expired token is refused
- *   9  files.js:281 revokeAll(): clear nothing               -> ...and revokeAll drops every live token
- *  10  files.js:398 ensureExportFolder: delete the           -> the folder is asked EXACTLY ONCE
- *      remembered-folder read (the plan's G3 mutation)          (2, not 1), and the second export
- *                                                               resolved to the remembered folder
- *  11  files.js:334 EXPORT_FOLDER_AREA -> 'session'          -> the remembered folder survives a
- *      (the plan's G4 mutation)                                 restart (1 ask, not 0), and it is
- *                                                               the same folder (local: null)
- *  12  files.js:400 ensureExportFolder: drop the `pending`   -> a second export while the chooser is
- *      join                                                     up joins the first ask (2, not 1)
- *  13  files.js:369 askForFolder: open FILE_DIALOG instead   -> ...and the options it opened with
- *                                                               are a folder picker
- *  14  main.js:504  build the intake over a fake dialog      -> INSTRUMENT CHECK: the intake holds
- *                                                               electron's own dialog
- *  15  files.js chooseSourceFile: title -> basename()      -> the file picker admits a real audio
- *                                                               file and derives its title
- *  16  files.js chooseSourceFile: drop the allowlist check  -> ...and a file it does not admit is
- *                                                               REFUSED BY NAME
- *  17  files.js chooseSourceFile: mint from a NEW registry  -> ...and that token resolves over the
- *                                                               running app's own registry
- *  18  gate/export.mjs: write no report                     -> both launches wrote a report (the
- *                                                               suite FAILS rather than exiting 0)
- *  19  gate/export.mjs: read asksAtBoot AFTER export #1     -> a launch on its own asks for nothing
- *  20  files.js askForFolder: answer without asking at all  -> the first export opens the REAL
- *                                                               native chooser (and the count)
+ * Two lanes. Cases 1-11 run `EXPORT_ONLY=pure` and take under a second each;
+ * cases 12-22 are the whole suite, which is two real launches with a real native
+ * chooser answered in each. `tools/suites/coverage.py` over the whole battery
+ * refuses an assertion that has never appeared on a FAIL line.
  *
- * CASE 14 IS THE ONE THAT KEEPS THE OTHERS HONEST. Every count below is a fact
- * about this app only while the picker being counted is the operating system's.
- * A build whose intake holds anything else must go red at the instrument, before
- * a single count is read — and 14 is the proof that it does.
+ *   1  files.js extOf: drop .toLowerCase()             -> every extension is admitted, either case
+ *   2  files.js isAllowedSourceFile: `true ||`         -> ...and everything else is refused
+ *   3  files.js SOURCE_FILTERS: extensions -> ['wav']  -> every admitted extension has a MIME
+ *   4  files.js mimeForSourceFile: always 'audio/x'    -> every admitted extension has a MIME
+ *   5  files.js deriveTitle: keep the extension        -> a title is the file's own name
+ *   6  files.js sanitiseTitle: drop the separator strip-> a title can never BE a path, AND
+ *                                                        joining stays inside the folder
+ *   7  files.js sanitiseTitle: drop the trailing strip -> a title can never BE a path
+ *   8  files.js sanitiseTitle: drop the leading strip  -> a title can never BE a path
+ *   9  files.js spend(): never delete the entry        -> a path token is ONE SHOT
+ *  10  files.js spend(): ignore expiresAt              -> ...and one spent after its TTL is EXPIRED
+ *  11  files.js revokeAll(): clear nothing             -> ...and revokeAll drops every live token
+ *  12  files.js ensureExportFolder: delete the         -> the folder is asked EXACTLY ONCE
+ *      remembered-folder read  (the plan's G3)            (**2**, not 1), AND export #2 resolved to
+ *                                                        the remembered folder, AND the restart
+ *  13  files.js EXPORT_FOLDER_AREA -> 'session'        -> the remembered folder survives a RESTART
+ *      (the plan's G4)                                    (**1** ask, not 0), AND it is the SAME
+ *                                                        folder (local=null, session=the folder)
+ *  14  files.js ensureExportFolder: drop the pending   -> a second export while the chooser is up
+ *      join                                               joins that ask (2 pickers, not 1)
+ *  15  files.js askForFolder: FILE_DIALOG's options    -> ...and the options are a FOLDER picker
+ *  16  main.js: build the intake over a WRAPPER that   -> INSTRUMENT CHECK: the intake holds
+ *      still opens the real dialog                        electron's own dialog — **and nothing
+ *                                                        else**: 21 passed, 1 failed
+ *  17  files.js chooseSourceFile: title = basename()   -> the file picker derives its title
+ *  18  files.js chooseSourceFile: drop the allowlist   -> ...and a file it does not admit is
+ *      check                                              REFUSED BY NAME
+ *  19  files.js chooseSourceFile: mint from a FRESH    -> ...and that token resolves over the
+ *      registry                                           running app's own registry
+ *  20  gate/export.mjs: write no report                -> both launches wrote a report — and the
+ *                                                        suite stops there: 9 passed, 1 failed
+ *  21  gate/export.mjs: read asksAtBoot AFTER export#1 -> a launch on its own asks for nothing
+ *  22  files.js askForFolder: answer without ever      -> the first export opens the REAL native
+ *      calling the dialog                                 chooser (the count alone stays at 1)
+ *  23  files.js rememberedFolder: drop the statSync     -> ...and a remembered folder that has
+ *      directory check (issue #6's branch)                been DELETED is not used
+ *
+ * CASES 16 AND 22 ARE THE PAIR THAT KEEPS THE OTHERS HONEST, and they fail in
+ * opposite directions on purpose. 16 leaves every count correct — the wrapper
+ * still opens the real dialog — and only the INSTRUMENT notices, which is what
+ * proves the instrument is load-bearing rather than decorative. 22 leaves the
+ * instrument correct and takes the dialog away, and the COUNT alone stays at 1:
+ * an assertion that only counted asks would be green over an app that never
+ * opened a picker at all. Neither one on its own would have found the other.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -415,6 +437,26 @@ ok('...and it is the SAME folder, read back out of the `local` area rather than 
   O(A2.export3).dir === A1.target && O(A2.stored).local === A1.target && O(A2.stored).session === null,
   `local=${JSON.stringify(O(A2.stored).local)} session=${JSON.stringify(O(A2.stored).session)} `
   + `chosen in launch 1: ${JSON.stringify(A1.target)}`);
+
+/**
+ * AND THE FOLDER THE USER DELETED — issue #6's case, and a branch of
+ * `rememberedFolder()` that nothing else here reaches.
+ *
+ * A remembered path is a claim about a filesystem nobody told us had changed.
+ * Discovering it is gone while writing the fourth of six stems is a failure at
+ * the END of a long operation, with half a track on disk. TWO facts, because a
+ * build that asked again and then kept the dead path would satisfy the first on
+ * its own: it asked, AND it took the new answer.
+ */
+ok('...and a remembered folder that has been DELETED is not used — the app asks again, and takes the new answer  '
+  + '[entry point: ensureExportFolder()]',
+  A2.goneChooserMapped === true && O(A2.goneAnswered).answered === true
+  && A2.asksAfterRestart === 0 && A2.asksAfterGone === 1 && A2.askReason === 'gone'
+  && O(A2.export4).ok === true && O(A2.export4).dir === A2.moved
+  && O(A2.storedAfterGone).local === A2.moved && O(A2.stats).folderGone === 1,
+  `${A2.asksAfterRestart} ask(s) while it existed, ${A2.asksAfterGone} after it was removed `
+  + `(reason ${JSON.stringify(A2.askReason)}); ${JSON.stringify(path.basename(String(A2.moved)))} `
+  + `replaced it in \`local\``);
 
 // ------------------------------------------------------------ the file picker
 const picked = O(A1.picked);
