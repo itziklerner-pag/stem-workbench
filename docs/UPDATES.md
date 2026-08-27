@@ -27,7 +27,7 @@ whole point of this file.
 | when | once, after the window is up, never awaited, never able to fail a boot |
 | default | ON. `AUTO_UPDATE_DEFAULT = true`, `local` storage, key `autoUpdate` |
 | toggle | a checkbox in the 44 px chrome bar (`src/renderer/chrome.html` `#autoupdate`) |
-| gates | `updates` (33 assertions, no display) and `p1` (24, one real launch) |
+| gates | `updates` (35 assertions, no display) and `p1` (24, one real launch) |
 
 ### `/releases/latest` could never follow the pre-release channel
 
