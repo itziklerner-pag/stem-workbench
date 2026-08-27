@@ -146,7 +146,7 @@ node tools/verify.mjs --list         # the steps table
 | `updates` | `tools/suites/updates.mjs` | — | 34 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
 | `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
-| `dist-linux` | `tools/suites/dist-linux.mjs` | window | 9 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
+| `dist-linux` | `tools/suites/dist-linux.mjs` | window | 10 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
 
 <!-- suites:end -->
@@ -2337,7 +2337,7 @@ adding a SECOND host to `check()` — `github.com`, exactly what arming
 electron-updater would add — turns `p1` RED with
 `GOT ["https://api.github.com","https://github.com"]`.
 
-### `dist-linux` — 9 assertions, window, ~2 min
+### `dist-linux` — 10 assertions, window, ~2 min
 
 It is the only step anywhere that builds an installer and runs it. Every other
 windowed suite launches `electron .` over the CHECKOUT, and three differences
@@ -2355,7 +2355,8 @@ updater feed, and therefore the release channel — exists only inside an artifa
 | 6 | `tools/` is NOT in the asar, so the module `--gate-probe` names is not on disk in a shipped build |
 | 7 | **the packaged AppImage launches and reaches the app's own `[main] ready` line** — one match, COUNTED, and the process group is killed the moment it arrives. Nothing sleeps |
 | 8 | ...and the vendored deck came out of the asar over `app://` with the engine cross-origin isolated and SAB available |
-| 9 | ...and the bundled weights were hash-verified by the unit through `process.resourcesPath` — **rule M1 over the installer's own copy**, a branch no other suite reaches — and `--gate=DIR` passed to the shipped binary did nothing |
+| 9 | ...and the bundled weights were hash-verified by the unit through `process.resourcesPath` — **rule M1 over the installer's own copy**, a branch no other suite reaches |
+| 10 | ...and `--gate=DIR` passed to the SHIPPED binary did nothing. Two independent reasons: `GATE` is `app.isPackaged ? '' : …`, and row 6 says the module it would import is not in the bundle either |
 
 **It SKIPS on a machine and FAILS on a defect**, §3 rule 8: no electron-builder,
 no weights, no ORT drop, no `xvfb-run`, no `flock` — each named in the `SKIPPED`

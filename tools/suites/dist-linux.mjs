@@ -78,6 +78,7 @@
  * | 7 | THE PACKAGED APP LAUNCHES                  | `build.files` -> drop the `src/` glob                               |
  * | 8 | ...and the vendored deck is in the bundle  | drop the vendored `extension/` glob from `files`   |
  * | 9 | ...and the bundled weights hash-verified   | truncate `models/htdemucs_6s.onnx` before the build (rule M1)  |
+ * |10 | ...and `--gate=DIR` did nothing            | drop `app.isPackaged ?` from `const GATE` in src/main/main.js  |
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -94,6 +95,30 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 
 /** See `deck-seam.mjs`: a stranded mutation must not be measured past. */
 refuseIfCompromised(ID, ROOT);
+
+/**
+ * BATTERY-ONLY, AND IT ANNOUNCES ITSELF. `DIST_LINUX_ONLY=build` runs §1–§3 and
+ * skips the launch, so the six assertions about what electron-builder PRODUCED
+ * can be watched red without taking the machine-global browser mutex. Six of
+ * ten cases in `tools/suites/dist-linux-mutations.sh` therefore cost a build
+ * and no queue, on a box where four agents were observed queued on that one
+ * lock at once.
+ *
+ * `deck-host.mjs`'s `DECK_HOST_ONLY=conformance` is the precedent and the
+ * reason: a mutation battery paying for a display it does not need is a battery
+ * that stops being run. `tools/verify.mjs` never sets this, and a run with it
+ * set prints a banner and a DIFFERENT closing line, so a partial transcript can
+ * never be mistaken for the step.
+ */
+const ONLY = process.env.DIST_LINUX_ONLY || '';
+if (ONLY && ONLY !== 'build') {
+  console.error(`${ID}: DIST_LINUX_ONLY=${ONLY} is not a mode. The only value is 'build'.`);
+  process.exit(2);
+}
+if (ONLY) {
+  console.log(`${ID}: DIST_LINUX_ONLY=build — §4 (the launch) is NOT RUN. This is the mutation battery's`);
+  console.log(`${ID}: mode and never the step's; nothing below says the packaged app starts.`);
+}
 
 const DIST = path.join(ROOT, 'dist');
 const UNPACKED = path.join(DIST, 'linux-unpacked');
@@ -112,6 +137,23 @@ const LOCK_MARK = '__WB_LOCKED__';
 const READY = /^\[main\] ready · source=(\S+) · deck=(\S+) · engine coi=(\w+) sab=(\w+)/m;
 /** The unit's own line when it has verified the bundled weights. Rule M1. */
 const WEIGHTS = /weights downloaded \+ hash verified/;
+/**
+ * BOTH LINES, AND THE ORDER BETWEEN THEM IS NOT GUARANTEED — which is why this
+ * is a predicate over the whole transcript rather than one regex.
+ *
+ * The first draft killed the process on `[main] ready` alone and the weights row
+ * went red on a working app: `main` prints its ready line when the window, the
+ * deck and the engine's boot probe are up, and the engine loads the 109 MB
+ * asynchronously after that. Once it happened to arrive first (669 ms) and once
+ * it did not. A suite that races an event it is asserting about reports the
+ * machine, not the code.
+ *
+ * It is still a COUNT and not a clock: the run ends on the LATER of two matched
+ * lines, whichever way round they come, and the only bound is the kill-it-anyway
+ * timeout — which is never asserted on. If the weights line never arrives, that
+ * timeout fires and assertion 9 is red for the reason it exists to be red for.
+ */
+const LAUNCH_DONE = (out) => READY.test(out) && WEIGHTS.test(out);
 
 // ------------------------------------------------------------------ harness
 let pass = 0; let fail = 0;
@@ -291,6 +333,12 @@ if (!appImage.length || !debs.length) done();
 // ==========================================================================
 // 4. IT LAUNCHES — one real run of the artifact that was just built
 // ==========================================================================
+if (ONLY === 'build') {
+  console.log(`\n${ID}: built ${path.basename(appImage[0])} and ${path.basename(debs[0])}, and DID NOT LAUNCH `
+    + 'either — DIST_LINUX_ONLY=build. The step itself always launches.');
+  done();
+}
+
 /**
  * THE ARTIFACT, NOT THE UNPACKED TREE. `linux-unpacked/` is an intermediate;
  * the AppImage is the file a user downloads, and running that is what makes
@@ -316,7 +364,7 @@ const launch = await run('flock', [LOCK, '-c',
   `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(appImage[0])} `
   + `--appimage-extract-and-run --no-sandbox --source-url=${sh(fixture)} --user-data=${sh(userData)} `
   + `--gate=${sh(gateDir)} --no-update-check`],
-{ cwd: ROOT, timeoutMs: 180000, queueMs: 900000, startOn: LOCK_MARK, until: READY });
+{ cwd: ROOT, timeoutMs: 180000, queueMs: 900000, startOn: LOCK_MARK, until: LAUNCH_DONE });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
 const readyLines = (launch.out.match(/^\[main\] ready · /gm) || []).length;
@@ -345,7 +393,9 @@ ok('...and the vendored deck came out of the ASAR over `app://`, with the engine
 ok('...and the BUNDLED weights were read through `process.resourcesPath` and hash-verified by the unit — rule M1 '
   + 'over the installer\'s own copy  [entry point: modelcache.js in the vendored unit, via MODEL_DIR when app.isPackaged]',
   WEIGHTS.test(launch.out),
-  (launch.out.match(/\[engine\].*weights[^\n]*/) || ['no weights line in the transcript'])[0].trim().slice(0, 140));
+  (launch.out.match(/\[engine\].*weights[^\n]*/)
+    || [`NO WEIGHTS LINE — killed by ${launch.killedBy}; the run ends on this line AND the ready line, so a `
+        + 'timeout here means the unit never verified the installer\'s own copy'])[0].trim().slice(0, 190));
 
 /**
  * `--gate=` WAS PASSED AND DID NOTHING. `GATE` is `app.isPackaged ? '' : …`, so
@@ -401,9 +451,11 @@ async function listAsar(file) {
  *
  * `until` IS THE DIFFERENCE FROM shell.mjs's COPY. That suite runs an app that
  * EXITS (`--gate` makes it write a report and quit); this one runs the shipped
- * binary, which by design never exits. So the run ends on a COUNTED marker —
- * the app's own ready line — and the group is killed the moment it appears.
- * Nothing here sleeps, and no duration is ever asserted on.
+ * binary, which by design never exits. So the run ends on COUNTED markers — the
+ * app's own ready line AND the unit's own weights line, in whichever order they
+ * come — and the group is killed the moment the later one appears. Nothing here
+ * sleeps, and no duration is ever asserted on. It is a PREDICATE over the whole
+ * transcript rather than a regex for exactly that reason: see `LAUNCH_DONE`.
  */
 function run(bin, args, { cwd, timeoutMs, queueMs = 0, startOn = null, until = null }) {
   return new Promise((resolve) => {
@@ -431,7 +483,7 @@ function run(bin, args, { cwd, timeoutMs, queueMs = 0, startOn = null, until = n
         waiting = null;
         arm(timeoutMs, `TIMEOUT after ${timeoutMs} ms — killing`);
       }
-      if (!waiting && until && killedBy === null && until.test(out)) stop('marker');
+      if (!waiting && until && killedBy === null && until(out)) stop('markers');
     };
     child.stdout.on('data', grab);
     child.stderr.on('data', grab);

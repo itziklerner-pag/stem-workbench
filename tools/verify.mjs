@@ -675,7 +675,7 @@ export const STEPS = [
   },
   {
     id: 'dist-linux',
-    assertions: 9,
+    assertions: 10,
     title: 'node tools/suites/dist-linux.mjs — the ONLY step that builds an installer and runs it: AppImage + deb, the feed inside the bundle, and the packaged app to its own ready signal',
     cmd: ['node', 'tools/suites/dist-linux.mjs'],
     window: true,
