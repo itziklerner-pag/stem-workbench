@@ -683,7 +683,7 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     afterEndChunk: feed(0.75)[0],
     file: passFile(1),
   };
-  await wait(400);
+  await wait(1400);
   R.rec.afterSelfSeek = { held: t.autonav.heldNow(), page: await page() };
 
   // --- 11c. a seek the PAGE made ends it too
@@ -702,6 +702,12 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   // --- 11d. an ABORTED recording puts the page's toggle back
   R.rec.started3 = t.startRecording({ file: passFile(3) });
   feed(0.3, 2);
+  // THE HOLD IS A CLICK ON THE PAGE, NOT A VARIABLE. `holdSuppress` asks the
+  // preload to look, main decides, the preload clicks and re-reads — two IPC
+  // round trips and the page's own handler. Reading `aria-checked` in the same
+  // turn measured the request rather than the state, and the first run of this
+  // section was red for exactly that: "held with the page at true".
+  await wait(1400);
   R.rec.beforeAbort = { held: t.autonav.heldNow(), page: await page(), recording: t.recording() };
   R.rec.aborted = t.abortRecording('gate');
   await wait(1600);
