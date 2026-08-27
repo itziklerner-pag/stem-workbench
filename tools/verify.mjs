@@ -619,7 +619,7 @@ export const STEPS = [
   },
   {
     id: 'updates',
-    assertions: 33,
+    assertions: 34,
     title: "node tools/suites/updates.mjs — the update check's host and channel, the toggle's lifetime, and the three platform blocks",
     cmd: ['node', 'tools/suites/updates.mjs'],
     /**

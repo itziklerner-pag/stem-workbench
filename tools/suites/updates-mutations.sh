@@ -163,6 +163,16 @@ M 3 "the feed claims a provider whose host WOULD be ours" "$U" \
   "  provider: 'github'," "  provider: 'generic'," \
   '...and the electron-updater FEED names a provider|...and `UPDATER_FEED` and `build.publish` are the SAME OBJECT'
 
+# THE ONE `p1` CANNOT SEE. `p1` builds its fake TLS host's certificate FROM
+# `UPDATE_HOST`, so a re-point renames the fake host too: this exact edit was
+# watched through a full windowed `p1` run and came back 24 passed, 0 failed.
+# What catches it is the PROMISE — `PRIVACY.md` and `CONTRIBUTING.md` both spell
+# the host to the reader, and re-pointing the constant makes both of them lie.
+M 34 "THE HOST IS RE-POINTED, and the two documents that promise it are not" "$U" \
+  "export const UPDATE_HOST = 'api.github.com';" \
+  "export const UPDATE_HOST = 'api.example.com';" \
+  '...and the host is the one the USER is promised'
+
 M 4 "the endpoint goes back to /releases/latest, which cannot return a pre-release" "$U" \
   'export const UPDATE_PATH = `/repos/${UPDATE_OWNER}/${UPDATE_REPO}/releases?per_page=20`;' \
   'export const UPDATE_PATH = `/repos/${UPDATE_OWNER}/${UPDATE_REPO}/releases/latest`;' \
