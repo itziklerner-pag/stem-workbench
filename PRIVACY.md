@@ -98,16 +98,22 @@ YouTube's own ads, Google's own network calls.
   credential — a Google session cookie is not a fact about your session, it *is*
   your session. They live in the view's own storage partition on your disk,
   where the embedded Chromium keeps them, and nothing in this app opens one.
-- **We do read cookie NAMES, and here is exactly why and exactly when.** Once at
-  start-up and again after each page you navigate to, the app asks that
-  partition for the list of cookie names and the domains they belong to, purely
-  to decide whether its own bar should say `signed in` or `anonymous`. Names and
-  domains only, never values; the answer is a word on a toolbar and is not
-  stored, not written to disk, and not sent anywhere. If you would rather it did
-  not, the code is one file — [`src/main/signin.js`](src/main/signin.js) — and
-  deleting it costs the app nothing but that word.
+- **We do read cookie NAMES, and here is exactly why, exactly when, and exactly
+  how far.** Once at start-up and again after each page you navigate to, the app
+  asks Chromium for that partition's cookies — purely to decide whether its own
+  bar should say `signed in` or `anonymous`. Chromium hands back whole cookies,
+  so **the very line that asks throws the values away** and keeps only the name
+  and the domain; nothing downstream of it has ever had a value to leak, and a
+  test drives that function with one and searches the answer for it. What
+  survives is a word on a toolbar: not stored, not written to disk, not sent
+  anywhere. If you would rather it did not happen at all, the code is one file —
+  [`src/main/signin.js`](src/main/signin.js) — and deleting it costs the app
+  nothing but that word.
 - If you sign in, you are signing in to Google, in a browser, exactly as you
-  would anywhere else. Your session persists between launches because cookies do.
+  would anywhere else. Your session persists between launches because cookies do
+  — and that is measured rather than assumed: a test starts the app, writes a
+  cookie into that partition, shuts the app down, starts it again and reads the
+  cookie back.
 - The app presents a **stock Chrome user-agent** on that partition, so that
   Google's sign-in flow does not refuse it. It is on that partition and on
   nothing else: the app's own update check goes to GitHub as what it is, and an

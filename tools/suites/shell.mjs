@@ -90,6 +90,18 @@
  *  40  signin.js: the domain test becomes d.includes(base)  -> the sign-in verdict reads a Google session cookie
  *  41  signin.js: report the matched cookies, not their names -> ...and its answer never carries a VALUE
  *
+ * CASE 16 WENT FROM CAUGHT TO A MISS WHEN THE SIGN-IN SECTION LANDED, and the
+ * battery is what said so — 0 reds over `shell: 45 passed, 0 failed`, on an
+ * assertion the same case turns red on the tree without that section. The bar's
+ * refusal row is satisfied by ANY `pushStatus()`, and `src/main/main.js` now
+ * pushes on every `did-navigate` as well; the sign-in section drives four
+ * ALLOWED navigations, so with `noteRefusal`'s push deleted the bar was painted
+ * anyway, by a different caller, from the same `state.refusals`. The fix is in
+ * `tools/gate/probe.mjs`: the chrome-bar read happens BEFORE that section, at
+ * the only moment when `noteRefusal` is the only thing that could have painted
+ * it. An assertion with two ways to be satisfied has to be asked at the moment
+ * only one of them has happened.
+ *
  * CASES 17-28 CAME FROM A COVERAGE AUDIT, not from a hunch: the first sixteen
  * left ELEVEN of the assertions (34 of them then) with no mutation of their own,
  * which is invisible from inside a green run. `tools/suites/coverage.py` makes it
@@ -195,6 +207,8 @@ const LOCK = BROWSER_LOCK;
 announceLock();
 /** Printed by the shell `flock` runs, the instant it has the lock. See the launch. */
 const LOCK_MARK = '__WB_LOCKED__';
+/** ...and between the two launches, so a transcript says which one a line belongs to. */
+const RESTART_MARK = '__WB_RELAUNCH__';
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;
@@ -474,12 +488,38 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
  */
 const SIGN_IN_MAP = ['accounts.google.com', 'accounts.youtube.com', 'consent.youtube.com', 'myaccount.google.com']
   .map((h) => `MAP ${h} 127.0.0.1:1`).join(', ');
+
+/**
+ * TWO LAUNCHES, ONE LOCK, AND THE SECOND ONE IS WHY THIS IS NOT TWO `run()`s.
+ *
+ * The restart claim (§3) needs a second launch over the same `--user-data`.
+ * Written as a second `flock … -c` it would take the machine-global browser
+ * mutex TWICE, and this was measured costing exactly what it looks like it
+ * costs: on a box with six agents queueing, one run's second acquisition sat
+ * behind a sibling's wedged Electron for the full 900 s bound and reported
+ * `NEVER TOOK THE SHARED BROWSER MUTEX` — a red about the machine, on an
+ * assertion about a cookie (stem-workbench#21 is the wedge; this is what a
+ * second acquisition does to your exposure to it).
+ *
+ * So the shell runs both launches inside ONE hold: queue once, launch, launch,
+ * release. The whole hold is the two launches back to back (~20 s), which is
+ * strictly less lock-time than two acquisitions and half the chances of losing
+ * the queue. `;` and not `&&` between them, deliberately: if the first launch
+ * dies the second must still run, because "no report from launch 1" and "no
+ * report from launch 2" are different assertions and both should be able to
+ * say what they saw.
+ */
+const OUT2 = path.join(OUT, 'restart');
 const launch = await run(
   'flock', [LOCK, '-c',
-    `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
+    `echo ${LOCK_MARK}; `
+    + `xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
     + `--gate=${sh(OUT)} --source-url=${sh(fixture)} --user-data=${sh(userData)} `
-    + `--host-resolver-rules=${sh(SIGN_IN_MAP)}`],
-  { cwd: ROOT, timeoutMs: 120000, queueMs: 900000, startOn: LOCK_MARK });
+    + `--host-resolver-rules=${sh(SIGN_IN_MAP)}; `
+    + `echo ${RESTART_MARK}; `
+    + `exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
+    + `--gate=${sh(OUT2)} --gate-probe=restart --source-url=${sh(fixture)} --user-data=${sh(userData)}`],
+  { cwd: ROOT, timeoutMs: 240000, queueMs: 900000, startOn: LOCK_MARK });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
 const reportPath = path.join(OUT, 'report.json');
@@ -796,10 +836,11 @@ ok('the deck slot loads the vendored deck when it is present, and says so when i
  * INTENT — an in-memory partition is one word away and behaves identically for
  * the whole of the first run.
  *
- * So: the launch above seeded one marker cookie on its way out
- * (`tools/gate/probe.mjs`), and this launches the app AGAIN over the SAME
- * `--user-data` with a probe that reports the jar it found before the app had
- * touched anything (`tools/gate/restart.mjs`).
+ * So: the first launch seeded one marker cookie on its way out
+ * (`tools/gate/probe.mjs`), and a SECOND launch over the same `--user-data`
+ * reported the jar it found before the app had touched anything
+ * (`tools/gate/restart.mjs`). Both ran inside ONE hold of the shared mutex — see
+ * the launch above for why that is not two `run()` calls.
  *
  * IT IS ALSO THE ONLY PLACE ANY GATE REACHES `accountFromCookies`'s SIGNED-IN
  * BRANCH. No suite anywhere can sign in to Google — that test needs somebody's
@@ -808,14 +849,6 @@ ok('the deck slot loads the vendored deck when it is present, and says so when i
  * real Google domain, so the second launch's `state.account` is the product's
  * own verdict over a restored profile.
  */
-const OUT2 = path.join(OUT, 'restart');
-const relaunch = await run(
-  'flock', [LOCK, '-c',
-    `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
-    + `--gate=${sh(OUT2)} --gate-probe=restart --source-url=${sh(fixture)} --user-data=${sh(userData)}`],
-  { cwd: ROOT, timeoutMs: 120000, queueMs: 900000, startOn: LOCK_MARK });
-fs.writeFileSync(path.join(OUT, 'relaunch.log'), relaunch.out);
-
 let R2 = null;
 try { R2 = JSON.parse(fs.readFileSync(path.join(OUT2, 'report.json'), 'utf8')); } catch { /* asserted below */ }
 
@@ -826,7 +859,9 @@ ok('a cookie written into persist:youtube is STILL THERE after the app has quit 
   + '[entry point: makeSession(\'youtube\', \'persist:youtube\') in boot(), over two launches sharing one --user-data]',
   seed.ok === true && R2 !== null && backAgain.length === 1,
   seed.ok !== true ? `THE SEED ITSELF FAILED, so nothing was asked of the restart: ${JSON.stringify(seed)}`
-    : R2 === null ? `exit ${relaunch.code}, no ${path.relative(ROOT, path.join(OUT2, 'report.json'))} — last line: ${lastLine(relaunch.out)}`
+    : R2 === null ? `exit ${launch.code}, no ${path.relative(ROOT, path.join(OUT2, 'report.json'))}`
+      + ` — did the second launch even start? ${launch.out.includes(RESTART_MARK) ? 'yes' : 'NO'};`
+      + ` last line: ${lastLine(launch.out)}`
       : `seeded ${seed.name} on ${seed.domain}; the second launch found `
         + `${A(O(R2).cookiesAtStart).length} cookie(s) ${JSON.stringify(A(O(R2).cookiesAtStart))}`
         + ` (a cookie with no expirationDate would be a SESSION cookie and would not survive at all)`);
@@ -840,7 +875,7 @@ ok('...and the app makes the right thing of it on that second boot: the jar that
 
 console.log(`\n${ID}: launch log ${path.relative(ROOT, path.join(OUT, 'launch.log'))} · `
   + `report ${path.relative(ROOT, reportPath)} · screenshots ${path.relative(ROOT, OUT)}/{chrome,source,deck}.png · `
-  + `restart ${path.relative(ROOT, path.join(OUT, 'relaunch.log'))}`);
+  + `restart report ${path.relative(ROOT, path.join(OUT2, 'report.json'))} (both launches are in the one launch log)`);
 done();
 
 // ------------------------------------------------------------------ helpers

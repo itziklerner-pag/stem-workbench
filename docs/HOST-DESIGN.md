@@ -219,7 +219,22 @@ still plays, and the only thing that changes is which sentence the bar carries.
 The obvious mutation — make the read reject — was rejected as evidence: it takes
 `boot()` down, and the suite then stops before the assertion it was written for.
 
-### 1.5 Preloads
+**WHAT IS NOT BUILT, AND WHY IT IS NOT A SHORTCUT.** Seed §9 says *"graceful
+anonymous fallback if Google refuses"*, and stem-workbench#9 reads that as three
+further things: **detect** the refusal against a local fixture reproducing its
+shape, **say it in the window** in a sentence held against `FAQ.md`'s copy, and
+**never retry** — asserted by counting attempts. None of those is here. The app
+is fully usable signed out and says which state it is in; it does not recognise
+Google's *"this browser or app may not be secure"* page.
+
+That is deliberate rather than deferred work nobody got to. **Nobody on this
+machine has ever seen that page.** Building a detector — and a local fixture
+"reproducing its shape" — against a page nobody has observed would be inventing
+the thing being detected, and #9's own requirement that *"detection keys on
+something durable and the choice is written down"* cannot be met by guessing at
+Google's markup. #8 is `ready-for-human` for exactly this reason: a real account,
+a real password and a real second factor. **The detector is downstream of that
+observation, not of this design.**
 
 | renderer | preload | `sandbox` | exposes |
 |---|---|---|---|

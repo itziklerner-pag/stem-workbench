@@ -354,6 +354,35 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     fixture: await evalIn(srcWc, 'window.__wbFixture ? window.__wbFixture() : null'),
   };
 
+  // ------------------------------------------------- what the chrome bar says
+  /**
+   * READ AFTER THE GUEST SECTION AND **BEFORE ANYTHING NAVIGATES AGAIN**, and
+   * the second half of that is load-bearing rather than tidy.
+   *
+   * The refusal row's claim is that `noteRefusal()` PUSHES — that a blocked
+   * navigation reaches the bar rather than being swallowed — and its mutation
+   * (case 16) stops exactly that push while leaving `state.refusals` intact. But
+   * `pushStatus()` has more than one caller: `src/main/main.js` re-reads the
+   * sign-in state on every `did-navigate` and pushes there too, so ANY
+   * successful navigation between the refusal and this read repaints the bar
+   * from the same `state.refusals` by a different path — and the assertion goes
+   * green over a build where `noteRefusal` pushes nothing.
+   *
+   * THAT IS NOT A HYPOTHETICAL. The sign-in section below drives four ALLOWED
+   * navigations, this read used to sit after it, and case 16 became a MISS on a
+   * suite of 45: `0 assertion(s) red, shell: 45 passed, 0 failed`, while the
+   * same case on the same assertion was caught on the tree without the sign-in
+   * section. An assertion with more than one way to be satisfied is asserted at
+   * the only moment when one of them has happened.
+   */
+  R.chromeDom = await evalIn(chromeWc, `(() => {
+    const t = (id) => { const el = document.getElementById(id); return el ? el.textContent : null; };
+    const arm = document.getElementById('arm');
+    return { arm: !!arm, armDisabled: !!(arm && arm.disabled), armText: arm ? arm.textContent : null,
+             armedAttr: arm ? arm.dataset.armed : null, bridgeArm: typeof (window.__wbChrome || {}).arm,
+             source: t('source'), deck: t('deck'), engine: t('engine'), refusal: t('refusal') };
+  })()`);
+
   // ------------------------------------------------------------ 2.x sign-in
   /**
    * CAN A SIGN-IN FLOW ACTUALLY GO WHERE IT NEEDS TO GO?
@@ -429,16 +458,6 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   // on Chromium's error page; the screenshot and the chrome-bar reads below are
   // about this app, not about that page.
   await state.source.load(sourceUrl).catch(() => {});
-
-  // ------------------------------------------------- what the chrome bar says
-  // Read AFTER the guest section, so the refusal line has something to show.
-  R.chromeDom = await evalIn(chromeWc, `(() => {
-    const t = (id) => { const el = document.getElementById(id); return el ? el.textContent : null; };
-    const arm = document.getElementById('arm');
-    return { arm: !!arm, armDisabled: !!(arm && arm.disabled), armText: arm ? arm.textContent : null,
-             armedAttr: arm ? arm.dataset.armed : null, bridgeArm: typeof (window.__wbChrome || {}).arm,
-             source: t('source'), deck: t('deck'), engine: t('engine'), refusal: t('refusal') };
-  })()`);
 
   // ------------------------------------------------------------ the mute
   R.mute = JSON.parse(JSON.stringify(state.source.witness));
