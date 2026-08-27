@@ -248,7 +248,7 @@ one nobody noticed.
 | not copied | why | trigger to add it |
 |---|---|---|
 | the `FLAKY` carve-out | no measured flake here yet, and `AGENTS.md`: an assertion parked on an expected-red list stops being read at all | a reproduced, distribution-measured flake — with an expiry condition |
-| coverage drift (assertion-name diffing) | needs a baseline from a previous run; four of five suites do not exist | the first time two host suites are green on one tree. The pinned assertion **total** on `vendor-unit` is the cheap half, and is here today |
+| coverage drift (assertion-name diffing) | needs a baseline from a previous run; four of five suites do not exist | the first time two host suites are green on one tree. The pinned assertion **total** on `vendor-unit` is the cheap half, and is here today. **THIS TRIGGER HAS FIRED and the omission has not been revisited:** all twelve suites are built and green on one tree, and the exact per-step `assertions` pin now catches a shortfall — but it names a NUMBER, not the assertions that stopped running. That gap is what a block guard (§5c) leaves behind |
 | `reapOrphanBrowsers()` | it `pkill`s every Playwright Chromium on the box, including a sibling agent's | never. The shared `flock` mutex is the answer here |
 | the model-seed preflight, `--live-fixture`, `--soak-fixture`, `--audible`, `--strict` | seed §15 bundles the weights in the installer: "where the model is" is a Host duty and a packaging question | the first host suite that needs the weights brings a `heavy` flag and its own preflight |
 | a plan derived from `extension/unit.json` | the unit's own runner already builds its plan from that manifest and already asserts the two agree, both ways | never — a second copy of a list is a list that drifts |
@@ -1029,6 +1029,59 @@ was doing its job and was not.
 The battery is **25 cases, 24 of them one-line edits**; nine need no launch.
 Reproduce with `tools/suites/transport-mutations.sh` (or `--static` for the cheap
 half, 0.3 s).
+
+### The block guard, and exactly what it buys
+
+Section 5 of this suite — everything after the launch — is wrapped in one
+`try`/`catch` that turns a throw into one named red,
+`the launch section ran to its end without throwing`, with the error and its
+first stack frame in the detail.
+
+It is there because a `const lastLine` declared 296 lines below its only caller
+put that caller in a temporal dead zone, and the branch it sat in is the one that
+runs when the launch wrote no report. A transient launch failure therefore
+produced `ReferenceError: Cannot access 'lastLine' before initialization` — no
+`FAIL` line, no summary line, a transcript that stops — where a named red was
+due. The declaration is repaired; the guard is for the NEXT one, because
+everything below the launch reads fields off a report a child process wrote and a
+shape nobody anticipated throws on first use.
+
+> **The guard converts a crash into a named red. It does NOT recover the
+> assertions after the throw.** The run still stops there and the suite still
+> reports fewer than its 64. A guarded suite is not a fully covered one.
+
+The run is RED either way and the CAUSE is now named: `classify()` reports the
+guard's `FAIL` line and the `TypeError` behind it, where before it reported a
+non-zero exit over a transcript that stopped. The trade is **a report and a named
+cause instead of nothing** — never completeness.
+
+**And the shortfall itself is NOT measured on a red run.** Measured, not
+assumed: the exact `assertions` pin (§2) is only consulted on `code === 0`, so a
+guarded throw takes the `FAIL` branch first and the count is never compared to
+64 at all. Worse for a careless reader, the guard's own red OCCUPIES A SLOT — the
+watched-red run below printed `transport: 63 passed, 1 failed`, which totals 64
+and looks complete while one assertion never ran. Read a guarded red as *"the
+suite stopped here"*, never as a count.
+
+Two things this runner therefore does not do, and both are gaps rather than
+decisions: it does not compare the count on a red run, and it does not name
+WHICH assertions went missing — the assertion-name coverage diff listed as a
+deliberate omission in §2, whose stated trigger has since fired.
+
+Nothing is restored in a `finally`, deliberately: the section installs nothing on
+the tree and holds no lock of its own. The mutation that watches the guard red is
+one that survives initialisation and throws on FIRST USE — `const u =
+R.unsubscribe.__nope.deep` in the last block — so the assertions above it stay
+green and only the guard's own row moves. Watched both ways, one real launch
+each:
+
+| | `ok` lines | `FAIL` lines | summary line | exit |
+|---|---|---|---|---|
+| the same mutation, no guard | 63 | **0** | **none** | 1 |
+| the same mutation, guarded | 63 | 1 — the guard's row alone | `transport: 63 passed, 1 failed` | 1 |
+
+The unguarded arm already had the `lastLine` declaration repaired, which is the
+point of running it: **fixing one reference does not fix the class.**
 
 ## 5d. `deck-seam` — the DeckHost's contract, in plain node
 

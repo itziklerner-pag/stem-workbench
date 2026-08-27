@@ -456,6 +456,47 @@ if (!fs.existsSync(electron)) skip('electron is not installed — npm i');
 if (!hasBin('xvfb-run')) skip('xvfb-run is not on PATH and this box has no DISPLAY');
 if (!hasBin('flock')) skip('flock is not on PATH — the shared browser mutex cannot be taken');
 
+/**
+ * ===========================================================================
+ * THE BLOCK GUARD — a throw anywhere below is a NAMED RED, not a dead suite.
+ * ===========================================================================
+ * Fixing one reference is not the same as fixing the class. The `lastLine`
+ * temporal dead zone at the top of this section is repaired at its declaration,
+ * and that repairs THAT reference; it does nothing about the next unguarded one
+ * on a failure path. And this section's failure paths are demonstrably
+ * reachable — a transient launch failure has already turned a real red here into
+ * a `ReferenceError` during a full-gate run.
+ *
+ * Everything below reads fields off a report a CHILD PROCESS wrote. A shape
+ * nobody anticipated throws on first use, and one throw at top level in an ES
+ * module takes the whole file's verdict with it: no `FAIL` line, no summary
+ * line, and a transcript that simply stops. That is strictly less informative
+ * than the assertion it replaced.
+ *
+ * WHAT THIS BUYS, AND WHAT IT DOES NOT. It converts a crash into a named red
+ * with a cause. **It does not recover the assertions after the throw** — the run
+ * still stops there, and this suite still reports fewer than its 64. Do not read
+ * a guarded suite as fully covered.
+ *
+ * The run is RED either way; what changes is that the CAUSE is named. What does
+ * NOT happen is the count being checked — measured, not assumed: the runner's
+ * exact `assertions` pin is consulted only on `code === 0`, so a guarded throw
+ * takes `classify()`'s FAIL branch first and 64 is never compared to anything.
+ * And the guard's own red OCCUPIES A SLOT, so the watched-red run printed
+ * `transport: 63 passed, 1 failed` — which totals 64 and looks complete while one
+ * assertion never ran. Read a guarded red as "the suite stopped here", never as a
+ * count. docs/TESTING.md §5c carries the same warning where a reader will meet
+ * it.
+ *
+ * NOTHING IS RESTORED IN A `finally` HERE, deliberately, and that is worth
+ * saying rather than leaving as an absence: this section installs nothing on the
+ * tree and holds no lock of its own — `run()` awaits the child to close, and the
+ * mutex is inside the `flock` this section spawns, so it is released by that
+ * process exiting. A guard that pretended to restore something would be an
+ * assertion about state nobody is keeping.
+ */
+try {
+
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
@@ -753,6 +794,18 @@ ok('...and the gate was actually listening to the transport while it drove it  [
   ok('...and every `on*()` returns an unsubscribe that really removes the listener  [entry point: transport.js channel()]',
     N(u.withExtra) === N(u.before) + 1 && N(u.after) === N(u.before),
     `onState ${u.before} -> ${u.withExtra} -> ${u.after}`);
+}
+
+} catch (err) {
+  // ONE NAME, so a coverage instrument sees the same assertion every time; the
+  // value that would let a reader diagnose it goes in the DETAIL (§3 rule 3).
+  // `done()` is below rather than here, so the summary line still prints: the
+  // count in it is the count that RAN, and one red already makes the exit
+  // non-zero. Nothing compares that count to the pin on a red run (see above).
+  ok('the launch section ran to its end without throwing  [entry point: the block guard above section 5]',
+    false,
+    `${(err && err.name) || 'Error'}: ${(err && err.message) || String(err)}`
+    + ` — ${(String((err && err.stack) || '').split('\n')[1] || '(no frame)').trim()}`);
 }
 
 done();
