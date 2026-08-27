@@ -218,6 +218,36 @@ const MUTATIONS = [
       'export const clampDeckHeight = () => DECK_MAX_H;']],
     expect: ['page.setHeight is ADVICE the Host clamps', '...and the deck PAINTED before it went'],
   },
+  {
+    id: 'L23',
+    why: 'main stops putting the source kind on the profile — the deck boots knowing what it is hosted BY but not what it is bound TO',
+    /**
+     * `deck-seam` cannot make this one. It drives `ui/host.js` over a STUBBED
+     * bridge, so a mutation in `src/main/deck-host.js` is a file that battery
+     * never reaches; its case 51 breaks the same claim one layer down, at the
+     * hole module. This is the layer only a launch can see: main decides, the
+     * `sendSync` carries, the preload exposes, and all three have to agree.
+     */
+    edits: [[DECKHOST,
+      'event.returnValue = { hosted: transport !== null, sourceKind };',
+      'event.returnValue = { hosted: transport !== null };']],
+    expect: ['the deck profile carries the SOURCE KIND across the real ipc',
+      '...and it is carried BESIDE `hosted`'],
+  },
+  {
+    id: 'L24',
+    why: 'the hole module stops exposing the source kind — the bridge carries it and nothing reads it, which is the shape a surface silently loses a fact in',
+    /**
+     * THE PROPERTY IS REMOVED, NOT SET TO `undefined`, and the difference is the
+     * point of two assertions rather than one. `sourceKind: undefined` keeps the
+     * KEY, so `Object.keys(host)` is unchanged and the shape assertion stays
+     * green while the value one goes red — measured. Deleting it moves both, and
+     * that is what a Host which never learned to carry the fact looks like.
+     */
+    edits: [[HOST, '  sourceKind: SOURCE_KIND,', '  /* the Host never learned to carry it */']],
+    expect: ['...and the module it imported is OURS',
+      'the deck profile carries the SOURCE KIND across the real ipc'],
+  },
 ];
 
 // ---------------------------------------------------------------------------
