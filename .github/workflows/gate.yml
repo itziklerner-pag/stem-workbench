@@ -32,6 +32,13 @@
 #                 permanent gate and it is a LOCAL one: docs/TESTING.md §4.
 #   youtube       is `manual` and needs the real site. A gate that depends on
 #                 somebody else's DOM must never block a build.
+#   dist-linux    builds an installer and runs it. It needs the 109 MB of weights
+#                 for `extraResources`, so it is in the same position as
+#                 `engine-host` and for the same reason; it also costs ~2 minutes
+#                 of packaging per run. `package.yml` is where packaging lives,
+#                 and this job would be measuring the same thing twice. When
+#                 somebody is prepared to pay for the weights here, both should
+#                 arrive together.
 #
 # So a green tick here is NOT the full plan, and nothing in this file pretends
 # otherwise: the job names are what ran, and `docs/TESTING.md` is the plan.
@@ -75,6 +82,7 @@ jobs:
       - run: node tools/verify.mjs --only vendor-unit --strict
       - run: node tools/verify.mjs --only deck-seam --strict
       - run: node tools/verify.mjs --only conformance --strict
+      - run: node tools/verify.mjs --only updates --strict
 
   windowed:
     name: windowed — one real Electron launch per question

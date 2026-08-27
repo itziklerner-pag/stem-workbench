@@ -19,6 +19,14 @@ body {
    control toggles, so the label has to say which way it goes next. */
 #arm[data-armed="1"] { border-color: #7a4a2f; background: #3a271d; color: #f0c39a; }
 .field { display: flex; gap: 5px; align-items: baseline; min-width: 0; }
+/* THE TOGGLE IS A LABEL, so the word is part of the hit target — a 13 px
+   checkbox alone is a control that is visible and not usable. `align-items:
+   center` rather than the row's `baseline`: a checkbox has no baseline and
+   Chromium aligns it to the box bottom, which sits the word half a line low. */
+.toggle { align-items: center; gap: 6px; cursor: pointer; }
+.toggle input { margin: 0; accent-color: #4f9ad8; cursor: pointer; }
+.toggle input:indeterminate { opacity: .5; }
+.toggle:hover .k { color: #9fb4c8; }
 .k { color: #6f8296; }
 .v { color: #cfe0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch; }
 #refusal { margin-left: auto; color: #ff9a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }

@@ -203,7 +203,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 48,
+    assertions: 50,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
@@ -618,6 +618,30 @@ export const STEPS = [
      */
   },
   {
+    id: 'updates',
+    assertions: 33,
+    title: "node tools/suites/updates.mjs — the update check's host and channel, the toggle's lifetime, and the three platform blocks",
+    cmd: ['node', 'tools/suites/updates.mjs'],
+    /**
+     * NO WINDOW, NO DISPLAY, NO MUTEX, ~0.2 s — and it is on the `--quick` plan
+     * for the reason `deck-seam` is: everything it asserts is a pure function, a
+     * JSON file or a `createStorage()` over a temp directory, and the channel
+     * decision has eight edge cases that no launch can reach.
+     *
+     * IT IS NOT `p1`, AND THE SPLIT IS DELIBERATE. `p1` launches the app, points
+     * the check at a fake host wearing `UPDATE_HOST`'s certificate and reads the
+     * hit off a server in another process — that is the claim that the request
+     * really goes to one host. This step is the claim that the CHANNEL, the
+     * TOGGLE'S LIFETIME and the three `build` blocks are what they say they are.
+     * One step could not mean both, and the second half must not cost a display.
+     *
+     * THE TOGGLE'S RESTART IS MEASURED, NOT READ: two `createStorage()` calls
+     * over one directory, which is a relaunch minus the Electron process, plus
+     * the CONTROL that the same value in `session` does NOT survive. Storing the
+     * preference in `session` turns both rows red.
+     */
+  },
+  {
     id: 'smoke',
     assertions: 21,
     title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
@@ -722,6 +746,40 @@ export const STEPS = [
      * WHAT FALSIFIES IT — `tools/suites/capture-mute-mutations.sh`, whose first
      * case removes `setAudioMuted(true)` and reproduces the leak this whole gate
      * was rewritten to catch.
+     */
+  },
+  {
+    id: 'dist-linux',
+    assertions: 9,
+    title: 'node tools/suites/dist-linux.mjs — the ONLY step that builds an installer and runs it: AppImage + deb, the feed inside the bundle, and the packaged app to its own ready signal',
+    cmd: ['node', 'tools/suites/dist-linux.mjs'],
+    window: true,
+    /**
+     * THE ONLY STEP ANYWHERE THAT RUNS SOMETHING A USER WOULD DOWNLOAD. Every
+     * other windowed suite launches `electron .` over the CHECKOUT, and the
+     * three differences that separates it from an installer are exactly the ones
+     * that break silently: `app.isPackaged` flips and the weights move to
+     * `process.resourcesPath`; the app is read out of an asar, so anything the
+     * `files` glob forgot is simply absent; and `app-update.yml` — the
+     * electron-updater feed, and therefore the RELEASE CHANNEL — exists only
+     * inside a built artifact. `updates` asserts the channel in `package.json`
+     * and in the code; this asserts it in the thing that would be shipped.
+     *
+     * IT IS THE LINUX HALF OF THE STANDING RULING being a measurement rather
+     * than a claim: Linux is the verification platform, macOS and Windows are
+     * configuration. Nothing here has ever built or signed either of those.
+     *
+     * IT COSTS ~2 min and takes the shared browser mutex once. The build is the
+     * expensive half; a FIRST build on a cold box also downloads the Electron
+     * zip, `appimagetool` and `fpm`, which is the one non-preflight SKIP the
+     * suite has and it is narrow — nothing produced AND a resolver error in the
+     * transcript. A build that RAN and rejected our configuration is a FAIL: the
+     * first Linux build on this box failed that way, with the AppImage already
+     * written and the deb missing, so assertion 1 is a SET over both targets.
+     *
+     * IT SKIPS, RATHER THAN FAILS, without electron-builder, the 109 MB of
+     * weights, the ONNX Runtime drop, `xvfb-run` or `flock`. Each is named in
+     * the SKIPPED line, and `--strict` turns every one of them into exit 2.
      */
   },
   {

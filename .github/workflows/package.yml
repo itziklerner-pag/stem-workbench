@@ -34,7 +34,21 @@
 name: package
 
 on:
+  # WINDOWS SIGNING IS AN INPUT THAT DEFAULTS OFF, and that is seed §14's
+  # decision rather than an oversight: Windows betas are UNSIGNED and testers
+  # click through SmartScreen until a certificate exists. The signed path is
+  # `npm run dist:win:signed`, which merges `win.azureSignOptions` on the
+  # command line — it is NOT in `package.json`'s `build.win`, because
+  # `app-builder-lib/out/winPackager.js:35` switches to the Azure signer the
+  # moment that key exists and its `initialize()` runs PowerShell
+  # `Install-Module TrustedSigning` unconditionally. A block sitting in the
+  # config would therefore break every unsigned beta build. docs/UPDATES.md §3.
   workflow_dispatch:
+    inputs:
+      windows_signing:
+        description: 'Sign the Windows build with Azure Trusted Signing (needs AZURE_* secrets; NEVER USED — no certificate exists)'
+        type: boolean
+        default: false
   push:
     tags: ['v*']
 
@@ -85,6 +99,11 @@ jobs:
         shell: bash
         run: node tools/verify.mjs --only vendor-intact --strict
 
+      # THE ONLY BUILD ANYBODY HAS EVER RUN IS THE LINUX ONE, and it was run on a
+      # workstation rather than here: `node tools/verify.mjs --only dist-linux`
+      # builds the AppImage and the deb and then LAUNCHES the AppImage. This job
+      # has still never run on any runner, so the two lines below are the macOS
+      # and Windows half of the pass condition and remain configuration.
       - name: package
         shell: bash
         env:
@@ -96,7 +115,19 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run dist
+          # ABSENT IN THIS REPOSITORY. Azure Trusted Signing needs Microsoft
+          # Entra credentials for `Invoke-TrustedSigning`; with none of them the
+          # signed path cannot run, which is why it is behind an input that
+          # defaults to false and why the default path produces an UNSIGNED exe.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          if [ "${{ inputs.windows_signing }}" = "true" ] && [ "${{ runner.os }}" = "Windows" ]; then
+            npm run dist:win:signed
+          else
+            npm run dist
+          fi
 
       # ARTIFACTS, NOT A RELEASE. Standing ruling: this project never creates a
       # GitHub Release from automation. Somebody downloads these, runs them, and

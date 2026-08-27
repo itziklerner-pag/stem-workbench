@@ -45,6 +45,21 @@ function paintArm(armed) {
     : 'Arm this Source — the same gesture as Source → Arm this Source';
 }
 
+/**
+ * THE TOGGLE FOLLOWS THE PUSH, NOT THE CLICK — the same rule as `paintArm`.
+ *
+ * `null` (before `createUpdateCheck()` has run, or when `main` refused the
+ * gesture) paints INDETERMINATE rather than unchecked, because unchecked is a
+ * statement — "auto-update is off" — and a bar that made that statement while
+ * the app had not decided yet would be telling the user their security updates
+ * were disabled when they are not.
+ */
+function paintAutoUpdate(on) {
+  const el = $('autoupdate');
+  el.indeterminate = on === null || on === undefined;
+  el.checked = on === true;
+}
+
 function render(s) {
   $('source').textContent = short(s.sourceUrl);
   $('source').title = s.sourceUrl || '';
@@ -53,6 +68,7 @@ function render(s) {
     ? `coi=${s.engine.coi} sab=${s.engine.sab}`
     : 'starting…';
   paintArm(s.armed === true);
+  paintAutoUpdate(s.autoUpdate === undefined ? null : s.autoUpdate);
   const last = s.refusals && s.refusals.length ? s.refusals[s.refusals.length - 1] : null;
   lastPushed = last ? `refused: ${short(last.url)} — ${last.why}` : '';
   $('refusal').textContent = lastPushed;
@@ -83,9 +99,36 @@ if (window.__wbChrome) {
       b.disabled = false;
     }
   });
+
+  /**
+   * THE AUTO-UPDATE GESTURE. `change`, not `click`, so the keyboard reaches it.
+   *
+   * THE ANSWER IS PAINTED, INCLUDING THE ONE THAT DISAGREES WITH THE CLICK.
+   * `main` ANDs the stored preference with the command line, so under `--gate`
+   * a user who ticks the box gets `autoUpdate: false` back — the preference is
+   * recorded and the check still does not run. Painting the click instead of the
+   * answer would show a tick over an app that is not checking, which is the
+   * dead-control failure this file's header is about.
+   */
+  $('autoupdate').addEventListener('change', async () => {
+    const el = $('autoupdate');
+    const want = el.checked;
+    el.disabled = true;
+    try {
+      const r = await window.__wbChrome.setAutoUpdate(want);
+      paintAutoUpdate(r && r.ok ? r.autoUpdate : null);
+      if (r && r.ok === false) $('refusal').textContent = r.message || 'the auto-update toggle was refused';
+    } catch (err) {
+      paintAutoUpdate(null);
+      $('refusal').textContent = `auto-update failed: ${(err && err.message) || err}`;
+    } finally {
+      el.disabled = false;
+    }
+  });
 } else {
   // A missing bridge is a wiring failure, and it is worth being loud about
   // rather than rendering an empty bar that looks like "no source yet".
   $('refusal').textContent = 'no host bridge — preload/chrome.cjs did not run';
   $('arm').disabled = true;
+  $('autoupdate').disabled = true;
 }

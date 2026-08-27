@@ -382,7 +382,16 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
  * another process — not about a status code the app could have invented.
  */
 const FAKE_TAG = 'v0.0.0-fake-from-the-p1-host';
-const host = await startP1Host([UPDATE_HOST, BAD_HOST], { tag_name: FAKE_TAG });
+/**
+ * AN ARRAY, because `UPDATE_PATH` is the LIST endpoint. `/releases/latest`
+ * answered a single object and could never return a pre-release (GitHub defines
+ * it as the newest NON-prerelease), so `src/main/update.js` reads the list and
+ * `pickRelease()` makes the channel decision. The fixture is a PRE-RELEASE for
+ * that reason: the tag only comes back if the beta channel really offered one,
+ * so this transcript is evidence about the channel as well as about the host.
+ */
+const host = await startP1Host([UPDATE_HOST, BAD_HOST],
+  [{ tag_name: FAKE_TAG, draft: false, prerelease: true, published_at: '2026-08-26T00:00:00Z' }]);
 /**
  * THE SECOND WITNESS, AND IT IS DELIBERATELY DUMB — `tools/p1-sink.mjs`.
  *

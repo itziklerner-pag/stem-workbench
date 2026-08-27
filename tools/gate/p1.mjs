@@ -127,7 +127,7 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   // ---------------------------------------------------- A. the update check
   // It was fired at the end of `boot()`. Awaiting the promise `main` kept is
   // what makes this deterministic rather than a sleep.
-  R.update = { url: state.update.url, host: state.update.host, enabled: state.update.enabled };
+  R.update = { url: state.update.url, host: state.update.host, enabled: state.update.isEnabled() };
   try { R.update.result = await state.updateCheck; } catch (e) { R.update.result = { THREW: String(e && e.message) }; }
   R.update.stats = state.update.stats();
 
