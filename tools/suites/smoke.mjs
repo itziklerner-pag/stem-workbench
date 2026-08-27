@@ -641,7 +641,14 @@ const deckDuties = Object.keys(DECK_HOST_DUTIES).length
 ok('assertHost accepted both halves of the Host: the deck reached module scope and the engine is on the bus  '
   + '[entry point: assertHost() at ui/embed.js and offscreen/engine.js module scope]',
   before.embed === 'object' && engineAlive
-  && A(O(deckHostKeys).keys).length === Object.keys(DECK_HOST_DUTIES).length + 2,
+  /**
+   * THE SIX DUTIES, THE TWO NAMESPACES, AND ONE FACT. `page` and `transport`
+   * are namespaces rather than callables, which is the `+ 2`; `sourceKind` is
+   * the `+ 1` and is neither — `DECK_HOST_DUTIES` is FROZEN at v0.2.0, so a
+   * thing the Host offers cannot be added to it, and this counts the module's
+   * real shape rather than the frozen table's.
+   */
+  && A(O(deckHostKeys).keys).length === Object.keys(DECK_HOST_DUTIES).length + 3,
   O(deckHostKeys).THREW ? O(deckHostKeys).THREW
     : `deck: window.__embed is ${before.embed}, ui/host.js exports [${A(O(deckHostKeys).keys).join(' ')}] `
       + `= ${deckDuties} duties across three namespaces · engine: ${engineDuties} duties, and it `
