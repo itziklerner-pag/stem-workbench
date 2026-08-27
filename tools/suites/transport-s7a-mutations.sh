@@ -11,6 +11,11 @@
 # and nothing announces it — re-run this battery against final `main` before a
 # tag, and RE-DERIVE THE TABLE, not just the result (§26).
 #
+# FULL RUN 2026-08-27, bare, at `667964a`: all 19 cases ran, every measured red
+# set was EXACTLY its declaration — both ways, no extra and no missing —
+# coverage 19/19, 19 caught 0 missed, exit 0. The run is the §18 re-verification
+# of these anchors against the tree they ship in.
+#
 # WHY THIS IS NOT `tools/suites/transport-mutations.sh` WITH MORE CASES.
 # That battery checks that the DECLARED assertions went red and PRINTS the
 # others without failing. INTEGRATION.md §25 measured what that misses: coverage
