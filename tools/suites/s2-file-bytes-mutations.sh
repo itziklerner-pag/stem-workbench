@@ -43,14 +43,23 @@
 # §22):
 #
 #   case 42        src/main/files.js          cut against 6c35580 (LANDED)
-#   cases 43,44    src/main/assets.js         cut against this slice's own commit
-#   cases 45,48    src/main/protocol.js       cut against this slice's own commit
-#   case 46        src/main/main.js           cut against this slice's own commit
-#   case 47        tools/gate/probe.mjs       cut against this slice's own commit
+#   cases 43,44    src/main/assets.js         cut against d14909d (this slice, rebased)
+#   cases 45,48    src/main/protocol.js       cut against d14909d (this slice, rebased)
+#   case 46        src/main/main.js           cut against d14909d (this slice, rebased)
+#   case 47        tools/gate/probe.mjs       cut against d14909d (this slice, rebased)
 #
-# WHEN THIS SLICE LANDS, re-point the five at the landing commit and RE-RUN —
-# §18: a battery is only valid against the source it was cut for, and this one
-# has not yet met a `main` it did not write.
+# FULL RUN 2026-08-27 (integration), bare: the battery's own verdict — all
+# seven cases produced EXACTLY their declared red set, both ways, every anchor
+# still matching, exit 0. That is the §18 re-verification of these anchors
+# against the tree they ship in, and the five that patch this slice's code are
+# stamped with the commit they land as.
+#
+# THE FIRST STAMP OF THIS BATTERY DID NOT EARN ITS CLAIM — its baseline gate
+# grepped the child's ANSI-coloured transcript for `^  green`, which can never
+# match (`  <ESC>[32mgreen…`), so no run had ever reached the per-case loop.
+# The gate now reads the plain verdict line of the baseline log — the same
+# artifact the child's own `run_suite` gate reads. The run this paragraph is
+# attached to is the first full run this battery has ever completed.
 #
 #   tools/suites/s2-file-bytes-mutations.sh          # all seven
 #   tools/suites/s2-file-bytes-mutations.sh 42 46    # only these
@@ -59,6 +68,27 @@
 # it still carries the guard and the trap, because it is `shell-mutations.sh`'s
 # edits that are standing while it waits, and a signal here must put them back.
 set -uo pipefail
+
+# THE ID VALIDATOR, BEFORE anything costs anything — the child battery's
+# launch, the baseline, the `rm -rf "$OUT"`. A typo must not drive the child
+# through its lock queue and a windowed launch to print nothing (the incident
+# is measured in `shell-mutations.sh`'s header and pinned by void-canary's
+# positional check). THE KNOWN SET IS READ OUT OF THIS FILE'S `ALL=(...)`
+# LINE, so it cannot go stale as cases are added, and it makes NO ASSUMPTION
+# ABOUT THE SHAPE OF AN ID. `-*` is skipped so flags pass through to the
+# parsing below untouched.
+_CASE_KNOWN=$(grep -oE '^ALL=\([0-9 ]*\)' "$0" | tr -cd '0-9 ')
+_CASE_BAD=''
+for _c in "$@"; do
+  case "$_c" in -*) continue ;; esac
+  case " $_CASE_KNOWN " in *" $_c "*) ;; *) _CASE_BAD="$_CASE_BAD $_c" ;; esac
+done
+if [ -n "$_CASE_BAD" ]; then
+  echo "no such case:$_CASE_BAD" >&2
+  echo "known cases: $_CASE_KNOWN" >&2
+  echo "nothing ran, and the shared browser mutex was not taken." >&2
+  exit 2
+fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$ROOT"
@@ -136,12 +166,19 @@ bash "$HERE/shell-mutations.sh" "${CASES[@]}" > "$OUT/child.log" 2>&1 || child_c
 mg_release run
 echo "  ${C_D}child battery exit $child_code · full transcript out/s2-file-bytes-mutations/child.log${C_X}"
 
-if ! grep -q '^  green' "$OUT/child.log"; then
+# THE CHILD'S TRANSCRIPT IS ANSI-COLOURED — its green line is
+# `  <ESC>[32mgreen<ESC>[0m  shell: …`, so grepping the transcript for
+# `^  green` can never match, and every run of this battery voided itself
+# HERE before the per-case loop (measured 2026-08-27: exit 2, seven runs'
+# worth of child evidence discarded). Gate on the plain verdict line of the
+# baseline log — the same artifact the child's own `run_suite` gate reads
+# (`shell: N passed, 0 failed`, tail -1 by the child's own construction).
+if ! grep -qE '^shell: [0-9]+ passed, 0 failed$' "$CHILD_OUT/baseline.log"; then
   echo "${C_R}THE BASELINE WAS NOT GREEN${C_X} — nothing below would prove anything."
-  tail -25 "$OUT/child.log"
+  tail -20 "$CHILD_OUT/baseline.log"
   exit 2
 fi
-echo "  ${C_G}baseline green${C_X}  $(grep -m1 '^  green' "$OUT/child.log")"
+echo "  ${C_G}baseline green${C_X}  $(tail -1 "$CHILD_OUT/baseline.log")"
 
 ran=0; bad=0
 for n in "${CASES[@]}"; do
