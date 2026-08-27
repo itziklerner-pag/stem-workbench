@@ -69,7 +69,7 @@ set -uo pipefail
 #
 # `-*` is skipped so flags (`--static`, and anything a battery adds) pass through
 # to the parsing below untouched.
-_CASE_KNOWN=$(grep -oE '^(mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
+_CASE_KNOWN=$(grep -oE '^(mutate_case_exact|mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
 _CASE_BAD=''
 for _c in "$@"; do
   case "$_c" in -*) continue ;; esac
@@ -99,7 +99,6 @@ MG_BATTERY='smoke-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
 mg_begin
-rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
@@ -110,6 +109,11 @@ caught=0; missed=0; ran=0
 # literal that let two lines of work queue on two different files and then race
 # each other on `xvfb-run -a`. `void-canary` goes red if this comes back.
 LOCK="$(node "$ROOT/tools/lib/locks.mjs" browser)"
+if [ "${MUT_DRY:-0}" = "1" ]; then
+  # ANCHORS ONLY (see `mutate_case`): nothing is launched, so nothing needs the
+  # display, the mutex, or this battery's backup directory.
+  echo "${C_D}MUT_DRY=1 — anchors only; no mutex, no wipe, no baseline, no launches${C_X}"
+else
 exec 9>"$LOCK"
 echo "${C_D}waiting for the shared browser mutex ($LOCK)…${C_X}"
 if ! flock 9; then echo "${C_R}could not take $LOCK${C_X}"; exit 2; fi
@@ -123,6 +127,8 @@ export STEM_WORKBENCH_BROWSER_LOCK_HELD=1
 # `cp: cannot stat …/4.host.js.bak`. Measured, on the run that produced the table
 # in `smoke.mjs`'s header. Nothing under `$OUT` is touched until this process owns
 # the box.
+rm -rf "$OUT"; mkdir -p "$OUT"
+fi
 
 # ------------------------------------------------- restore on the way out
 # `CUR_FILES` is the case in flight. A battery killed between the edit and the
@@ -175,6 +181,20 @@ summary_of() {
   else printf '%s' "${C_R}NO SUMMARY — the run did not reach its own last line${C_X}"; fi
 }
 
+# THE TWO-WAY FORM. `mutate_case` requires every DECLARED assertion to go red and
+# PRINTS how many others did without failing on it. That is a claim about a
+# subset, and it cannot see coverage MIGRATING between mutations: an assertion
+# that stops being reachable by the mutation written for it and starts being
+# reached by another leaves the union unchanged, every count identical, and
+# `coverage.py` green — measured in this build, on a real loss.
+#
+# So `mutate_case_exact` fails the case if the FAIL set differs in EITHER
+# direction. The chrome-bar File-control cases use it; the cases above are left
+# as they are, because retro-fitting exactness means declaring red sets nobody
+# has measured, which is the thing this form exists to refuse.
+EXACT=0
+mutate_case_exact() { EXACT=1; mutate_case "$@"; EXACT=0; }
+
 # `case N "label" "file[,file...]" "expect1|expect2" -- edits...`
 mutate_case() {
   local n="$1" label="$2" files="$3" expect="$4"; shift 4
@@ -187,6 +207,42 @@ mutate_case() {
 
   local IFS=','; local -a flist=($files); unset IFS
   local f
+  # ------------------------------------------------------------- ANCHORS ONLY
+  # `MUT_DRY=1` answers ONE of the two questions this battery answers, in
+  # milliseconds instead of thirteen minutes: does every anchor still MATCH the
+  # source it was cut against?
+  #
+  # THE TWO ARE DIFFERENT FINDINGS AND NEED OPPOSITE RESPONSES. An anchor that no
+  # longer matches is a DECAYED INSTRUMENT — re-cut it. A mutation that matches
+  # and no longer REDS is either decay or a REAL COVERAGE LOSS, and must be
+  # investigated before it is re-cut. A pass count collapses both into one
+  # number, which is how ten dead anchors in this build read as "44 of 51".
+  #
+  # It edits COPIES in a temp tree and touches nothing under $ROOT: no sentinel,
+  # no mutex, no restore, no launch. Run it before any tag, and after any slice
+  # that rewrites a file this battery patches.
+  if [ "${MUT_DRY:-0}" = "1" ]; then
+    local tmp; tmp="$(mktemp -d)"; local a_ok=1; local rel
+    for rel in "${flist[@]}"; do
+      mkdir -p "$tmp/$(dirname "$rel")"; cp "$ROOT/$rel" "$tmp/$rel"
+    done
+    while [ "$#" -ge 3 ]; do
+      if ! edit "$tmp/$1" "$2" "$3" 2>/dev/null; then
+        echo "  ${C_R}ANCHOR MOVED${C_X}  $1  ${C_D}${2:0:80}${C_X}"
+        a_ok=0
+      fi
+      shift 3
+    done
+    rm -rf "$tmp"
+    if [ "$a_ok" -eq 1 ]; then
+      echo "  ${C_G}anchors match${C_X}  (whether it still REDS is the other question, and this did not ask it)"
+      caught=$((caught + 1))
+    else
+      missed=$((missed + 1))
+    fi
+    return 0
+  fi
+
   local -a mg_pairs=()
   for f in "${flist[@]}"; do cp "$ROOT/$f" "$OUT/$n.$(basename "$f").bak"; mg_pairs+=("$f=$OUT/$n.$(basename "$f").bak"); done
   # THE SENTINEL GOES DOWN BEFORE THE FIRST EDIT AND COMES UP ONLY ONCE THE
@@ -231,6 +287,23 @@ mutate_case() {
       ok=0
     fi
   done
+  # THE OTHER DIRECTION, for the cases that declare it: a red nobody expected is
+  # as much a finding as a green nobody expected.
+  if [ "$EXACT" -eq 1 ]; then
+    local line matched
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      matched=0
+      for w in "${wants[@]}"; do
+        case "$line" in (*"$w"*) matched=1; break;; esac
+      done
+      if [ "$matched" -eq 0 ]; then
+        echo "  ${C_R}UNDECLARED RED${C_X}  ${line:0:120}"
+        ok=0
+      fi
+    done < <(fails_of "$log")
+    [ "$ok" -eq 1 ] && echo "  ${C_G}exact${C_X}  the FAIL set is exactly the declared set, in both directions"
+  fi
   if [ "$code" -eq 0 ]; then
     echo "  ${C_R}MISS${C_X}   the suite exited 0 under the mutation"
     ok=0
@@ -246,7 +319,9 @@ ONLY=("$@")
 
 # ------------------------------------------------- 0. green before mutating
 echo "${C_D}=== baseline — the suite must be GREEN before anything is broken${C_X}"
-if ! run_suite "$OUT/baseline.log"; then
+if [ "${MUT_DRY:-0}" = "1" ]; then
+  echo "  ${C_D}skipped — anchors only${C_X}"
+elif ! run_suite "$OUT/baseline.log"; then
   echo "${C_R}BASELINE IS RED${C_X} — nothing below would prove anything. Last lines:"
   tail -20 "$OUT/baseline.log"
   exit 2
@@ -520,6 +595,57 @@ mutate_case 24 "the anonymous VERDICT throws — the app must survive it, and th
 "    throw new Error('the anonymous verdict is broken');"
 
 # ==========================================================================
+# 25-28  THE CHROME BAR'S FILE CONTROLS AND THE PROGRESS RELAY (slice S8a)
+#
+# Cut against stem-workbench `d10bfad`. All four declare their red set in BOTH
+# directions — see `mutate_case_exact`.
+#
+# THE NATIVE CHOOSER IS NOT DRIVEN HERE. `tools/suites/export.mjs` is the suite
+# with `xdotool` and a bus-less launch; these four are the half it cannot see
+# from inside the app. Case 26 is the one that would reach `showOpenDialog` if
+# the guard it breaks were the wrong one — and on this box a portal-less dialog
+# never settles and no window maps, so the run goes RED on a poll rather than
+# wedging on a modal nobody can answer.
+# ==========================================================================
+mutate_case_exact 25 "the bar's Open file… control ships \`disabled\`" \
+  "src/renderer/chrome.html" \
+  "the chrome bar carries BOTH File gestures, present, ENABLED and wired to the bridge" \
+  -- src/renderer/chrome.html \
+'<button id="source-file" title=' \
+'<button id="source-file" disabled title='
+
+# A CONTROL THAT REFUSES AND WILL NOT SAY WHY is the dead control one step
+# removed: something happened, and nothing on screen says what is missing.
+mutate_case_exact 26 "the no-source refusal loses its name and its sentence" \
+  "src/main/main.js" \
+  "pressing Export with nothing loaded is REFUSED BY NAME on the bar" \
+  -- src/main/main.js \
+"      return { ok: false, code: 'no-source',
+        message: 'nothing is loaded to export — choose an audio file first' };" \
+"      return { ok: false };"
+
+# THE RELAY THAT STOPPED RELAYING. Nothing else in the app notices: the deck
+# still gets its STATE, the engine still works, and the bar simply says nothing
+# about a separation that is running.
+mutate_case_exact 27 "the progress relay never stores what the engine reported" \
+  "src/main/main.js" \
+  "separation progress on the bar is the ENGINE's own report, relayed" \
+  -- src/main/main.js \
+"    lastProgress = line;
+    state.progress = next;" \
+"    lastProgress = line;"
+
+# AND THE HALF THAT MAKES THE RELAY WORTH SHOWING. `from` is a field in an
+# envelope a renderer wrote; without the sender check the DECK can tell the bar
+# that a separation is ninety per cent done.
+mutate_case_exact 28 "the tap believes \`from\` instead of the sender" \
+  "src/main/main.js" \
+  "...and a STATE that did not come from the ENGINE's own renderer is ignored" \
+  -- src/main/main.js \
+"    if (!eng || sender !== eng) return;" \
+"    if (!eng) return;"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
 # "19 mutations were caught" is not the claim worth making. The claim is that NO
@@ -527,6 +653,16 @@ mutate_case 24 "the anonymous VERDICT throws — the app must survive it, and th
 # turned red is an assumption wearing an `ok`, and it is invisible from inside a
 # green run. Runs only for a FULL battery; a subset cannot make the claim.
 cover=0
+if [ "${MUT_DRY:-0}" = "1" ]; then
+  echo
+  echo "${C_D}MUT_DRY=1 — anchors only, so nothing is claimed about coverage or about reds${C_X}"
+  if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ]; then
+    echo "${C_G}all $caught of $ran anchors still match the source${C_X}"
+    exit 0
+  fi
+  echo "${C_R}$missed of $ran cases have an anchor that no longer matches${C_X} — decayed instruments, re-cut them."
+  exit 1
+fi
 if [ "${#ONLY[@]}" -eq 0 ]; then
   echo
   python3 "$HERE/coverage.py" "$OUT" || cover=1

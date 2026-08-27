@@ -117,12 +117,14 @@
  * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux. The right column is what
  * ACTUALLY went red, not what was expected to.
  *
- * Two lanes. Cases 1-11 and 34 and 36 run `EXPORT_ONLY=pure` and take under a
- * second each; cases 12-33 and 35 are the whole suite, which is two real
- * launches with a real native chooser answered in each. Cases 24-27 run the
+ * Two lanes. Cases 1-11, 40 and 42 run `EXPORT_ONLY=pure` and take under a
+ * second each; cases 12-39 and 41 are the whole suite, which is two real
+ * launches with a real native chooser answered in each. Cases 30-33 run the
  * whole suite ON PURPOSE: their mutations (the plan's G1, G2a and G2b-path)
  * must also redden the IN-THE-APP assertions, not just the pure ones — a
- * launched assertion with no launched watcher is a coverage gap.
+ * launched assertion with no launched watcher is a coverage gap. Cases 24-29
+ * are the chrome bar's File controls (slice S8a) and declare their red sets
+ * in BOTH directions (`mutate_case_exact`).
  * `tools/suites/coverage.py` over the whole battery refuses an assertion that
  * has never appeared on a FAIL line.
  *
@@ -162,37 +164,51 @@
  *      calling the dialog                                 chooser (the count alone stays at 1)
  *  23  files.js rememberedFolder: drop the statSync     -> ...and a remembered folder that has
  *      directory check (issue #6's branch)                been DELETED is not used
- *  24  files.js encodeWav call: bitDepth 16              -> G1: the header assertion goes red (the
+ *  24  gate/export.mjs: `{ pressed: true }` without     -> INSTRUMENT CHECK: every gesture below
+ *      the `was` (slice S8a)                               is a PRESS on a LIVE control
+ *  25  chrome.html: `#export` ships `disabled`           -> ...and a dead control takes EVERY
+ *      (slice S8a, the defect this suite was               count to zero — the pair to 24, in
+ *      rewired to see)                                     the shape of 16 and 22
+ *  26  main.js: the `no-source` refusal loses its        -> pressing Export with nothing loaded
+ *      code and its sentence (slice S8a)                   is REFUSED BY NAME on the bar
+ *  27  main.js: hand the bar the whole record +          -> ...and the bar was told the title and
+ *      chrome.js: print the path (slice S8a)               the MIME and NEITHER the path NOR the
+ *                                                          token
+ *  28  main.js: never draw the destination               -> ...and the bar SHOWS where the stems
+ *      (slice S8a)                                         go, having said `—` before
+ *  29  main.js: never read the remembered folder         -> ...and the bar carries it at BOOT,
+ *      at boot (slice S8a)                                 before any gesture in that run
+ *  30  files.js encodeWav call: bitDepth 16              -> G1: the header assertion goes red (the
  *      (the plan's G1 mutation, at the call site)          writer refuses, so there is no file)
- *  25  files.js exportStems: multiply by 0.9             -> G2a: the byte-identical assertion
- *  26  files.js exportStems ENCODING loop:              -> G2a: the byte-identical assertion —
+ *  31  files.js exportStems: multiply by 0.9             -> G2a: the byte-identical assertion
+ *  32  files.js exportStems ENCODING loop:              -> G2a: the byte-identical assertion —
  *      write `bass`'s planes under `drums`'s              the file NAMED drums holds bass's
  *      name (the ENCODING loop, three lines deep —         planes, and the names still match
  *      the validation loop above it is NOT the target:
  *      swapping the mapping inside THAT one is
  *      unobservable and was measured green)
- *  27  files.js exportStems: call sanitiseTitle(..)      -> G2b-path: the escape lands OUTSIDE the
+ *  33  files.js exportStems: call sanitiseTitle(..)      -> G2b-path: the escape lands OUTSIDE the
  *      removed                                              chosen folder, on disk
- *  28  files.js exportStems: return the refusal          -> the writer's cancelled-picker refusal
+ *  34  files.js exportStems: return the refusal          -> the writer's cancelled-picker refusal
  *      instead of throwing                                  must be a THROW, never an empty result
- *  29  files.js writeSink: write nothing                 -> the sink's bytes-on-disk assertions
- *  30  files.js openSink: accept files: [] +             -> ...and an EMPTY plan is refused at the
+ *  35  files.js writeSink: write nothing                 -> the sink's bytes-on-disk assertions
+ *  36  files.js openSink: accept files: [] +             -> ...and an EMPTY plan is refused at the
  *      host.js exportSink: drop the shape check            seam, never an empty map
- *  31  files.js openSink: drop the name validation       -> ...and a name that is not a plain file
+ *  37  files.js openSink: drop the name validation       -> ...and a name that is not a plain file
  *                                                           name is refused, with no file outside
- *  32  files.js openSink: drop the already-open check    -> a second session cannot open while one
+ *  38  files.js openSink: drop the already-open check    -> a second session cannot open while one
  *                                                           is live (the replaced session's close
  *                                                           throws inside the duty; the suite
  *                                                           reads it as data — measured crash,
  *                                                           2026-08-27)
- *  33  files.js openSink: open only SOME of the files    -> the sink opens EVERY file of the plan
+ *  39  files.js openSink: open only SOME of the files    -> the sink opens EVERY file of the plan
  *                                                           (five of six would be called done)
- *  34  files.js writeSink: drop the unknown-file check   -> the combined second-session-and-
+ *  40  files.js writeSink: drop the unknown-file check   -> the combined second-session-and-
  *                                                           chunk assertion goes red
- *  35  host.js exportSink: never throw on a refused      -> the refused sink open is a THROW, not
+ *  41  host.js exportSink: never throw on a refused      -> the refused sink open is a THROW, not
  *      open (the throw is skipped, streams go out)         an empty map (the contract's one shape
  *                                                           that cannot be returned)
- *  36  host.js exportSink: validate nothing about the    -> ...and the same at the seam, for an
+ *  42  host.js exportSink: validate nothing about the    -> ...and the same at the seam, for an
  *      plan + files.js openSink: accept files: []          empty plan driven through the duty
  *
  * CASES 16 AND 22 ARE THE PAIR THAT KEEPS THE OTHERS HONEST, and they fail in

@@ -1656,15 +1656,16 @@ launch half cannot test late binding at all.
 
 ## 5f. `export` — file intake, the export writer, and the folder chosen once
 
-`tools/suites/export.mjs`, 44 assertions, `window`. **The only suite anywhere in
-this repository that answers a native operating-system dialog.**
+`tools/suites/export.mjs`, 31 assertions, `window`. **The only suite anywhere in
+this repository that answers a native operating-system dialog** — and it reaches
+that dialog by pressing the app's own controls.
 
-Eighteen of the forty-four need no display at all — the extension/MIME
+Eighteen of the thirty-one need no display at all — the extension/MIME
 allowlist, the title derivation, the one-shot path tokens, the writer's own
 bytes (the pure half of G1, G2a and G2b-path, re-derived by the suite with
 plain `Buffer` ops against the vendored encoder) and the sink session are plain
 functions in `src/main/files.js`, which keeps no `electron` import for the
-reason `src/main/claims.js` keeps none. The other twenty-six come out of **two
+reason `src/main/claims.js` keeps none. The other thirteen come out of **two
 real launches of `electron .` sharing one profile**.
 
 ### The dialog is never stubbed, and that is a requirement rather than a taste
@@ -1689,12 +1690,45 @@ The first launched assertion is the instrument check that makes the rest mean
 anything: the intake the running app is holding compares equal, by identity, to
 `electron`'s own `dialog`. Its mutation (case 16) builds the intake over a
 *wrapper* that still opens the real dialog, so every count stays correct and only
-that one assertion notices — measured `43 passed, 1 failed` over the full
-forty-four-assertion suite (the `21 passed, 1 failed` figure dates from before
-the export writer landed). Its opposite (case 22) leaves the instrument alone and
+that one assertion notices. Its opposite (case 22) leaves the instrument alone and
 answers the folder without opening a picker at all, and the count alone stays at
 1. Neither of the two would have found the other, which is why both are in the
 battery.
+
+### Nor is the CONTROL stubbed — the probe presses, it does not call
+
+This suite used to call `ensureExportFolder()` and `chooseSourceFile()` from
+inside main, and said so on the record: *"nothing a user can press reaches the
+intake yet ... it is one step short of §5c's standard — it drives the real
+interface, not a private door — and the step that closes the gap is the export
+COMMAND, once there is one."*
+
+The command exists. `tools/gate/export.mjs` now finds `#source-file` and
+`#export` by id in the shipped markup and calls `click()` on them, in the app's
+own chrome renderer, through the real preload bridge and the real
+`ipcMain.handle`s.
+
+**Why it was worth rewiring for, in one sentence:** `HTMLElement.click()` on a
+disabled button does nothing at all, so a control that ships `disabled`, is not
+wired, or does not exist now takes every count in the suite to zero. The old
+shape could not see any of those — which is exactly how the chrome bar's Arm
+button shipped `disabled`, with a "not built yet" tooltip, for a whole wave after
+arming worked, while every gate that called `arm()` stayed green. An auditor
+found it by clicking.
+
+There is therefore a SECOND instrument beside the dialog one: every gesture
+records whether the control it pressed was enabled, at the moment of the press,
+rather than leaving a zero count to be read as "it did not ask". Case 24 takes
+that record away and only the instrument notices; case 25 ships `#export`
+`disabled` and twelve assertions go red at once. They are the pair, in the shape
+of 16 and 22.
+
+**A third machine fact comes with pressing:** a native chooser is modal to the
+window, and that grabs INPUT — it does not stop a renderer running script. So
+`click()` lands while a chooser is up, which is what makes "a second export joins
+the first ask" drivable from the control rather than from the function behind
+it. `#export` deliberately does not disable itself in flight for that reason;
+`#arm` does, because a second click there means the opposite gesture.
 
 ### Three machine facts, measured, because each one costs an afternoon
 
@@ -1723,53 +1757,61 @@ battery.
 | the allowlist | every extension `SOURCE_TYPES` declares is admitted in either case; everything else is refused, including `track.wav.txt` and a file named `.wav`; every admitted extension has a MIME of its own and the picker's filter names the same set |
 | the title | it is the file's own name without its directory or its last extension; and it can never BE a path — no separator, traversal, control byte, reserved device name or trailing dot survives, and joining any of a 22-entry adversarial table to the chosen folder resolves to a child of it |
 | the path token | one shot, so a replay is refused as `unknown-token`; expired on an injected clock is a different answer from never-minted; `revokeAll` drops every live one |
-| the instrument | the intake holds electron's own `dialog`; a launch on its own asks for nothing |
-| **G3** | the first export opens the real chooser and is answered; the options are a folder picker that may create one; a second export while the chooser is up JOINS that ask rather than stacking a second modal; **the folder is asked exactly once across two consecutive exports**, and export #2 resolves to the remembered folder with no chooser |
-| **G4** | **the remembered folder survives a restart** — a second launch on the same profile asks zero times — and it is the same folder, out of the `local` area, with `session` empty; and a folder DELETED behind the app's back is not used: it asks again, with reason `gone`, and takes the new answer (issue #6) |
+| the instruments | the intake holds electron's own `dialog`; every gesture below is a PRESS on an ENABLED control in `app://workbench/chrome.html`; a launch on its own asks for nothing |
+| the refusal that asks nothing | pressing Export with nothing loaded is refused BY NAME on the bar (`no-source`), and neither picker opens — measured FIRST, because after a folder is chosen the ask count stops moving anyway |
+| **G3** | pressing Export opens the real chooser and is answered; the options are a folder picker that may create one; a second PRESS while the chooser is up JOINS that ask rather than stacking a second modal; **the folder is asked exactly once across two consecutive exports**, and export #2 resolves to the remembered folder with no chooser; and the bar SHOWS where the stems go, having said `—` before |
+| **G4** | **the remembered folder survives a restart** — a second launch on the same profile asks zero times — and it is the same folder, out of the `local` area, with `session` empty; the bar carries it at BOOT of that run, before any gesture; and a folder DELETED behind the app's back is not used: it asks again, with reason `gone`, and takes the new answer (issue #6) |
+| the file picker | pressing `Open file…` admits a real audio file, derives its title and mints a one-shot token that resolves over the running app's own registry; the bar is told the title and the MIME and NEITHER the path NOR the token; and a file the allowlist does not admit is refused BY NAME, on the bar, over that same chooser |
 | **G1** | the writer's header is bit-exact — fmt tag 3, 32-bit float, 44100 Hz, stereo, `fact` present, data = frames × 8 — asserted pure against the real vendored `encodeWav` AND on disk in the app: exports #1-#4 of the probe are all writer gestures now |
 | **G2a** | the six WAVs are byte-identical to the planes' own bytes, in `STEMS` order — no scaling, no dither, no normalisation — and the suite re-derives the expected bytes with plain `Buffer` ops, never calling `encodeWav` |
 | **G2b-path** | a title cannot escape the chosen folder ON DISK — `../../escape` resolves to a child of the chosen folder, proven by reading the bytes back |
 | the sink | the engine-facing export sink opens every file of a deliverable at once and streams chunks over the real preload bridge into main's append-only session; **a refused open is a THROW, never an empty map** (the user cancelling is the ordinary case); a second session cannot open while one is live, and a chunk cannot invent a file |
-| the file picker | it admits a real audio file, derives its title and mints a one-shot token that resolves over the running app's own registry; and a file the allowlist does not admit is refused BY NAME over that same chooser |
 
 ### Deliberately not asserted here
 
 - **THE PORTAL CHOOSER.** See §11.
-- **THE GESTURE IN FRONT OF THE DIALOG.** Nothing a user can press reaches the
-  intake yet, so the probe calls `ensureExportFolder()` and `chooseSourceFile()`
-  directly from inside main. That is the entry point the writer and the chrome
-  bar both use, and every assertion names it — but it is one step short of
-  §5c's standard. The writer has landed since that line was written, and exports
-  #1-#4 are all real writer gestures — but the export COMMAND, the chrome-bar
-  item a user actually presses, is its own slice and it is what closes the gap.
+- **THAT THE EXPORT ASKS FOR NOTHING WHEN IT REFUSES, watched from the app's
+  side.** The assertion carries the conjunct and the count is real, but the only
+  edit that makes the app ask there is an ordering change whose blast radius runs
+  the suite into two stacked native choosers — a case nobody can reason about is
+  worse than a named gap. What IS watched is that the refusal has a name and a
+  sentence (case 26), and that a dead control takes every count to zero (case 25).
 
 ### Watched red
 
-`tools/suites/export-mutations.sh`, 36 cases in two lanes: thirteen run
-`EXPORT_ONLY=pure` in under a second each (cases 1-11, 34, 36), twenty-three are
-the whole suite and take two real launches apiece. Cases 24-27 run the whole
-suite on purpose: their mutations are the plan's G1/G2a/G2b-path, and they must
-redden the IN-THE-APP assertions too, not only the pure ones — an in-app
-assertion with no launched watcher is a gap `tools/suites/coverage.py` exists to
-catch. `tools/suites/coverage.py` over the full battery refuses an assertion
-that has never appeared on a `FAIL` line. The suite's header block carries the
+`tools/suites/export-mutations.sh`, 42 cases in two lanes: thirteen run
+`EXPORT_ONLY=pure` in under a second each (cases 1-11, 40 and 42), twenty-nine
+are the whole suite and take two real launches apiece. Cases 30-33 run the
+whole suite on purpose: their mutations are the plan's G1/G2a/G2b-path, and
+they must redden the IN-THE-APP assertions too, not only the pure ones — an
+in-app assertion with no launched watcher is a gap `tools/suites/coverage.py`
+exists to catch. Cases 24-29 are the chrome bar's File controls and declare
+their red sets in BOTH directions (`mutate_case_exact`).
+`tools/suites/coverage.py` over the full battery refuses an assertion that has
+never appeared on a `FAIL` line. The suite's header block carries the
 case-by-case table.
-
-Two of the original cases are the plan's own, verbatim: **case 12** deletes the
 persisted-folder read and the count becomes 2 (G3), and **case 13** keeps the
 folder in the `session` area instead of `local` and the relaunch asks again (G4).
-So is **case 24**, the plan's G1 mutation at the writer's call site: `bitDepth:
+So is **case 30**, the plan's G1 mutation at the writer's call site: `bitDepth:
 16` at the `encodeWav` call, and the float encoder refuses — there is no file at
-all. Cases 24-27 run the whole suite, so the in-the-app G1/G2a/G2b-path
+all. Cases 30-33 run the whole suite, so the in-the-app G1/G2a/G2b-path
 assertions and the writer's G4 ("six real WAVs into the remembered folder after
 a restart") go red under them as well — previously they were pure-only, and a
 launched assertion with no launched watcher is exactly what `coverage.py`
 refuses.
 
+**Cases 24-29 declare their red set in BOTH directions** (`mutate_case_exact`): a
+red nobody declared fails the case, because that is how coverage MIGRATES from
+the mutation written for an assertion to one that was not — a loss the aggregate
+in `coverage.py` cannot see, since the union is unchanged. The earlier cases are
+deliberately left in the one-way form: retro-fitting exactness means declaring
+red sets nobody has measured, which is the thing the two-way form exists to
+refuse.
+
 ## 6. `smoke` — Playwright-for-Electron against a local fake player
 
-**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Measured:** 21
-assertions, ~40 s. **Falsified by:** `tools/suites/smoke-mutations.sh`, 22 cases.
+**File:** `tools/suites/smoke.mjs`. **Flags:** `window`. **Measured:** 26
+assertions, ~40 s. **Falsified by:** `tools/suites/smoke-mutations.sh`, 27 cases.
 
 Playwright drives Electron through its `_electron` API:
 
@@ -1901,12 +1943,27 @@ only a number that was in none of their names.
 | 16 | the deck painted **one fader per stem** — six `[data-stem]` strips, six `role="slider"` faders, each a stem the unit declares | the painted order and `STEMS` |
 | 17 | the `AudioContext` the engine opened for the capture is at **44100**, not the platform default | `STATE.boot.sampleRate`, over how many snapshots |
 | 18 | the whole run stayed on the box: every request either session made was local, **bar the one host P1′ names** — the update check, excluded from `src/main/update.js`'s own constant and counted on the line. The claim ABOUT that host is `p1`'s (§9); this is the cruder complement, and an update check is not wandering | the request count, any off-box URL, the count to the update host, the schemes seen |
+| 20 | the chrome bar carries **BOTH File gestures**, present, **ENABLED** and wired to the bridge, beside the three readouts they write to. A control that ships `disabled` is the defect this row exists for | each button's label and `disabled` flag, the two bridge members, the three readouts |
+| 21 | pressing Export with **nothing loaded** is refused **BY NAME** on the bar (`no-source`), with the sentence on the refusal line, and the destination readout does not move. A build that reached `showOpenDialog` here would draw nothing at all — on this box a portal-less dialog never settles — so this row goes red rather than the run wedging | the control's `data-outcome`, the refusal text, `#dest` |
+| 22 | **separation progress on the bar is the ENGINE's own report, relayed** — `state.job`'s chunk, chunks and pct off `offscreen/engine.js`, through `main`'s read-only bus tap. Nothing in this Host estimates anything. The envelope is the engine's OWN LAST STATE with one field moved, sent by the ENGINE's renderer through its own preload — the same trade as the two `SW_*` envelopes above, and for the same reason: a running job needs the 109 MiB weights | the drawn line, and the engine's own fields in the tooltip |
+| 23 | …and a `STATE` that did not come from the **engine's own renderer** is IGNORED — `from` is a field a renderer wrote, and a relay that trusted it would let the DECK tell the bar a separation was ninety per cent done. The tap keys on the `WebContents` the router received it on. The witness is a value only the spoof could produce (`chunks: 999`), not "the readout did not change", because the real engine may push at any moment | that the deck really received it, and what the bar still reads |
 | 19 | …and **the transport that ledger CANNOT see is gone from the main process**: a bare `fetch()` there is refused BY US, by name. Assertion 18's instrument is `session.webRequest`, a property of a Chromium session; undici in main never enters it, and an auditor proved that by injecting one line and watching this suite print `18 passed, 0 failed`. Port 9 is the discard port, so the ERROR'S NAME is what separates "refused by us" (`P1ViolationError`) from "refused by the kernel" (`TypeError`). `p1` §3.7 owns the full claim | the name `globalThis.fetch` now has, and what calling it threw |
 
 (3a and 3b run BEFORE the menu's arm, which is why they are lettered rather than
 renumbered: every number in this table is referenced from the mutation table
 below and from `smoke.mjs`'s own header, and renumbering eighteen rows to insert
-two is how a cross-reference quietly starts pointing at the wrong assertion.)
+two is how a cross-reference quietly starts pointing at the wrong assertion. Rows
+20-23 run LAST, after 18 and 19, for the same reason they are numbered after
+them: the `STATE` they put on the bus must not reach the deck before any row that
+reads the deck's painted surface.)
+
+**Rows 20-23 are the half `export` cannot see.** Both File gestures end in a
+native chooser, and answering one needs `xdotool` and a bus-less launch — §5f is
+the suite with both, and it presses these same two controls to drive the real
+dialog. What is left here is that the controls are on the bar and alive, that the
+one refusal reachable without a chooser is drawn, and that the progress relay is
+faithful and cannot be spoofed. Their mutations are cases 25-28, and all four
+declare their red set in **both** directions.
 
 **Assertions 4–7 and 14 are the ones `assertHost` structurally cannot make.**
 `VENDORING.md`: *"`assertHost` cannot check for a message nobody sent."* A Host
@@ -2002,11 +2059,21 @@ measures silence and **this suite cannot replace it**.
 
 ### Watched red
 
-`tools/suites/smoke-mutations.sh`, 22 cases, each declaring the assertion names
+`tools/suites/smoke-mutations.sh`, 27 cases (numbered 1-19 and 21-28; there is
+no 20), each declaring the assertion names
 it must turn red, with `tools/suites/coverage.py` over the whole battery refusing
 an assertion that has never been seen on a FAIL line. Most cases turn exactly one
 assertion red; the wide ones are 4 (six — the deck never boots at all), 7 (three)
 and 1, 5, 11, 21 (two each).
+
+**Cases 25-28 declare the set in BOTH directions** (`mutate_case_exact`): an
+UNDECLARED red fails the case. That is not extra rigour for its own sake — an
+aggregate coverage line is a claim about the UNION of every mutation, so coverage
+MIGRATING from the mutation written for an assertion to a different one leaves
+the union, the totals and `coverage.py` all unchanged. It was a real loss in this
+build, and the per-case declaration is the only instrument that sees it. The
+earlier cases stay one-way: declaring a red set nobody has measured is exactly
+what the two-way form exists to refuse.
 
 **Three of the assertions and three of the cases are repairs.** 21 puts the
 chrome bar's Arm button back to `disabled` — the state it SHIPPED in for a wave

@@ -4,19 +4,19 @@
 #
 # TWO LANES, AND THE SPLIT IS ABOUT COST RATHER THAN TIDINESS.
 #
-#   THE PURE LANE (cases 1-11 and 34 and 36 — thirteen cases) runs
+#   THE PURE LANE (cases 1-11, 40 and 42 — thirteen cases) runs
 #   `EXPORT_ONLY=pure node tools/suites/export.mjs` — the allowlist, the title
 #   derivation, the path tokens, the writer's own bytes and the sink session,
 #   in plain node, in under a second each. No display, no Electron, no mutex.
-#   Case 35 is NOT here: the refused-open throw lives in the vendored hole's
+#   Case 41 is NOT here: the refused-open throw lives in the vendored hole's
 #   DUTY, and the duty is driven through the whole app because the refusal
 #   happens at a real cancelled chooser.
 #
-#   THE LAUNCHED LANE (cases 12-33 and 35 — twenty-three cases) runs the whole suite, which is TWO
+#   THE LAUNCHED LANE (cases 12-39 and 41 — twenty-nine cases) runs the whole suite, which is TWO
 #   REAL LAUNCHES of the app sharing one profile, each opening the real GTK file
 #   chooser and having it answered with `xdotool`. That is about two minutes a
 #   case, and it queues on the shared browser mutex behind every other windowed
-#   run on this box. Budget for it. Cases 24-27 are here ON PURPOSE: the plan's
+#   run on this box. Budget for it. Cases 30-33 are here ON PURPOSE: the plan's
 #   G1/G2a/G2b-path mutations also have to redden the IN-THE-APP assertions,
 #   not just the pure ones — an in-app writer assertion with no launched watcher
 #   is the exact gap `coverage.py` measured, and the flipped cases close it.
@@ -32,7 +32,7 @@
 #
 #   tools/suites/export-mutations.sh            # all of them
 #   tools/suites/export-mutations.sh 12 13      # only these
-#   tools/suites/export-mutations.sh 1 2 3 4 5 6 7 8 9 10 11 34 36    # the pure lane
+#   tools/suites/export-mutations.sh 1 2 3 4 5 6 7 8 9 10 11 40 42    # the pure lane
 #
 # IT RESTORES ON SIGINT, SIGTERM AND SIGHUP, and its backups are keyed by the
 # WHOLE PATH rather than the basename — `tools/suites/export.mjs` and
@@ -62,7 +62,7 @@ set -uo pipefail
 #
 # `-*` is skipped so flags (`--static`, and anything a battery adds) pass through
 # to the parsing below untouched.
-_CASE_KNOWN=$(grep -oE '^(mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
+_CASE_KNOWN=$(grep -oE '^(mutate_case_exact|mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
 _CASE_BAD=''
 for _c in "$@"; do
   case "$_c" in -*) continue ;; esac
@@ -126,6 +126,28 @@ open(path, 'w').write(s.replace(old, new, 1))
 PY
 }
 
+fails_of() { grep -E '^FAIL' "$1" || true; }
+
+# THE TWO-WAY FORM, AND WHY IT EXISTS BESIDE THE ONE BELOW RATHER THAN REPLACING
+# IT.
+#
+# `mutate_case` requires every DECLARED assertion to go red and prints how many
+# others did. That is a claim about a SUBSET, and it cannot see coverage MIGRATING
+# between mutations: an assertion that stops being reachable by the mutation
+# written for it, and starts being reached by a different one, leaves the union
+# unchanged and every count identical. That is a real loss, measured in this
+# build, and `coverage.py` cannot see it either — the aggregate is a claim about
+# the union.
+#
+# So `mutate_case_exact` fails the case if the FAIL set differs in EITHER
+# direction: a declared assertion that did not go red, and a red one that was not
+# declared, are both findings. The cases added with the chrome bar's File
+# controls use it. THE CASES ABOVE ARE LEFT ALONE deliberately — retro-fitting
+# exactness to them means declaring red sets nobody has measured, and a
+# declaration nobody measured is the thing this form exists to refuse.
+EXACT=0
+mutate_case_exact() { EXACT=1; mutate_case "$@"; EXACT=0; }
+
 # `mutate_case N "label" "file[,file]" "runner" "expect …" -- edits…`
 mutate_case() {
   local n="$1" label="$2" files="$3" runner="$4" expect="$5"; shift 5
@@ -139,6 +161,45 @@ mutate_case() {
   local -a flist=()
   if [ -n "$files" ]; then local IFS=','; flist=($files); unset IFS; fi
   local f
+  # ------------------------------------------------------------- ANCHORS ONLY
+  # `MUT_DRY=1` answers ONE of the two questions a battery answers, and answers
+  # it in milliseconds instead of minutes: does every anchor still MATCH the
+  # source it was cut against?
+  #
+  # THE TWO ARE DIFFERENT FINDINGS AND NEED OPPOSITE RESPONSES. An anchor that no
+  # longer matches is a DECAYED INSTRUMENT — re-cut it. A mutation that matches
+  # and no longer REDS is either decay or a REAL COVERAGE LOSS, and must be
+  # investigated before it is re-cut. A battery that reports only a pass count
+  # collapses both into one number: that is how ten dead anchors in this build
+  # read as "44 of 51" rather than as ten instruments that had stopped pointing
+  # at anything.
+  #
+  # It edits COPIES in a temp tree and touches nothing under $ROOT, so it needs
+  # no sentinel, no mutex and no restore. Run it before any tag, and after any
+  # slice that rewrites a file this battery patches.
+  if [ "${MUT_DRY:-0}" = "1" ]; then
+    local tmp; tmp="$(mktemp -d)"; local a_ok=1; local rel
+    for rel in "${flist[@]:-}"; do
+      [ -n "$rel" ] || continue
+      mkdir -p "$tmp/$(dirname "$rel")"; cp "$ROOT/$rel" "$tmp/$rel"
+    done
+    while [ "$#" -ge 3 ]; do
+      if ! edit "$tmp/$1" "$2" "$3" 2>/dev/null; then
+        echo "  ${C_R}ANCHOR MOVED${C_X}  $1  ${C_D}${2:0:80}${C_X}"
+        a_ok=0
+      fi
+      shift 3
+    done
+    rm -rf "$tmp"
+    if [ "$a_ok" -eq 1 ]; then
+      echo "  ${C_G}anchors match${C_X}  (whether it still REDS is the other question, and this did not ask it)"
+      caught=$((caught + 1))
+    else
+      missed=$((missed + 1))
+    fi
+    return 0
+  fi
+
   if [ "${#flist[@]}" -gt 0 ]; then
     printf '%s\n' "${flist[@]}" > "$OUT/$n.paths"
     local -a mg_pairs=()
@@ -182,6 +243,24 @@ mutate_case() {
       ok=0
     fi
   done
+  # THE OTHER DIRECTION, for the cases that declare it. A red nobody expected is
+  # as much a finding as a green nobody expected: it is how coverage migrates
+  # from the mutation written for an assertion to one that was not.
+  if [ "$EXACT" -eq 1 ]; then
+    local line matched
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      matched=0
+      for w in "${wants[@]}"; do
+        case "$line" in (*"$w"*) matched=1; break;; esac
+      done
+      if [ "$matched" -eq 0 ]; then
+        echo "  ${C_R}UNDECLARED RED${C_X}  ${line:0:120}"
+        ok=0
+      fi
+    done < <(fails_of "$log")
+    [ "$ok" -eq 1 ] && echo "  ${C_G}exact${C_X}  the FAIL set is exactly the declared set, in both directions"
+  fi
   echo "  ${C_D}exit $code · $(tail -1 "$log" | cut -c1-120) · log out/export-mutations/$n.log${C_X}"
   if [ "$ok" -eq 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
 }
@@ -203,7 +282,9 @@ H='vendor/stem-splitter-live/extension/offscreen/host.js'
 # out of this log, so a baseline missing the launched half would quietly declare
 # thirteen assertions out of scope.
 echo "${C_D}=== baseline — the whole suite must be GREEN before anything is broken${C_X}  $(date +%H:%M:%S)"
-if ! eval "$FULL" > "$OUT/baseline.log" 2>&1; then
+if [ "${MUT_DRY:-0}" = "1" ]; then
+  echo "  ${C_D}MUT_DRY=1 — anchors only; no baseline, no launches, no coverage claim${C_X}"
+elif ! eval "$FULL" > "$OUT/baseline.log" 2>&1; then
   echo "${C_R}BASELINE IS RED${C_X} — nothing below would prove anything. Last lines:"
   tail -20 "$OUT/baseline.log"; exit 2
 fi
@@ -296,7 +377,7 @@ mutate_case 11 "revokeAll counts what it would drop and drops nothing" \
 "      const n = live.size;"
 
 # ==========================================================================
-# THE LAUNCHED LANE — 12-22. Two real launches each; budget two minutes.
+# THE LAUNCHED LANE — 12-23. Two real launches each; budget two minutes.
 # ==========================================================================
 # 12 AND 13 ARE THE PLAN'S OWN TWO MUTATIONS, G3 and G4, verbatim.
 mutate_case 12 "delete the persisted-folder read — the plan's G3 mutation" \
@@ -315,7 +396,7 @@ mutate_case 13 "keep the folder in the \`session\` area instead of \`local\` —
 
 mutate_case 14 "a second export opens a SECOND native picker on top of the first" \
   "$S" "$FULL" \
-  "FAIL  a second export requested while the chooser is UP joins that ask" \
+  "FAIL  a second PRESS of Export while the chooser is UP joins that ask" \
   -- "$S" \
 "    if (pending) { stats.joinedPending++; return pending; }" \
 "      if (false) { stats.joinedPending++; return pending; }"
@@ -353,7 +434,7 @@ mutate_case 16 "the intake is built over a wrapper rather than electron's own di
 
 mutate_case 17 "the picked file's title is its raw basename, extension and all" \
   "$S" "$FULL" \
-  "FAIL  the file picker admits a real audio file" \
+  "FAIL  pressing \`Open file…\` opens the REAL native file chooser" \
   -- "$S" \
 "        title: deriveTitle(file)," \
 "        title: path.basename(file),"
@@ -379,9 +460,9 @@ mutate_case 20 "the probe writes no report at all" \
   "$G" "$FULL" \
   "FAIL  both launches ran from the real entry point and wrote a gate report" \
   -- "$G" \
-"  R.stats = { ...files.stats };
+"  R.tokens = state.pathTokens ? state.pathTokens.stats : null;
   fs.writeFileSync(path.join(outDir, 'report.json'), \`\${JSON.stringify(R, null, 2)}\n\`);" \
-"  R.stats = { ...files.stats };"
+"  R.tokens = state.pathTokens ? state.pathTokens.stats : null;"
 
 mutate_case 21 "the boot count is read AFTER the first export instead of before it" \
   "$G" "$FULL" \
@@ -398,7 +479,7 @@ mutate_case 21 "the boot count is read AFTER the first export instead of before 
 # stay green over an app that never opened one.
 mutate_case 22 "the folder is answered without a native picker ever opening" \
   "$S" "$FULL" \
-  "FAIL  the first export opens the REAL native folder chooser" \
+  "FAIL  pressing \`Export stems…\` opens the REAL native folder chooser" \
   -- "$S" \
 "    const r = parent
       ? await dialog.showOpenDialog(parent, stats.lastFolderOptions)
@@ -416,17 +497,89 @@ mutate_case 23 "a remembered folder that no longer exists is used anyway" \
 "      if (false) { stats.folderGone++; stats.lastAskReason = 'gone'; return null; }"
 
 # ==========================================================================
-# THE WRITER AND THE EXPORT SINK — 24-36
+# 24-29 — THE CHROME BAR'S FILE CONTROLS (slice S8a)
+#
+# Cut against stem-workbench `d10bfad`, the commit that rewired this suite to
+# press the controls instead of calling the intake. Every one of these declares
+# its red set in BOTH directions (`mutate_case_exact`): a red nobody declared is
+# a finding, because that is how coverage migrates from the mutation written for
+# an assertion to one that was not.
+#
+# 24 AND 25 ARE A PAIR THAT FAILS IN OPPOSITE DIRECTIONS, like 16 and 22 above.
+# 24 leaves the app perfect and takes the INSTRUMENT away — only the row that
+# says "these were presses on a live control" notices. 25 leaves the instrument
+# perfect and takes the CONTROL away — and then every count in the suite goes to
+# zero, which is the whole reason this suite now presses rather than calls.
 # ==========================================================================
-# THE WRITER AND THE SINK, PURE AND IN THE APP. Cases 24-27 run the WHOLE
+S8A_CHROME='src/renderer/chrome.js'
+S8A_HTML='src/renderer/chrome.html'
+
+mutate_case_exact 24 "the probe presses without recording whether the control was enabled" \
+  "$G" "$FULL" \
+  "FAIL  INSTRUMENT CHECK: every gesture below is a PRESS on a LIVE control" \
+  -- "$G" \
+"    return { pressed: true, was };" \
+"    return { pressed: true };"
+
+mutate_case_exact 25 "the Export control ships \`disabled\` — the defect this suite was rewired to see" \
+  "$S8A_HTML" "$FULL" \
+  "FAIL  INSTRUMENT CHECK: every gesture below is a PRESS on a LIVE control|FAIL  pressing Export with nothing loaded is REFUSED BY NAME on the bar|FAIL  pressing \`Export stems…\` opens the REAL native folder chooser|FAIL  ...and the options it was opened with are a FOLDER picker|FAIL  a second PRESS of Export while the chooser is UP joins that ask|FAIL  the folder is asked EXACTLY ONCE|FAIL  ...and export #2 resolved to the REMEMBERED folder|FAIL  ...and the bar SHOWS where the stems go|FAIL  the remembered folder survives a RESTART|FAIL  ...and it is the SAME folder|FAIL  ...and the bar carries it at BOOT|FAIL  ...and a remembered folder that has been DELETED is not used" \
+  -- "$S8A_HTML" \
+'<button id="export" title=' \
+'<button id="export" disabled title='
+
+# THE REFUSAL WITH NO NAME. A control that refuses and will not say why is the
+# dead control one step removed: the user presses it, something happens, and
+# nothing on screen tells them what is missing.
+mutate_case_exact 26 "the no-source refusal loses its name and its sentence" \
+  "$M" "$FULL" \
+  "FAIL  pressing Export with nothing loaded is REFUSED BY NAME on the bar" \
+  -- "$M" \
+"      return { ok: false, code: 'no-source',
+        message: 'nothing is loaded to export — choose an audio file first' };" \
+"      return { ok: false };"
+
+# THE PATH ON THE LEAST PRIVILEGED SURFACE IN THE APP. `files.js` mints a
+# one-shot token so a renderer cannot name a path; a bar that prints the path
+# hands every renderer on this origin the thing the token exists to withhold.
+mutate_case_exact 27 "the bar is handed the whole record, and prints the path" \
+  "$M,$S8A_CHROME" "$FULL" \
+  "FAIL  ...and the bar was told the title and the MIME and NEITHER the path NOR the token" \
+  -- "$M" \
+"    file: state.file ? { title: state.file.title, mime: state.file.mime } : null," \
+"    file: state.file ? { ...state.file } : null," \
+  "$S8A_CHROME" \
+"  \$('file').title = s.file ? \`\${s.file.title} — \${s.file.mime}\` : 'no file chosen yet';" \
+"  \$('file').title = s.file ? \`\${s.file.title} — \${s.file.file}\` : 'no file chosen yet';"
+
+# A FOLDER THE APP REMEMBERS AND NEVER SHOWS IS A FOLDER THE USER CANNOT FIND.
+mutate_case_exact 28 "the destination is never drawn after an export" \
+  "$M" "$FULL" \
+  "FAIL  ...and the bar SHOWS where the stems go|FAIL  ...and a remembered folder that has been DELETED is not used" \
+  -- "$M" \
+"    state.exportFolder = folder.dir;
+    pushStatus();" \
+"    pushStatus();"
+
+# ...AND THE COLD START, which is the only moment that can tell a REMEMBERED
+# folder from one this run happened to choose again.
+mutate_case_exact 29 "the remembered folder is not read at boot, so the bar starts blank" \
+  "$M" "$FULL" \
+  "FAIL  ...and the bar carries it at BOOT, before any gesture in that run" \
+  -- "$M" \
+"    state.exportFolder = typeof remembered === 'string' && remembered ? remembered : null;" \
+"    state.exportFolder = null;"
+# THE WRITER AND THE EXPORT SINK — 30-42
+# ==========================================================================
+# THE WRITER AND THE SINK, PURE AND IN THE APP. Cases 30-33 run the WHOLE
 # suite (lane $FULL): their mutations redden the pure G1/G2a/G2b-path claims
 # AND the in-the-app assertions, which otherwise would never be watched. The
-# pure bytes over a fake dialog are proven in cases 24-27's pure sections too
+# pure bytes over a fake dialog are proven in cases 30-33's pure sections too
 # — the FULL lane runs the whole suite, pure half first.
 
 # THE PLAN'S G1 MUTATION, AT THE CALL SITE: float requires 32 bits, so this
 # build's writer THROWS and there is no file to have a header.
-mutate_case 24 "the writer encodes at 16 bits — the encoder refuses, so there is no file at all" \
+mutate_case 30 "the writer encodes at 16 bits — the encoder refuses, so there is no file at all" \
   "$S" "$FULL" \
   "FAIL  G1: the header is bit-exact" \
   -- "$S" \
@@ -435,7 +588,7 @@ mutate_case 24 "the writer encodes at 16 bits — the encoder refuses, so there 
 
 # G2a: a gain of 0.9 is not unity — and 0.9 is not dyadic, so even the rounding
 # differs. Every file must fail the byte-for-byte comparison.
-mutate_case 25 "the writer scales every sample by 0.9 before encoding — no longer byte-identical" \
+mutate_case 31 "the writer scales every sample by 0.9 before encoding — no longer byte-identical" \
   "$S" "$FULL" \
   "FAIL  G2a: every WAV is byte-identical" \
   -- "$S" \
@@ -451,7 +604,7 @@ mutate_case 25 "the writer scales every sample by 0.9 before encoding — no lon
 # the suite goes fully green. MEASURED on 2026-08-27: the two-line anchor ran
 # 18 passed, 0 failed under the mutation. That is the writer-slice trap; the
 # third line is what pins the edit to the loop that makes bytes.
-mutate_case 26 "the writer writes each stem's planes under the NEXT stem's name" \
+mutate_case 32 "the writer writes each stem's planes under the NEXT stem's name" \
   "$S" "$FULL" \
   "FAIL  G2a: every WAV is byte-identical" \
   -- "$S" \
@@ -464,7 +617,7 @@ mutate_case 26 "the writer writes each stem's planes under the NEXT stem's name"
 
 # G2b-path: without the sanitise, `../../escape` resolves OUTSIDE the chosen
 # folder, and the file lands there.
-mutate_case 27 "the writer stops sanitising the title — the escape attempt lands outside the chosen folder" \
+mutate_case 33 "the writer stops sanitising the title — the escape attempt lands outside the chosen folder" \
   "$S" "$FULL" \
   "FAIL  G2b-path:" \
   -- "$S" \
@@ -472,13 +625,13 @@ mutate_case 27 "the writer stops sanitising the title — the escape attempt lan
   "    const safeTitle = title;"
 
 # ==========================================================================
-# THE LAUNCHED LANE — 28-33. The same two real launches, the same real chooser.
+# THE LAUNCHED LANE — 34-39. The same two real launches, the same real chooser.
 # ==========================================================================
 
 # THE CONTRACT'S SHAPE, WRITER SIDE: the cancelled picker must be an ERROR. A
 # build that returns the refusal as a result is a build that exports five of
 # six stems and calls it done.
-mutate_case 28 "the writer RETURNS the refusal instead of throwing it — an empty result where the contract demands an error" \
+mutate_case 34 "the writer RETURNS the refusal instead of throwing it — an empty result where the contract demands an error" \
   "$S" "$FULL" \
   "FAIL  a cancelled folder picker is a THROWN refusal on the writer path" \
   -- "$S" \
@@ -489,7 +642,7 @@ mutate_case 28 "the writer RETURNS the refusal instead of throwing it — an emp
 # bytes "written". Only the DISK knows. That is the writer-slice trap, named in
 # the suite header: 'the sink accepted nothing' must not look like 'wrote the
 # file', and the bytes assertion reads the disk.
-mutate_case 29 "the sink writes NOTHING — chunks vanish between the bridge and the disk" \
+mutate_case 35 "the sink writes NOTHING — chunks vanish between the bridge and the disk" \
   "$S" "$FULL" \
   "FAIL  ...and the sink's bytes are on disk|FAIL  the EXPORT SINK opens every file of a deliverable at once and streams chunks to disk" \
   -- "$S" \
@@ -498,7 +651,7 @@ mutate_case 29 "the sink writes NOTHING — chunks vanish between the bridge and
 
 # TWO-FILE mutation (see the suite header): the duty's own shape check going
 # alone would be shadowed by main's gate, so both halves must move together.
-mutate_case 30 "an empty plan is accepted at MAIN's gate AND passes the duty's shape check — the empty deliverable is handed out" \
+mutate_case 36 "an empty plan is accepted at MAIN's gate AND passes the duty's shape check — the empty deliverable is handed out" \
   "$S,$H" "$FULL" \
   "FAIL  a plan with no files is refused at MAIN's own gate|FAIL  an empty plan and a name that is not a plain file name are refused AT THE SEAM" \
   -- "$S" \
@@ -511,7 +664,7 @@ mutate_case 30 "an empty plan is accepted at MAIN's gate AND passes the duty's s
 # A name that is not a plain file name would open a file OUTSIDE the folder the
 # user chose. The background answerer stands by (see the probe) so the red is a
 # wrong answer or a file outside the folder — never a hung probe.
-mutate_case 31 "the sink accepts ANY file name — the plan owns the directory after all" \
+mutate_case 37 "the sink accepts ANY file name — the plan owns the directory after all" \
   "$S" "$FULL" \
   "FAIL  a name that is not a plain file name is refused AT THE SEAM|FAIL  an empty plan and a name that is not a plain" \
   -- "$S" \
@@ -524,7 +677,7 @@ mutate_case 31 "the sink accepts ANY file name — the plan owns the directory a
 # host.js:406 ("no open sink file named a.wav") — zero FAIL lines, a MISS that
 # said "the assertion is unwatched" when it was only undriveable. The suite now
 # catches the close and the combined assertion reddens on both signals.
-mutate_case 32 "a second sink session is allowed while one is live — two deliverables at once" \
+mutate_case 38 "a second sink session is allowed while one is live — two deliverables at once" \
   "$S" "$FULL" \
   "FAIL  ...a second session cannot open while one is live" \
   -- "$S" \
@@ -538,7 +691,7 @@ mutate_case 32 "a second sink session is allowed while one is live — two deliv
 # Five of six would be called done. The engine's own drive writes into every
 # stream it was handed, so the missing file's write becomes a refusal-that-is-
 # a-throw in the engine, and the seam assertion goes red.
-mutate_case 33 "the sink opens only SOME of the plan's files — five of six called done" \
+mutate_case 39 "the sink opens only SOME of the plan's files — five of six called done" \
   "$S" "$FULL" \
   "FAIL  THE EXPORT SINK, IN THE ENGINE" \
   -- "$S" \
@@ -546,7 +699,7 @@ mutate_case 33 "the sink opens only SOME of the plan's files — five of six cal
   "    for (const name of plan.files.slice(0, 1)) {"
 
 # ==========================================================================
-# BACK TO THE PURE LANE — 34-36. The seam's own gates, cheaply.
+# BACK TO THE PURE LANE — 40-42. The seam's own gates, cheaply.
 # ==========================================================================
 
 # The two claims share ONE assertion — "...a second session cannot open while
@@ -554,7 +707,7 @@ mutate_case 33 "the sink opens only SOME of the plan's files — five of six cal
 # seen through that line. MEASURED on 2026-08-27: the narrow expect below was
 # a MISS even though the suite reddened (17 passed, 1 failed); the failing
 # line was the combined assertion, not a chunk-shaped one.
-mutate_case 34 "a chunk can invent a file — the unknown-name refusal goes" \
+mutate_case 40 "a chunk can invent a file — the unknown-name refusal goes" \
   "$S" "$PURE" \
   "FAIL  ...a second session cannot open while one is live, and a chunk cannot invent a file" \
   -- "$S" \
@@ -563,16 +716,16 @@ mutate_case 34 "a chunk can invent a file — the unknown-name refusal goes" \
 
 # The contract's one shape that cannot be returned: on a refused open, the duty
 # must THROW. This build skips the throw and hands the streams out anyway.
-mutate_case 35 "the duty never throws on a refused open — the streams go out regardless" \
+mutate_case 41 "the duty never throws on a refused open — the streams go out regardless" \
   "$H" "$FULL" \
   "FAIL  A REFUSED SINK OPEN IS A THROW|FAIL  a cancelled folder picker refuses the whole sink at the seam" \
   -- "$H" \
   "  if (!opened || opened.ok !== true) {" \
   "  if (false) {"
 
-# Same two-file mutation as 30, run in the pure lane — the seam's empty-plan
+# Same two-file mutation as 36, run in the pure lane — the seam's empty-plan
 # refusal is the same shape with or without the window.
-mutate_case 36 "the seam accepts an empty plan — the duty validates nothing and main's gate opens nothing" \
+mutate_case 42 "the seam accepts an empty plan — the duty validates nothing and main's gate opens nothing" \
   "$S,$H" "$PURE" \
   "FAIL  an empty plan and a name that is not a plain file name are refused AT THE SEAM" \
   -- "$S" \
@@ -590,7 +743,15 @@ echo "========================================================================"
 # subset cannot make it. `coverage.py` reads the names out of `baseline.log` and
 # refuses any that never appeared on a FAIL line in the case logs.
 cov=0
-if [ "${#ONLY[@]}" -eq 0 ]; then
+if [ "${MUT_DRY:-0}" = "1" ]; then
+  echo "${C_D}MUT_DRY=1 — anchors only, so nothing is claimed about coverage or about reds${C_X}"
+  if [ "$missed" -eq 0 ] && [ "$ran" -gt 0 ]; then
+    echo "${C_G}all $caught of $ran anchors still match the source${C_X}"
+    exit 0
+  fi
+  echo "${C_R}$missed of $ran cases have an anchor that no longer matches${C_X} — decayed instruments, re-cut them."
+  exit 1
+elif [ "${#ONLY[@]}" -eq 0 ]; then
   python3 "$ROOT/tools/suites/coverage.py" "$OUT" || cov=$?
 else
   echo "${C_D}coverage not checked — a subset of cases cannot make that claim${C_X}"
