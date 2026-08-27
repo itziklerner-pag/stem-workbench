@@ -296,7 +296,7 @@ mutate_case 13 "delete the Arm control from the chrome bar" \
 # THE DEFECT THIS ASSERTION USED TO PIN IN PLACE. The button shipped `disabled`
 # for a wave after arming worked, and the old assertion REQUIRED that. Putting
 # the attribute back must now be red.
-mutate_case 13b "put the Arm control back to `disabled`" \
+mutate_case 13b 'put the Arm control back to `disabled`' \
   "src/renderer/chrome.html" \
   "the chrome bar painted, with its Arm control present, ENABLED and wired to a bridge" \
   -- src/renderer/chrome.html \

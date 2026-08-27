@@ -77,7 +77,7 @@
  *  30  probe.mjs: read the placeholder's __wbBusLog()       -> detached send arrives (+1)
  *  31  probe.mjs: ask the deck for __wbProbe()              -> the deck slot is isolated
  *  32  youtube.js: the SOURCE view's isolation off          -> renderers locked down (+1)
- *  33  sessions.js: never call setUserAgent                 -> the source partition presents stock Chrome
+ *  33  sessions.js: never call setUserAgent                 -> the source partition presents stock Chrome (only)
  *  34  main.js: app.userAgentFallback = the stock UA        -> NOTHING of ours wears it
  *  35  navigation.js: drop accounts.google.com              -> the four sign-in hosts BY NAME, and the live navigation
  *  36  useragent.js: Chrome/<full version> not <major>.0.0.0 -> the disguise's shape, and the live one
@@ -105,6 +105,14 @@
  * because they are two failures, and 34 is the one a gate written only against
  * the source view's user-agent is GREEN over: `app.userAgentFallback` is one
  * line and it moves every session in the app at once.
+ *
+ * 33 IS ALSO WHY THE SECOND ROW READS THE WAY IT DOES. Its first draft carried
+ * `appSession !== sourceSession` and "the factory set one on exactly
+ * ['youtube']", and 33 — which REMOVES the disguise — turned it red at the
+ * moment its own claim, that our traffic is not disguised, was most true. Those
+ * two conjuncts are on the first row now. An assertion that goes red while what
+ * it says is true is an assertion nobody can act on, and the battery is what
+ * found it.
  *
  * MUTATION 15 IS THE LIMITATION-6 RUN, and it is why that assertion lists every
  * field rather than checking that a track exists. Measured under it:
@@ -494,18 +502,30 @@ ok('the source partition presents a STOCK CHROME user-agent — on the wire, on 
   !!uaSays && uaSays[1] === uaMajor
   && !/Electron|stem-workbench/.test(String(UA.sourceSession))
   && UA.sourceWebContents === UA.sourceSession
-  && O(UA.navigator).source === UA.sourceSession,
+  && O(UA.navigator).source === UA.sourceSession
+  && O(UA.factory).youtube === UA.sourceSession,
   `session "${UA.sourceSession}" · webContents ${UA.sourceWebContents === UA.sourceSession ? 'same' : `DIFFERS: ${UA.sourceWebContents}`}`
   + ` · navigator ${O(UA.navigator).source === UA.sourceSession ? 'same' : `DIFFERS: ${JSON.stringify(O(UA.navigator).source)}`}`
+  + ` · the factory recorded ${JSON.stringify(O(UA.factory))}`
   + ` · running Chromium ${O(UA.runtime).chrome} · client hints (recorded, not asserted) ${JSON.stringify(O(UA.clientHints).source)}`);
 
+/**
+ * ITS CONJUNCTS ARE ALL ABOUT OURS, AND THAT IS A CORRECTION.
+ *
+ * This row first carried `appSession !== sourceSession` and "the factory set one
+ * on exactly ['youtube']". Both went red under mutation 33 — which REMOVES the
+ * disguise — at which point this assertion's own claim, that our traffic is not
+ * disguised, was more true than ever. An assertion that goes red while what it
+ * says is true is an assertion nobody can act on; the battery found it, and the
+ * two conjuncts moved to the row above, where they are about the disguise being
+ * present rather than about it being confined.
+ */
 ok("...and NOTHING of ours wears it: the app's own session, its renderers and app.userAgentFallback all still say Electron  "
   + '[entry point: the app-owned refusal in makeSession()]',
   /Electron\//.test(String(UA.appSession)) && !CHROME_UA_SHAPE.test(String(UA.appSession))
-  && /Electron\//.test(String(UA.appFallback))
+  && /Electron\//.test(String(UA.appFallback)) && !CHROME_UA_SHAPE.test(String(UA.appFallback))
   && /Electron\//.test(String(O(UA.navigator).deck))
-  && UA.appSession !== UA.sourceSession
-  && eq(Object.keys(O(UA.factory)), ['youtube']),
+  && !('app' in O(UA.factory)),
   `app session "${UA.appSession}" · fallback "${String(UA.appFallback).slice(0, 60)}…" · `
   + `deck navigator "${String(O(UA.navigator).deck).slice(0, 60)}…" · the factory set a UA on ${JSON.stringify(Object.keys(O(UA.factory)))} — `
   + "the update check is this app's own traffic and goes to GitHub as what it is");
