@@ -30,7 +30,7 @@
  * own verdict would be a suite that exits 0 having asserted nothing — the VOID
  * case, one level in.
  */
-import { session as electronSession } from 'electron';
+import { app, session as electronSession } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -147,6 +147,45 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     engineIsDefault: engineWc.session === electronSession.defaultSession,
     sourceIsDefault: srcWc.session === electronSession.defaultSession,
     sourceStorage: srcWc.session.storagePath ? path.basename(srcWc.session.storagePath) : null,
+  };
+
+  /**
+   * THE SIGN-IN DISGUISE, READ BACK OFF FIVE PLACES RATHER THAN OFF THE CONSTANT.
+   *
+   * `src/main/useragent.js` decides the string and `src/main/sessions.js` puts it
+   * on one session; NEITHER is imported here, because a probe that read the
+   * constant would agree with any mutation of it. What is collected instead is
+   * what the running app would actually tell a website — the header the network
+   * stack would send (`Session.getUserAgent`), what the `WebContents` inherited,
+   * and what the DOCUMENT sees (`navigator.userAgent`) — for the source view and
+   * for one of ours, so the suite can assert the DIFFERENCE and not just a shape.
+   *
+   * `app.userAgentFallback` is here because it is the one line that would
+   * disguise every session at once, and a report that could not see it would let
+   * that mutation through the half of the claim that matters most.
+   *
+   * `userAgentData` IS RECORDED AND NOT ASSERTED. `setUserAgent` overrides the
+   * header and `navigator.userAgent`; it does not rewrite Chromium's client-hint
+   * brands. That is a limitation of the disguise, it is stated in
+   * `src/main/useragent.js` and in `FAQ.md`, and it belongs in the transcript so
+   * that the day it changes is visible — but it is Chromium's behaviour and not
+   * this product's, so nothing here holds it in place.
+   */
+  const UA_DATA = `(() => { const d = navigator.userAgentData;
+    return d ? { brands: d.brands, mobile: d.mobile, platform: d.platform } : null; })()`;
+  R.userAgent = {
+    runtime: { chrome: process.versions.chrome, electron: process.versions.electron, platform: process.platform },
+    sourceSession: srcWc.session.getUserAgent(),
+    appSession: chromeWc.session.getUserAgent(),
+    sourceWebContents: srcWc.getUserAgent(),
+    deckWebContents: deckWc.getUserAgent(),
+    navigator: {
+      source: await evalIn(srcWc, 'navigator.userAgent'),
+      deck: await evalIn(deckWc, 'navigator.userAgent'),
+    },
+    appFallback: app.userAgentFallback,
+    factory: JSON.parse(JSON.stringify(state.sessions.stats().userAgents)),
+    clientHints: { source: await evalIn(srcWc, UA_DATA), deck: await evalIn(deckWc, UA_DATA) },
   };
 
   // -------------------------------------------------------------- isolation
@@ -298,15 +337,84 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   const windowOpenResult = await evalIn(srcWc,
     `(() => { const w = window.open('https://example.com/', '_blank'); return String(w); })()`, true);
   await wait(250);
+  // SNAPSHOTS, NOT THE LIVE ARRAYS. `state.source.stats.refusedNavigations` is
+  // the guard's own growing list, and this object is serialised at the END of
+  // the run — so handing over the reference would let the sign-in section below
+  // add rows to a section that has already been measured, and the assertion
+  // "exactly one navigation was refused" would then be counting a later probe's
+  // work. Two sections, two measurements.
+  const refusedAfterGuest = state.source.stats.refusedNavigations.length;
   R.guest = {
     urlBefore: before,
     urlAfter: srcWc.getURL(),
-    refusedNavigations: state.source.stats.refusedNavigations,
-    deniedWindowOpens: state.source.stats.deniedWindowOpens,
+    refusedNavigations: [...state.source.stats.refusedNavigations],
+    deniedWindowOpens: [...state.source.stats.deniedWindowOpens],
     windowOpenResult,
     refusedDownloads: state.source.stats.refusedDownloads,
     fixture: await evalIn(srcWc, 'window.__wbFixture ? window.__wbFixture() : null'),
   };
+
+  // ------------------------------------------------------------ 2.x sign-in
+  /**
+   * CAN A SIGN-IN FLOW ACTUALLY GO WHERE IT NEEDS TO GO?
+   *
+   * `desktop-app-plan.md` seed §9 puts a stock Chrome user-agent on this
+   * partition so that Google will accept the sign-in — and a user-agent that
+   * gets you past the *"this browser may not be secure"* page is worth nothing
+   * if the allowlist then cancels the redirect chain. Google's flow leaves
+   * youtube.com for `accounts.google.com`, may bounce through
+   * `accounts.youtube.com` and `consent.youtube.com`, and lands on
+   * `myaccount.google.com` for a challenge. Every one of those has to be
+   * reachable BY A RENDERER-INITIATED NAVIGATION, which is the only kind the
+   * guard ever sees.
+   *
+   * THIS RUN DOES NOT TOUCH GOOGLE, and it does not need to. `will-navigate`
+   * decides before the network and `did-start-navigation` fires before DNS, so
+   * the POLICY is fully observable with the four hosts mapped to a closed
+   * loopback port — which `tools/suites/shell.mjs` does with
+   * `--host-resolver-rules`. What is measured here is the guard's verdict, in
+   * its own two voices: the refusal ledger, and the navigations that really
+   * started.
+   *
+   * THE OFF-LIST CONTROL IS THE `includes()` TRAP, LIVE. A guard written as
+   * `host.includes('google.com')` admits `accounts.google.com.evil.test`; a
+   * pure-function assertion already says it must not, and this is the same claim
+   * over the running app, where the answer comes from Chromium rather than from
+   * a unit test's idea of a URL.
+   */
+  const SIGN_IN_PROBES = [
+    'https://accounts.google.com/ServiceLogin',
+    'https://accounts.youtube.com/accounts/SetSID',
+    'https://consent.youtube.com/m',
+    'https://myaccount.google.com/security-checkup',
+  ];
+  const OFF_LIST_PROBE = 'https://accounts.google.com.evil.test/ServiceLogin';
+  const startedBefore = state.source.witness.started.length;
+  // BACK TO THE FIXTURE BETWEEN EACH ONE. Four of the five attempts are ALLOWED
+  // and then fail to connect, so without this every attempt after the first
+  // would be launched from Chromium's error page — a different document, with a
+  // different origin, and one whose ability to run `location.href` is
+  // Chromium's business rather than ours. Each attempt therefore starts from the
+  // same known page, so a red here is about the guard and not about where the
+  // previous attempt happened to leave the view.
+  for (const url of [...SIGN_IN_PROBES, OFF_LIST_PROBE]) {
+    await state.source.load(sourceUrl).catch(() => {});
+    await evalIn(srcWc, `(() => { location.href = ${JSON.stringify(url)}; return 'tried'; })()`);
+    await wait(300);
+  }
+  R.signin = {
+    attempted: [...SIGN_IN_PROBES],
+    offList: OFF_LIST_PROBE,
+    /** every main-frame navigation the guard let GO, since the guest section */
+    started: state.source.witness.started.slice(startedBefore),
+    /** ...and every one it stopped, over the same window */
+    refused: state.source.stats.refusedNavigations.slice(refusedAfterGuest),
+  };
+  // BACK TO THE FIXTURE before anything else is measured. Four of those five
+  // navigations were ALLOWED and then failed to connect, so the view is sitting
+  // on Chromium's error page; the screenshot and the chrome-bar reads below are
+  // about this app, not about that page.
+  await state.source.load(sourceUrl).catch(() => {});
 
   // ------------------------------------------------- what the chrome bar says
   // Read AFTER the guest section, so the refusal line has something to show.

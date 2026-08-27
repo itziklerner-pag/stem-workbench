@@ -8,8 +8,11 @@
  * origin is cross-origin isolated in the DOCUMENT and inside a MODULE WORKER,
  * which is the half ORT's threaded wasm actually needs; that the capture grant
  * answers the engine with the SOURCE view's frame and refuses everybody else;
- * that the source view is muted BEFORE it loads anything; and that a navigation
- * off the allowlist is refused rather than silently cancelled.
+ * that the source view is muted BEFORE it loads anything; that a navigation off
+ * the allowlist is refused rather than silently cancelled; and that seed §9's
+ * SIGN-IN DISGUISE is on exactly one session — `persist:youtube` presents a
+ * stock Chrome user-agent, nothing of ours does, and the four hosts Google's
+ * sign-in is redirected through can really be navigated to.
  *
  * WHAT IT DOES NOT GATE, stated so the absence is on the record rather than
  * merely true:
@@ -74,6 +77,11 @@
  *  30  probe.mjs: read the placeholder's __wbBusLog()       -> detached send arrives (+1)
  *  31  probe.mjs: ask the deck for __wbProbe()              -> the deck slot is isolated
  *  32  youtube.js: the SOURCE view's isolation off          -> renderers locked down (+1)
+ *  33  sessions.js: never call setUserAgent                 -> the source partition presents stock Chrome
+ *  34  main.js: app.userAgentFallback = the stock UA        -> NOTHING of ours wears it
+ *  35  navigation.js: drop accounts.google.com              -> the four sign-in hosts BY NAME, and the live navigation
+ *  36  useragent.js: Chrome/<full version> not <major>.0.0.0 -> the disguise's shape, and the live one
+ *  37  useragent.js: UA_SESSIONS gains 'app'                -> only USER-owned sessions (+ the app cannot boot)
  *
  * CASES 17-28 CAME FROM A COVERAGE AUDIT, not from a hunch: the first sixteen
  * left ELEVEN of the assertions (34 of them then) with no mutation of their own,
@@ -89,6 +97,14 @@
  * unreachable under it. That left `...and no renderer can see require` with no
  * live mutation, coverage.py named it, and 32 turns it red on a RUNNING app.
  * 32 of 32 caught, 35 of 35 red.
+ *
+ * CASES 33-37 ARE SEED §9, and two of them are the pair that matters: 33 removes
+ * the disguise (Google refuses sign-in, and the feature is simply gone) and 34
+ * puts it on EVERYTHING (the update check starts lying to a host we have no
+ * reason to lie to, which is the dangerous direction). They are two assertions
+ * because they are two failures, and 34 is the one a gate written only against
+ * the source view's user-agent is GREEN over: `app.userAgentFallback` is one
+ * line and it moves every session in the app at once.
  *
  * MUTATION 15 IS THE LIMITATION-6 RUN, and it is why that assertion lists every
  * field rather than checking that a track exists. Measured under it:
@@ -123,6 +139,8 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { isAllowedNavigation, NAV_ALLOW } from '../../src/main/navigation.js';
+import { UA_SESSIONS, userAgentFor, stockChromeUA, PLATFORM_TOKENS } from '../../src/main/useragent.js';
+import { SESSION_OWNERS } from '../../src/main/p1.js';
 import { resolveAppPath } from '../../src/main/assets.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
@@ -233,6 +251,84 @@ const eq = (a, b) => JSON.stringify(norm(a)) === JSON.stringify(norm(b));
     heldSchemes.length === schemes.length,
     `${heldSchemes.length}/${schemes.length}`);
 
+  /**
+   * THE FOUR HOSTS A GOOGLE SIGN-IN GOES THROUGH, SPELLED HERE AS LITERALS.
+   *
+   * The assertion above iterates `NAV_ALLOW` itself, so it is green over any
+   * allowlist at all — including one somebody has just deleted a host from. That
+   * is fine for what it claims (nothing on the list is refused) and useless for
+   * what seed §9 needs, which is that these four SPECIFIC hosts are on it: the
+   * sign-in flow leaves youtube.com for `accounts.google.com`, may bounce
+   * through `accounts.youtube.com` and `consent.youtube.com`, and lands on
+   * `myaccount.google.com` for an account challenge. A user-agent that gets the
+   * user past Google's *"this browser may not be secure"* page is worth nothing
+   * if the allowlist then cancels the redirect chain.
+   *
+   * So they are typed out HERE and not imported. `docs/TESTING.md` §3: an
+   * assertion that reads its expectation out of the code it is checking follows
+   * that code wherever it goes.
+   */
+  const SIGN_IN_HOSTS = ['accounts.google.com', 'accounts.youtube.com', 'consent.youtube.com', 'myaccount.google.com'];
+  const signInOk = SIGN_IN_HOSTS.filter((h) => isAllowedNavigation(`https://${h}/ServiceLogin?x=1`));
+  ok('the four hosts a Google sign-in goes through are on the allowlist BY NAME — named here, not read out of NAV_ALLOW  '
+    + '[entry point: src/main/navigation.js isAllowedNavigation()]',
+    signInOk.length === SIGN_IN_HOSTS.length,
+    `${signInOk.length}/${SIGN_IN_HOSTS.length}`
+    + `${signInOk.length === SIGN_IN_HOSTS.length ? ' (seed §9: sign-in is why they are there)'
+      : ` — REFUSED ${SIGN_IN_HOSTS.filter((h) => !signInOk.includes(h)).join(' ')}`}`);
+
+  /**
+   * THE DISGUISE'S SHAPE, over all three platforms rather than this one.
+   *
+   * Chrome's reduced user-agent is three frozen platform tokens, `537.36` twice
+   * and `Chrome/<major>.0.0.0`; the MAJOR is the only field read off the
+   * runtime, so an Electron upgrade moves the claim with it instead of leaving a
+   * literal to rot. The regex is written out here rather than imported for the
+   * same reason as the hosts above.
+   */
+  const UA_SHAPE = /^Mozilla\/5\.0 \(([^)]+)\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/(\d+)\.0\.0\.0 Safari\/537\.36$/;
+  const built = ['darwin', 'win32', 'linux', 'freebsd'].map((platform) => ({
+    platform, ua: stockChromeUA({ chromeVersion: '152.0.7977.54', platform }),
+  }));
+  const shaped = built.filter(({ platform, ua }) => {
+    const m = UA_SHAPE.exec(ua);
+    if (!m || m[2] !== '152') return false;
+    if (/Electron|stem-workbench|Chromium/.test(ua)) return false;
+    // An unknown platform gets the X11 token — a token nobody ships is MORE
+    // conspicuous than the common one, which is the opposite of the point.
+    return m[1] === (PLATFORM_TOKENS[platform] || PLATFORM_TOKENS.linux);
+  });
+  let threw = null;
+  try { stockChromeUA({ chromeVersion: 'not-a-version', platform: 'linux' }); }
+  catch (err) { threw = String((err && err.message) || err); }
+  ok('the stock Chrome user-agent is Chrome-shaped on every platform, carries the real Chromium major and names neither '
+    + 'Electron nor this app — and a version it cannot read THROWS rather than inventing one  '
+    + '[entry point: src/main/useragent.js stockChromeUA()]',
+    shaped.length === built.length && threw !== null,
+    `${shaped.length}/${built.length}: ${built.map(({ platform, ua }) => `${platform}=${ua.slice(0, 44)}…`).join(' · ')}`
+    + ` · unreadable version -> ${threw ? 'throws' : 'RETURNED A STRING'}`);
+
+  /**
+   * ...AND IT IS THE USER'S SESSION THAT WEARS IT, NOBODY ELSE'S.
+   *
+   * This is the pure half of the claim the launch below makes for real. The two
+   * tables are `UA_SESSIONS` (who presents a disguise) and `SESSION_OWNERS` (whose
+   * traffic each session is), and the property that binds them is that no
+   * `app`-owned label is in the first: the one request P1' permits is the update
+   * check, and it must reach GitHub as what it is.
+   */
+  const uaLabels = [...UA_SESSIONS];
+  const appLabels = Object.keys(SESSION_OWNERS).filter((k) => SESSION_OWNERS[k] === 'app');
+  const userLabels = Object.keys(SESSION_OWNERS).filter((k) => SESSION_OWNERS[k] === 'user');
+  const env = { chromeVersion: '152.0.7977.54', platform: 'linux' };
+  ok("only USER-owned sessions present the disguise: every label in UA_SESSIONS is a session PRIVACY.md excludes by name, "
+    + "and every app-owned label gets Electron's own  [entry point: src/main/useragent.js userAgentFor()]",
+    uaLabels.length > 0
+    && uaLabels.every((l) => userLabels.includes(l))
+    && appLabels.length > 0 && appLabels.every((l) => userAgentFor(l, env) === null),
+    `UA_SESSIONS ${JSON.stringify(uaLabels)}; owners ${JSON.stringify(SESSION_OWNERS)}; `
+    + `app-owned labels get ${JSON.stringify(appLabels.map((l) => userAgentFor(l, env)))}`);
+
   const roots = [{ prefix: '/vendor/', dir: '/app/vendor' }, { prefix: '/', dir: '/app/src/renderer' }];
   const maps = [
     ['/engine.html', '/app/src/renderer/engine.html'],
@@ -297,10 +393,30 @@ const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')
  * orphans that hold the mutex nobody is waiting on any more. Measured: two stray
  * Electron trees and a nineteen-minute hold, cleared by hand.
  */
+/**
+ * THIS GATE DOES NOT TOUCH GOOGLE, AND THAT IS A FLAG RATHER THAN A HOPE.
+ *
+ * The sign-in section of `tools/gate/probe.mjs` drives the source view at the
+ * four hosts a Google sign-in goes through, because the only navigation the
+ * allowlist ever sees is a renderer-initiated one. Those four are ALLOWED, so
+ * without this they would really be dialled — a gate that reaches somebody
+ * else's servers on every run, and one that would then be measuring Google's
+ * availability as well as our own policy.
+ *
+ * `--host-resolver-rules` maps them to a closed loopback port instead. Nothing
+ * is lost: `will-navigate` decides before the network and `did-start-navigation`
+ * fires before DNS, so the guard's verdict — which is the entire claim — is
+ * unchanged, and what follows it is an instant ERR_CONNECTION_REFUSED rather
+ * than a TLS handshake with a third party. Port 1 is reserved and never
+ * listening.
+ */
+const SIGN_IN_MAP = ['accounts.google.com', 'accounts.youtube.com', 'consent.youtube.com', 'myaccount.google.com']
+  .map((h) => `MAP ${h} 127.0.0.1:1`).join(', ');
 const launch = await run(
   'flock', [LOCK, '-c',
     `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
-    + `--gate=${sh(OUT)} --source-url=${sh(fixture)} --user-data=${sh(userData)}`],
+    + `--gate=${sh(OUT)} --source-url=${sh(fixture)} --user-data=${sh(userData)} `
+    + `--host-resolver-rules=${sh(SIGN_IN_MAP)}`],
   { cwd: ROOT, timeoutMs: 120000, queueMs: 900000, startOn: LOCK_MARK });
 fs.writeFileSync(path.join(OUT, 'launch.log'), launch.out);
 
@@ -352,6 +468,47 @@ ok('the source view is alone on persist:youtube and our three renderers are on t
   O(R.sessions).sourceIsDefault === false && O(R.sessions).sourceStorage === 'youtube'
   && O(R.sessions).chromeIsDefault && O(R.sessions).deckIsDefault && O(R.sessions).engineIsDefault,
   `source -> ${O(R.sessions).sourceStorage}, chrome/deck/engine -> default`);
+
+// ------------------------------------------------------- 2.1b the disguise
+/**
+ * SEED §9, OVER A RUNNING APP. Two assertions, because they fail for two
+ * different reasons and only one of them is dangerous.
+ *
+ * The first is the FEATURE: without a stock Chrome user-agent on this partition
+ * Google refuses sign-in outright ("this browser or app may not be secure",
+ * policy since 2019) and YouTube Premium is unreachable inside the product.
+ *
+ * The second is the LIMIT, and it is the one worth having. `app.userAgentFallback`
+ * is a single line that would put the same string on EVERY session at once —
+ * including the one that carries the update check, the only request P1' permits.
+ * A gate that only compared the source view's UA to a pattern would be green
+ * over that line. So this reads OUR session and OUR renderers too, and it reads
+ * the fallback itself.
+ */
+const UA = O(R.userAgent);
+const uaMajor = String(O(UA.runtime).chrome || '').split('.')[0];
+const CHROME_UA_SHAPE = /^Mozilla\/5\.0 \([^)]+\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) Chrome\/(\d+)\.0\.0\.0 Safari\/537\.36$/;
+const uaSays = CHROME_UA_SHAPE.exec(String(UA.sourceSession));
+ok('the source partition presents a STOCK CHROME user-agent — on the wire, on its WebContents and to the document  '
+  + '[entry point: makeSession() in src/main/sessions.js, over src/main/useragent.js]',
+  !!uaSays && uaSays[1] === uaMajor
+  && !/Electron|stem-workbench/.test(String(UA.sourceSession))
+  && UA.sourceWebContents === UA.sourceSession
+  && O(UA.navigator).source === UA.sourceSession,
+  `session "${UA.sourceSession}" · webContents ${UA.sourceWebContents === UA.sourceSession ? 'same' : `DIFFERS: ${UA.sourceWebContents}`}`
+  + ` · navigator ${O(UA.navigator).source === UA.sourceSession ? 'same' : `DIFFERS: ${JSON.stringify(O(UA.navigator).source)}`}`
+  + ` · running Chromium ${O(UA.runtime).chrome} · client hints (recorded, not asserted) ${JSON.stringify(O(UA.clientHints).source)}`);
+
+ok("...and NOTHING of ours wears it: the app's own session, its renderers and app.userAgentFallback all still say Electron  "
+  + '[entry point: the app-owned refusal in makeSession()]',
+  /Electron\//.test(String(UA.appSession)) && !CHROME_UA_SHAPE.test(String(UA.appSession))
+  && /Electron\//.test(String(UA.appFallback))
+  && /Electron\//.test(String(O(UA.navigator).deck))
+  && UA.appSession !== UA.sourceSession
+  && eq(Object.keys(O(UA.factory)), ['youtube']),
+  `app session "${UA.appSession}" · fallback "${String(UA.appFallback).slice(0, 60)}…" · `
+  + `deck navigator "${String(O(UA.navigator).deck).slice(0, 60)}…" · the factory set a UA on ${JSON.stringify(Object.keys(O(UA.factory)))} — `
+  + "the update check is this app's own traffic and goes to GitHub as what it is");
 
 // ----------------------------------------------------------- 2.2 isolation
 ok('the engine document is cross-origin isolated  [entry point: ISOLATION_HEADERS in src/main/assets.js]',
@@ -477,6 +634,35 @@ ok('...and window.open is denied — this window has no tabs and no popups  [ent
 ok('...and the refusal is visible in the chrome bar, not silently swallowed  [entry point: src/renderer/chrome.js render()]',
   typeof O(R.chromeDom).refusal === 'string' && /refused/.test(O(R.chromeDom).refusal),
   JSON.stringify(O(R.chromeDom).refusal));
+
+/**
+ * THE ALLOWLIST'S POSITIVE HALF, WITH A POSITIVE WITNESS.
+ *
+ * Everything else about this table is a refusal, and a refusal is easy to
+ * measure. Seed §9 needs the opposite: that the sign-in flow can actually GO
+ * where Google sends it. "Not in the refusal ledger" would not do — that is also
+ * what a navigation nobody attempted looks like, and an allowlist that admitted
+ * nothing at all would pass it. So the witness is `did-start-navigation`, which
+ * fires only once the guard has let go (`src/main/youtube.js`), and the control
+ * in the same section is the `includes()` trap driven for real:
+ * `accounts.google.com.evil.test` is somebody else's host with our sign-in host
+ * as a prefix, and it must be refused by the same guard in the same run.
+ *
+ * NO PACKET LEAVES THE BOX. The four are mapped to a closed loopback port by
+ * `--host-resolver-rules` at the launch above; the guard decides before the
+ * network, so the verdict is unchanged and the gate does not depend on Google.
+ */
+const SI = O(R.signin);
+const attempted = A(SI.attempted);
+const started = A(SI.started);
+const reached = attempted.filter((u) => started.includes(u));
+const refusedTrap = A(SI.refused).filter((r) => O(r).url === SI.offList);
+ok('every host a Google sign-in is redirected through can be NAVIGATED TO from the source view, and the `includes()` trap '
+  + 'cannot  [entry point: the will-navigate guard in createSourceView(), src/main/youtube.js]',
+  attempted.length === 4 && reached.length === 4
+  && refusedTrap.length === 1 && A(SI.refused).length === 1 && !started.includes(SI.offList),
+  `${reached.length}/${attempted.length} started: ${attempted.map((u) => `${new URL(u).hostname}${reached.includes(u) ? '' : ' NOT-STARTED'}`).join(' ')}`
+  + ` · ${SI.offList} -> ${refusedTrap.length === 1 ? 'refused' : `ADMITTED (${A(SI.refused).length} refusals in this section)`}`);
 
 // -------------------------------------------------------- 2.7 what it drew
 /**

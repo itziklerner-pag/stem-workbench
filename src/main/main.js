@@ -110,6 +110,7 @@ import {
   createUpdateCheck, autoUpdateFrom, AUTO_UPDATE_AREA, AUTO_UPDATE_KEY,
 } from './update.js';
 import { installBackend, UTILITY_ENTRY } from './backend.js';
+import { readAccount } from './signin.js';
 import { report as netGuardReport } from './netguard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -272,6 +273,13 @@ const state = {
   sessions: null,        // the ONE session factory (src/main/sessions.js) — rule P1'
   update: null,          // the one host this app's own code talks to (src/main/update.js)
   /**
+   * WHETHER THE SOURCE PARTITION IS SIGNED IN TO GOOGLE — read, shown, and
+   * obeyed by nothing (src/main/signin.js). `null` until the first read, which
+   * is why the bar can say "checking…" and why a mutation that stops the read
+   * happening is visible rather than indistinguishable from "signed out".
+   */
+  account: null,
+  /**
    * WHAT `src/main/netguard.js` TOOK, and every refusal it has issued. Read by
    * `tools/gate/p1.mjs`; it is a function rather than a snapshot so the probe
    * reads the ledger AFTER its own control attempts rather than before them.
@@ -323,6 +331,13 @@ function pushStatus() {
      * which the bar paints as indeterminate rather than as off.
      */
     autoUpdate: state.update ? state.update.isEnabled() : null,
+    /**
+     * SEEN, NEVER CONSULTED. It goes to the bar as a line of text; the arm
+     * gesture, the capture, the engine and the deck do not read it. That is what
+     * seed §9's "graceful anonymous fallback" means in code, and
+     * `tools/suites/smoke.mjs` watches the app arm and play with an empty jar.
+     */
+    account: state.account,
     refusals: state.refusals.slice(-4),
   });
 }
@@ -419,6 +434,18 @@ async function boot() {
   forwardConsole(state.source.webContents, 'source');
   state.source.webContents.on('page-title-updated', pushStatus);
   state.source.webContents.on('did-navigate', pushStatus);
+  /**
+   * SIGNING IN IS A NAVIGATION, so the indicator is re-read on every one rather
+   * than only at boot — otherwise the bar says "anonymous" for the rest of the
+   * run to somebody who has just signed in, which is the kind of stale surface
+   * that gets read as "it did not work". `readAccount()` cannot reject (see
+   * `boot()`), so this needs no `catch` and deliberately has none: one would
+   * hide the day that stopped being true.
+   */
+  state.source.webContents.on('did-navigate', async () => {
+    state.account = await readAccount(theirs);
+    pushStatus();
+  });
 
   /**
    * THE TRANSPORT, constructed with the source view and BEFORE anything is
@@ -709,6 +736,23 @@ async function boot() {
   await state.source.load(SOURCE_URL);
 
   state.win.show();
+  pushStatus();
+
+  /**
+   * WHO, IF ANYBODY, THE SOURCE PARTITION IS SIGNED IN AS — seed §9's third
+   * decision, and the only one of the three that is behaviour rather than
+   * configuration (`src/main/useragent.js` is the other two).
+   *
+   * AWAITED, AND IT STILL CANNOT FAIL A BOOT. `readAccount()` is written so that
+   * it cannot reject: the jar read AND the verdict are both inside one `try`,
+   * and every failure of either becomes an anonymous answer carrying its reason.
+   * That is the whole content of "graceful": the app must be unable to be
+   * stopped by anything to do with sign-in, including a bug in this. It is
+   * awaited rather than fired and forgotten so that the bar is never briefly
+   * wrong about it, and it comes AFTER `win.show()` so it is not on the path
+   * between a double click and a window.
+   */
+  state.account = await readAccount(theirs);
   pushStatus();
 
   // The engine's own answer, for the chrome bar. It is the same probe the gate

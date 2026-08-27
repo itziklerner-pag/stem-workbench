@@ -67,6 +67,17 @@ function render(s) {
   $('engine').textContent = s.engine
     ? `coi=${s.engine.coi} sab=${s.engine.sab}`
     : 'starting…';
+  /**
+   * THE SIGN-IN INDICATOR, AND IT IS THREE STATES RATHER THAN TWO.
+   *
+   * `null` is "not read yet", and it is drawn differently from "anonymous" on
+   * purpose: those are the same picture to a user and completely different
+   * facts, and collapsing them is how a sign-in probe that stopped running gets
+   * read as a sign-in that did not take. The `reason` rides in the tooltip
+   * because it is a sentence, and the bar is 44 px tall.
+   */
+  $('account').textContent = s.account ? (s.account.signedIn ? 'signed in' : 'anonymous') : 'checking…';
+  $('account').title = s.account ? s.account.reason : 'reading the source partition\u2019s cookie jar';
   paintArm(s.armed === true);
   paintAutoUpdate(s.autoUpdate === undefined ? null : s.autoUpdate);
   const last = s.refusals && s.refusals.length ? s.refusals[s.refusals.length - 1] : null;

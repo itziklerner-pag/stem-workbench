@@ -46,6 +46,7 @@
 import { session as electronSession } from 'electron';
 
 import { SESSION_OWNERS, mayRequest, originOf } from './p1.js';
+import { userAgentFor } from './useragent.js';
 
 /**
  * How many `user` rows to keep. `app` rows are the SUBJECT of P1' and are never
@@ -54,6 +55,13 @@ import { SESSION_OWNERS, mayRequest, originOf } from './p1.js';
  * requests in a session and they are context, not subject.
  */
 const USER_LOG_CAP = 4000;
+
+/**
+ * What `src/main/useragent.js` builds its string from — the Chromium this
+ * process really is, on the platform it really is. Read once, here, because a
+ * pure function that reached for `process` would not be one.
+ */
+const UA_ENV = { chromeVersion: process.versions.chrome, platform: process.platform };
 
 /**
  * @returns {{
@@ -68,7 +76,7 @@ export function createSessions() {
   /** label -> { session, owner, subscribers } */
   const made = new Map();
   const rows = [];
-  const stats = { created: 0, listeners: 0, observed: 0, cancelled: 0, userDropped: 0, byLabel: {} };
+  const stats = { created: 0, listeners: 0, observed: 0, cancelled: 0, userDropped: 0, byLabel: {}, userAgents: {} };
 
   function record(label, owner, details, allowed) {
     const url = String(details.url);
@@ -119,6 +127,39 @@ export function createSessions() {
     made.set(label, { session: ses, owner, subscribers: [] });
     stats.created++;
 
+    /**
+     * THE SIGN-IN DISGUISE, AND THE REFUSAL THAT KEEPS IT OFF OUR OWN TRAFFIC.
+     *
+     * `desktop-app-plan.md` seed §9: the partition youtube.com runs on presents
+     * a stock Chrome user-agent, because Google refuses sign-in to an embedded
+     * framework by user-agent. `src/main/useragent.js` is the string and the
+     * list; this is the one line that applies it.
+     *
+     * IT IS SET BEFORE THIS FUNCTION RETURNS, and that ordering is load-bearing
+     * rather than tidy: `Session.setUserAgent()` does not reach a `WebContents`
+     * that already exists, so a UA applied after `createSourceView()` would be
+     * an override that the view it exists for never sees. Every session in this
+     * app is made here, before anything is put on it, so "before" is structural.
+     *
+     * AN `app`-OWNED SESSION IS REFUSED OUTRIGHT. The one request P1' allows is
+     * the update check, and it must go to GitHub as what it is. Adding a label
+     * to `UA_SESSIONS` therefore cannot quietly disguise our own traffic — it
+     * stops the app at boot, here, naming the label. `tools/suites/shell.mjs`
+     * asserts the same property from the table's side, in plain node.
+     */
+    const ua = userAgentFor(label, UA_ENV);
+    if (ua !== null) {
+      if (owner !== 'app') {
+        ses.setUserAgent(ua);
+        stats.userAgents[label] = ua;
+      } else {
+        throw new Error(`sessions.makeSession: '${label}' is an app-owned session and UA_SESSIONS in `
+          + 'src/main/useragent.js names it. The stock Chrome user-agent exists so that Google will let the '
+          + "user sign in to YouTube in the source view; putting it on the app's own session would disguise "
+          + 'the one request P1\' allows (the update check) to a host we have no reason to lie to.');
+      }
+    }
+
     ses.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
       const allowed = mayRequest(owner, details.url);
       record(label, owner, details, allowed);
@@ -142,6 +183,6 @@ export function createSessions() {
       entry.subscribers.push(fn);
     },
     log: () => rows.map((r) => ({ ...r })),
-    stats: () => ({ ...stats, byLabel: { ...stats.byLabel }, labels: [...made.keys()] }),
+    stats: () => ({ ...stats, byLabel: { ...stats.byLabel }, userAgents: { ...stats.userAgents }, labels: [...made.keys()] }),
   };
 }

@@ -75,7 +75,27 @@ export function createSourceView({ session: ses, preload, onRefusal = () => {} }
     navigations: 0,
     /** navigations that STARTED while the view was not muted. Must stay 0. */
     unmutedNavigations: 0,
+    /**
+     * EVERY MAIN-FRAME NAVIGATION THAT ACTUALLY STARTED, most recent last, capped.
+     *
+     * The allowlist's positive half needs a POSITIVE witness. "Is not in
+     * `refusedNavigations`" is also what a navigation nobody ever attempted
+     * looks like, and an assertion that cannot tell those apart is green over an
+     * allowlist that admits nothing at all — which is exactly the shape a
+     * sign-in flow would arrive in ("the button does nothing", §1.6, from the
+     * other end). `will-navigate` is emitted BEFORE the guard decides and
+     * `did-start-navigation` only once it has let go, so a URL appearing here is
+     * the guard saying yes, in its own voice.
+     *
+     * It is a fact about POLICY and not about the network: this event fires when
+     * the navigation begins, before DNS, so a host that does not resolve is
+     * recorded here exactly like one that does. `tools/suites/shell.mjs` relies
+     * on that to drive the four Google sign-in hosts without leaving the box.
+     */
+    started: [],
   };
+  /** Enough to hold a whole gate's worth of attempts; a browsing session is not a log. */
+  const STARTED_CAP = 64;
   const stats = { refusedNavigations: [], deniedWindowOpens: [], refusedDownloads: 0 };
 
   // ------------------------------------------------------------- NAVIGATION
@@ -93,10 +113,21 @@ export function createSourceView({ session: ses, preload, onRefusal = () => {} }
   wc.on('will-navigate', guard);
   wc.on('will-redirect', guard);
 
-  wc.on('did-start-navigation', () => {
+  wc.on('did-start-navigation', (...args) => {
     witness.navigations++;
     if (!wc.isAudioMuted()) witness.unmutedNavigations++;
     wc.setAudioMuted(true);          // re-assert AFTER the sample, never before
+    // BOTH SIGNATURES. Electron moved this event's payload to a details object
+    // and the older positional form is still what some builds emit; reading the
+    // wrong one records `undefined` for every navigation, which is a witness
+    // that looks like it is working. Same defensive read as `forwardConsole`.
+    const d = args.find((a) => a && typeof a === 'object' && typeof a.url === 'string');
+    const url = d ? d.url : args.find((a) => typeof a === 'string');
+    const mainFrame = d ? d.isMainFrame !== false : args[3] !== false;
+    if (typeof url === 'string' && mainFrame) {
+      witness.started.push(url.slice(0, 300));
+      if (witness.started.length > STARTED_CAP) witness.started.shift();
+    }
   });
 
   // ------------------------------------------------------------ NEW WINDOWS
