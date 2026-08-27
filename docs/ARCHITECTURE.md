@@ -388,6 +388,98 @@ AppImage update re-ships the whole artifact.
 
 ---
 
+## 5b. The second inference backend, and the plan's claim it corrects
+
+Seed §16 put the Host's inference behind three duties — `load`, `separate`,
+`dispose` — so that a native backend is a second implementation rather than a
+fork of the engine. The ORT worker is backend #1. Step 7 adds backend #2:
+**CoreML, in an Electron utility process, on Apple Silicon.**
+
+**CONFIGURED AND WRITTEN, NEVER BUILT OR RUN.** There is no macOS here and
+`onnxruntime-node` is not a dependency of this project, so **no CoreML session
+has ever been created, no segment has ever been separated by one, and nothing
+has ever been timed.** `tools/suites/backend-coreml.mjs` is the step that would
+answer it and it has never run anywhere; `docs/TESTING.md` §5g. On this platform
+the selection's platform gate makes the answer the worker before anything is
+forked, and `tools/suites/backend.mjs` is what proves it.
+
+**The same ONNX, the same STFT, a different ORT binding.** Seed §16 left open
+"whether the native backend runs the same hoisted-STFT ONNX with a native STFT,
+or a different export". It is the same export, and structurally so: §5's pinned
+SHA-256 and byte count are verified by the unit over whatever `modelBytes`
+returned **before** the buffer reaches `Backend.load`, so a second export could
+only arrive by bypassing the handed bytes — the M1 violation the seam exists to
+prevent. The STFT stays hoisted for the reason `engine/demucs.js:31` already
+records: in-graph STFT/ScatterND makes ORT-Web's WebGPU EP refuse the session,
+and CoreML's op coverage is narrower still. `DemucsEngine` already takes the ORT
+namespace as a constructor parameter and the EP as a `load()` argument, and it
+imports in plain Node with no DOM — so the utility process runs **the unit's own
+parity-verified spectral path**, not a port of it. A native (vDSP) STFT is a
+later optimisation that changes no interface and is not worth choosing before
+somebody can measure the ratio it would improve.
+
+### Seed §16 says "as transferables". It is not, and this is the measured figure
+
+The seed specifies the per-segment IPC as *"≈ 2.7 MB in / ≈ 16.5 MB out as
+transferables"*. **Electron has no such transfer list.** Both
+`UtilityProcess.postMessage` and `MessagePortMain.postMessage` type theirs as
+`MessagePortMain[]`. Measured directly on this box — Electron 44.0.0, Linux
+6.17, one renderer↔utility `MessageChannelMain`:
+
+| direction | ArrayBuffer in the transfer list | result |
+|---|---|---|
+| `main` → utility | yes | **throws** `Port at index 0 is not a valid port` |
+| utility → renderer | yes | **throws** the same; the copy path then delivers |
+| **renderer → utility** | yes | **does not throw. Detaches the sender's buffer. The message is never delivered.** |
+| either | no | delivered intact, sender still attached — a structured clone |
+
+The third row is why nothing on this wire is ever transferred, and it is a
+correctness matter rather than a performance one: a `load()` written the obvious
+way would destroy the verified weights and then wait for ever for an answer that
+was never sent, which is precisely the `LivePipeline.runChunk` hang
+`shared/host.js` spends four paragraphs on. A `try`/`catch` cannot help, because
+there is nothing to catch.
+
+**So the frozen borrow-and-return contract is honoured by never detaching.**
+`mix` is copied onto the wire and resolved back as itself; `out` never travels at
+all; the returned floats are written into it. The cost, measured over five
+consecutive round trips:
+
+    2,751,840 B up + 16,511,040 B back = 19,262,880 B per segment
+    five round trips in 221 ms  ->  ~44 ms each
+
+≈ 19.26 MB of structured clone per hop, ~44 ms of it, against a hop of 1.95 s —
+about 2.3% of the budget, plus 16.5 MB of per-hop garbage on the engine
+renderer. Cross-process zero copy would need shared memory, which Electron does
+not expose and which a `SharedArrayBuffer` cannot cross a process to provide.
+**Whether that is worth paying is UNMEASURED**: it buys whatever CoreML is
+faster by, and nothing here has ever timed CoreML.
+
+### There is no fallback once a backend is built
+
+The obvious design — try native, fall back inside `load()` — cannot work, and the
+reason is two clauses one file apart rather than a preference. `Backend.load`
+"TAKES OWNERSHIP OF `bytes` and may transfer it", so a failed native load may
+leave the 109 MB detached; and `loadModel` is a two-ask ceiling, so the unit will
+not fetch a second buffer to replace it. **A backend that turns out not to work
+is a dead deck, not a backend to swap.**
+
+That is why the probe forks the real utility process and asks it to build a real
+engine rather than reading `process.platform`, and why the platform gate sits
+*above* the probe in `chooseBackend()`. It is also why a native backend that
+fails at runtime sets `degraded` for the rest of the session and demotes every
+*later* `createBackend`, never re-selecting under a live deck — `STATE.boot.ep`
+is a claim about the session that is running, and swapping the backend under it
+would make that claim false.
+
+**How the deck says which backend is live: `load()`'s `ep`.** Not `onReady`,
+whose two fields the freeze block deliberately left ORT-shaped and nullable — "a
+Host must not invent numbers here". `ep` already flows to `STATE.boot.ep` and
+onto the deck, and it reports what the **session** answered rather than what was
+requested, because ORT falls back per node without saying so.
+
+---
+
 ## 6. The network surface
 
 **P1′ — the app's own code talks to exactly one named host, GitHub Releases, for
@@ -450,6 +542,8 @@ The substituted pass condition, and the honest labels for it:
 | **VERIFIED** | **P1′ — the app's own code reaches one host and nothing else** | `tools/suites/p1.mjs` — 24 assertions over one real launch behind a local TLS server wearing the update host's certificate: the set of network origins is exactly `{ https://api.github.com }`, the `persist:youtube` exclusion is exercised with the same URL through both sessions with opposite verdicts, and the fake host's own hit counter is half of two assertions so that a blind observer is a red. **Since two audits defeated it with one line of `fetch()` in the main process**, it also covers the transports that never enter Chromium: `src/main/netguard.js` takes them away at boot, a source scan forbids the imports, and a real loopback sink in the suite's own process is the witness the app cannot fake. 24 of 24 watched red by `tools/suites/p1-mutations.sh`; `docs/TESTING.md` §9 |
 | **VERIFIED** | ...and **arm** it, by two real gestures | `smoke` clicks the chrome bar's **Arm** button in the real renderer and the menu's **Arm this Source**, and requires the deck to see a `SESSION` for each; `youtube` does it against the real site and gets six stems out of the far end |
 | **NEVER OBSERVED** | six stems moving **live**, while the video plays | nothing. Every machine this has run on drops every chunk — it needs ~4x real time and gets ~1.4x without a GPU. `docs/evidence/step3-youtube/README.md` §3. **It is a prediction, and this table exists so that it is never read as anything else.** |
+| **VERIFIED** | the inference-backend **selection**, and that this platform gets the ORT worker | `tools/suites/backend.mjs` — 55 assertions with no window and no mutex: all twenty platform/probe/preference rows of `chooseBackend()`, the renderer↔utility protocol over a `worker_threads` `MessageChannel` with a fake engine (the frozen layout, both buffers back undetached, `dispose()` settling by name), and the negative control — the shipped hole builds the unit's own `WorkerBackend` here even with a native factory beside it. 37 mutations, **coverage: all 55 watched red**; `docs/TESTING.md` §5f |
+| **NEVER RUN** | **the CoreML backend itself** | nothing. No CoreML session has been created by this project, no segment separated by one, nothing timed. `tools/suites/backend-coreml.mjs` is declared, is `manual`, and SKIPs here with a machine reason. **It is written code, not evidence, and this row exists so it is never read as anything else** |
 | **CONFIGURED, NEVER BUILT** | electron-builder and CI for macOS and Windows | `package.json` `build`, `build/entitlements.mac.plist`, `.github/workflows/package.yml` and `.github/workflows/gate.yml`. **Nothing is compiled, signed or notarized here, and neither workflow has ever run.** A green CI file is not a green build |
 | **WRITTEN DOWN ONLY** | everything about macOS behaviour | nothing. See §3 and issue #2 |
 

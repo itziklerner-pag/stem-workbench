@@ -1202,6 +1202,96 @@ relay bug recorded there, which is the shape of every defect a stub agrees with.
 
 ---
 
+## 5f. `backend` — which inference backend, and the wire to the second one
+
+**File:** `tools/suites/backend.mjs`. **Flags:** none — no window, no display,
+no mutex. **Cost:** ~0.2 s. **Battery:** `tools/suites/backend-mutations.sh`,
+37 cases.
+
+Seed §16's native backend is CoreML in an Electron utility process, on Apple
+Silicon. **This machine is Linux, and no CoreML session has ever been created by
+this project** — no segment separated, nothing timed. So this suite is built
+entirely out of claims that are true on a box that cannot run the thing they are
+about:
+
+- **The selection table.** `chooseBackend()` is pure — a platform, an arch, a
+  probe result, a preference and a `degraded` flag in, a decision out — so all
+  twenty rows are drivable anywhere. **One assertion per row**, so an inverted
+  row produces exactly one red that names itself.
+- **The wire**, over a `node:worker_threads` `MessageChannel` with a **fake
+  engine**: the frozen `(k*2 + ch) * SEGMENT + i` layout survives the hop, both
+  caller buffers come back as themselves and neither is detached, `out` never
+  travels, and `dispose()` settles a genuinely in-flight call **by name**.
+- **The negative control**, which is the one that matters most here: on this
+  platform the shipped hole builds the unit's own `WorkerBackend` — even with a
+  native factory sitting right beside it — and a native backend that *is* built
+  **rejects `load()` and `separate()` rather than hanging**.
+
+**WHY THE PROBE IS A REAL ATTEMPT AND NOT A PLATFORM SNIFF.** There is no
+fallback after `createBackend` returns, and that is forced by two clauses one
+file apart rather than chosen: `Backend.load` "TAKES OWNERSHIP OF `bytes` and may
+transfer it", so a failed native load may leave the 109 MB detached; and
+`loadModel` is a two-ask ceiling, so no second buffer is coming. A backend that
+turns out not to work is a **dead deck**, not a backend to swap. The probe
+therefore has to prove the thing can run *before* it is selected, and the
+platform gate sits **above** the probe — an `ok` probe on Linux is an
+inconsistent input and the safe reading of one is the conservative one.
+
+**What it cannot say:** anything about CoreML. The fake engine would prove
+exactly as much over a reimplementation of the spectral path, which is why two
+assertions read the shipped `src/utility/inference.js` and require it to import
+the unit's own `DemucsEngine` and to take the weights from the wire rather than
+opening a file. Whether the app still separates end to end is `engine-host`'s,
+over a real launch, and this suite does not repeat it.
+
+### Watched red
+
+37 mutations, **coverage: all 55 assertions have been watched red.** Six cases
+initially could not turn their assertion red and every one was a defect in the
+suite rather than a missing mutation — three crashes (a throw with no handler
+kills node before the red is printed), one assertion that *inherited* the hang it
+was about instead of reporting it, one unstable assertion name that `coverage.py`
+could not match to its own baseline, and two mutations too weak to isolate their
+assertion. They are fixed in the suite, not worked around in the battery.
+
+Three cases edit `vendor/…/offscreen/host.js`. That is a **hole** — one of the
+two paths `vendor/.pin`'s `ours` array declares as ours — not a unit file, so
+there is no `ALLOW_UNIT_EDITS` gate, and the battery runs `vendor-unit.sh
+--check` at the end to prove rule V1 still holds after every restore.
+
+---
+
+## 5g. `backend-coreml` — the CoreML claim itself. Manual, and it has never run
+
+**File:** `tools/suites/backend-coreml.mjs`. **Flags:** `manual`. **Count:**
+never observed anywhere.
+
+The CEO ruled step 7 in scope on a machine that cannot build, run or verify
+CoreML, and that **CoreML ships unverified**. This step is the difference between
+that being a sentence in a document and being a row the gate prints. On this box
+it `SKIPPED`s with a machine reason naming CoreML and macOS — §3 rule 8, a
+property of the box and not of the code under test. On darwin/arm64 with
+`onnxruntime-node` installed it loads the pinned weights, separates one real
+segment on the CoreML EP and asserts six **distinct** stems plus agreement with
+the CPU EP on the same input, which is the only assertion that can catch a native
+backend that is fast and wrong.
+
+**It is `manual`, not a permanent SKIP on the default plan.** `--strict` exists
+to refuse a SKIP, and a step that can only ever skip on every machine this
+project has would train people to ignore exactly that signal. `youtube` is
+manual for the same shape of reason.
+
+**It carries no assertion pin, deliberately.** This suite has never printed a
+count anywhere, and a pin nobody has ever observed is a number invented to look
+rigorous. `vendor-unit` is unpinned in `STEPS` for the adjacent reason.
+
+**No timing assertion.** Whether CoreML is *faster* is the question seed §16
+asks, and it is a claim about hardware; a stopwatch here would be one machine's
+number pretending to be a property of the backend. It is reported, never
+asserted.
+
+---
+
 ## 5e. `deck-host` — the deck half, over one real launch
 
 **File:** `tools/suites/deck-host.mjs`. **Flags:** `window`. **Cost:** ~45 s.
