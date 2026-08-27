@@ -368,13 +368,25 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
    * reachable BY A RENDERER-INITIATED NAVIGATION, which is the only kind the
    * guard ever sees.
    *
-   * THIS RUN DOES NOT TOUCH GOOGLE, and it does not need to. `will-navigate`
-   * decides before the network and `did-start-navigation` fires before DNS, so
-   * the POLICY is fully observable with the four hosts mapped to a closed
-   * loopback port — which `tools/suites/shell.mjs` does with
-   * `--host-resolver-rules`. What is measured here is the guard's verdict, in
-   * its own two voices: the refusal ledger, and the navigations that really
-   * started.
+   * THE WITNESS IS THE SESSION'S REQUEST LOG, AND THE FIRST ONE TRIED WAS WRONG.
+   *
+   * "Is not in the refusal ledger" will not do: that is also what a navigation
+   * nobody attempted looks like, so an allowlist that admitted NOTHING would
+   * pass it. `did-start-navigation` was the obvious positive witness and it is
+   * not one — MEASURED on Electron 44.0.0, it fires for a navigation
+   * `will-navigate` has already `preventDefault()`ed, so admitted and cancelled
+   * produce the same event. `src/main/youtube.js` records that finding.
+   *
+   * `sessions.log()` cannot be confused that way. A cancelled navigation never
+   * becomes a request at all, so a row on the `user`-owned session carrying one
+   * of these URLs is the navigation having really reached Chromium's network
+   * stack — the wire, not an intention. It is also the instrument P1' already
+   * depends on, so it is not a second one nobody watches.
+   *
+   * THIS RUN STILL DOES NOT TOUCH GOOGLE. The four hosts are mapped to a closed
+   * loopback port by `--host-resolver-rules` at the launch in
+   * `tools/suites/shell.mjs`; `onBeforeRequest` fires before the connection, so
+   * the row is written either way and nothing leaves the box.
    *
    * THE OFF-LIST CONTROL IS THE `includes()` TRAP, LIVE. A guard written as
    * `host.includes('google.com')` admits `accounts.google.com.evil.test`; a
@@ -389,7 +401,7 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     'https://myaccount.google.com/security-checkup',
   ];
   const OFF_LIST_PROBE = 'https://accounts.google.com.evil.test/ServiceLogin';
-  const startedBefore = state.source.witness.started.length;
+  const logBefore = state.sessions.log().length;
   // BACK TO THE FIXTURE BETWEEN EACH ONE. Four of the five attempts are ALLOWED
   // and then fail to connect, so without this every attempt after the first
   // would be launched from Chromium's error page — a different document, with a
@@ -405,9 +417,11 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
   R.signin = {
     attempted: [...SIGN_IN_PROBES],
     offList: OFF_LIST_PROBE,
-    /** every main-frame navigation the guard let GO, since the guest section */
-    started: state.source.witness.started.slice(startedBefore),
-    /** ...and every one it stopped, over the same window */
+    /** every request the source partition really issued, since the guest section */
+    onTheWire: state.sessions.log().slice(logBefore)
+      .filter((r) => r.owner === 'user' && r.cancelled === false)
+      .map((r) => ({ url: r.url, resourceType: r.resourceType })),
+    /** ...and every navigation the guard stopped, over the same window */
     refused: state.source.stats.refusedNavigations.slice(refusedAfterGuest),
   };
   // BACK TO THE FIXTURE before anything else is measured. Four of those five

@@ -643,8 +643,8 @@ export const STEPS = [
   },
   {
     id: 'smoke',
-    assertions: 21,
-    title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck',
+    assertions: 22,
+    title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck, the anonymous fallback',
     cmd: ['node', 'tools/suites/smoke.mjs'],
     window: true,
     /**

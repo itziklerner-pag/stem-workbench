@@ -151,6 +151,18 @@
  * Every assertion below, with the edit that broke it. Run on 2026-08-26 against
  * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux: **19 of 19 caught, and
  * `coverage.py` over the whole battery found all 18 assertions on a FAIL line.**
+ * Case 24 was added with the anonymous fallback and watched red on its own.
+ *
+ * CASE 24 IS THE ONE THAT HAD TO BE AIMED CAREFULLY, and the reason is worth
+ * reading before touching `src/main/signin.js`. The obvious mutation — make
+ * `readAccount()` reject — takes `boot()` down with it, and then this suite
+ * reports "the renderers are not all there" and stops before the assertion the
+ * mutation was written for ever runs. That is a catch that proves nothing. What
+ * is mutated instead is the ANONYMOUS VERDICT, which lives inside the same
+ * `try` as the jar read precisely so that a bug in it cannot reach `boot()`: the
+ * app comes up, arms and plays exactly as before, and the ONLY thing that
+ * changes is the sentence in the bar. One assertion red, no blast radius, and
+ * the design under test is the thing that made that possible.
  * The right-hand column of that script is what ACTUALLY went red, not what was
  * expected to. Fifteen of the nineteen turn exactly one assertion red; the four
  * with a wider blast radius are 4 (six — the deck never boots), 7 (three), and
@@ -178,6 +190,7 @@
  *  21  chrome.html: put `disabled` back on Arm           -> 3a and 3b, the bar
  *  22  main.js: the bar's gesture always arms            -> 3b, the toggle
  *  23  netguard.js: take() installs nothing              -> 19, the guard in main
+ *  24  signin.js: the anonymous VERDICT throws            -> 20, the anonymous fallback
  *
  * TWO OF THESE FOUND A DEFECT IN AN ASSERTION RATHER THAN IN THE APP, which is
  * what a battery is for and is why both are written down here.
@@ -835,6 +848,51 @@ ok('the deck follows the player: pressing play and pause on the page moves `__em
   playing0 === false && sawPlay === true && sawPause === true,
   `videoPlaying: ${playing0} -> ${sawPlay === true} (play) -> ${sawPause === true ? false : 'STUCK'} (pause) · `
   + `the element reached t=${O(midway).currentTime && O(midway).currentTime.toFixed(2)}s of ${O(midway).duration}s`);
+
+// -------------------------------------------------- the anonymous fallback
+/**
+ * SEED §9'S THIRD DECISION, AND THE ONLY SUITE THAT CAN MAKE IT.
+ *
+ * The other two — the stock Chrome user-agent on `persist:youtube`, and that
+ * nothing of ours wears it — are `shell`'s, over the same launch that measures
+ * the session boundary. **This one is different in kind: "graceful anonymous
+ * fallback" is a claim that the app WORKS with no Google session, and working is
+ * this suite's whole subject.** No other gate arms the Source with a real click
+ * and then presses play.
+ *
+ * So the row is one conjunction on purpose. It says, of a single run: the jar
+ * really was empty (asked of the partition itself, not inferred from the bar);
+ * the app WORKED OUT that it was signed out and said so, with the sentence the
+ * empty-jar branch produces rather than the one every failure produces; and the
+ * arm gesture and the player went through anyway. Split into three, the middle
+ * one could go red while the two that matter to a user stayed green, and the
+ * reader would have to reassemble the claim to see that nothing was broken.
+ *
+ * THE REASON IS COMPARED TO A LITERAL, NOT TO THE CONSTANT. `src/main/signin.js`
+ * has two anonymous answers — the empty jar, and "something went wrong, so
+ * anonymous" — and they are deliberately different sentences: the whole design
+ * is that a bug in determining sign-in state cannot stop the app, which means a
+ * bug in determining sign-in state must be VISIBLE somewhere or it is merely
+ * silent. This assertion is that somewhere. Importing the constant would make it
+ * agree with whichever branch answered.
+ */
+const jarNames = A(await safe("the source partition's jar", () => app.evaluate(({ session }) => session
+  .fromPartition('persist:youtube').cookies.get({}).then((c) => c.map((k) => `${k.domain}${k.name}`)))));
+const acct = O(await safe("the bar's account line", () => pages.chrome.evaluate(() => {
+  const el = document.getElementById('account');
+  return el ? { text: String(el.textContent).trim(), reason: el.title } : { absent: true };
+})));
+ok('WITH NO COOKIES AT ALL the app works out that it is signed OUT, says so in the bar, and arms and plays anyway — '
+  + 'the anonymous fallback is not a gate on anything  [entry point: readAccount() in src/main/signin.js]',
+  jarNames.length === 0
+  && acct.text === 'anonymous'
+  && acct.reason === 'no Google session cookie in this partition'
+  && O(O(barArm).after).armed === '1' && barSessions.length >= 1
+  && sawPlay === true,
+  `${jarNames.length} cookie(s) on persist:youtube${jarNames.length ? ` [${jarNames.join(' ')}]` : ''} · `
+  + `the bar reads ${JSON.stringify(acct.text)} because ${JSON.stringify(acct.reason)} · `
+  + `armed by the bar's own click (data-armed=${O(O(barArm).after).armed}, ${barSessions.length} SESSION at the deck) `
+  + `and the deck saw the player play (${sawPlay === true})`);
 
 const reports = A(await safe('page events', () => pages.deck.evaluate(() => window.__smokeDeckPage.map((m) => m.t))));
 const videoReports = reports.filter((t) => t === 'video');

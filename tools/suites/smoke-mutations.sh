@@ -463,6 +463,29 @@ mutate_case 23 "the main-process guard installs nothing" \
   let had;"
 
 # ==========================================================================
+# 24  SEED §9 — THE ANONYMOUS FALLBACK, AND THE MUTATION HAD TO BE AIMED
+#
+# The obvious edit — make `readAccount()` reject — takes `boot()` down with it,
+# and this suite then reports "the renderers are not all there" and stops BEFORE
+# the assertion the mutation was written for ever runs. A catch that proves
+# nothing.
+#
+# So what is broken is the ANONYMOUS VERDICT, which lives inside the same `try`
+# as the jar read for exactly this reason: `src/main/signin.js` is written so
+# that a bug in determining sign-in state cannot stop the app. The app comes up,
+# the bar's Arm button still arms, the player still plays, and the ONLY thing
+# that changes is which of the two anonymous sentences the bar carries — the
+# empty-jar one, or the one every failure produces. That is the whole design,
+# under test, in one line.
+# ==========================================================================
+mutate_case 24 "the anonymous VERDICT throws — the app must survive it, and the bar must say something else" \
+  "src/main/signin.js" \
+  "WITH NO COOKIES AT ALL the app works out that it is signed OUT" \
+  -- src/main/signin.js \
+"    return { signedIn: false, reason: NO_SESSION_COOKIE, cookies: all.length, session: [] };" \
+"    throw new Error('the anonymous verdict is broken');"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
 # "19 mutations were caught" is not the claim worth making. The claim is that NO

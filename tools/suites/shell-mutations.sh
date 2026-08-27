@@ -513,6 +513,70 @@ mutate_case 32 "turn OFF the SOURCE view's own isolation, sandbox and node guard
       webviewTag: false,"
 
 # ==========================================================================
+# 33-37  SEED §9 — THE SIGN-IN DISGUISE
+#
+# Google refuses sign-in from an embedded framework by user-agent, so the
+# partition youtube.com runs on presents a stock Chrome one. Two directions of
+# failure, and only one of them is dangerous: 33 takes the disguise away (the
+# feature is gone, and the user meets "this browser or app may not be secure");
+# 34 puts it on EVERY session at once, which is one line and would have the
+# update check lying to a host this app has no reason to lie to. A gate written
+# only against the source view's UA is GREEN over 34, which is why the second
+# assertion reads OUR session, OUR renderers and `app.userAgentFallback`.
+# ==========================================================================
+mutate_case 33 "never set the user-agent on the partition — the app is Electron to Google again" \
+  "src/main/sessions.js" \
+  "the source partition presents a STOCK CHROME user-agent" \
+  -- src/main/sessions.js \
+"        ses.setUserAgent(ua);" \
+"        void ua;"
+
+# THE DANGEROUS DIRECTION. `app.userAgentFallback` is the global default for
+# every session that has not overridden it, so this leaves the source view's
+# explicit UA exactly as it was and disguises OURS — the update check included.
+# It is the mutation the first assertion cannot see.
+mutate_case 34 "disguise EVERY session with app.userAgentFallback, the update check included" \
+  "src/main/main.js" \
+  "...and NOTHING of ours wears it" \
+  -- src/main/main.js \
+"app.commandLine.appendSwitch('disable-renderer-backgrounding');" \
+"app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.userAgentFallback = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';"
+
+# THE HOST THE FLOW STARTS AT. Removing it from the allowlist leaves the OLD
+# allowlist assertion green — it iterates NAV_ALLOW, so a shorter list is a
+# shorter loop — and turns red the two written for seed §9: the pure one that
+# names the four hosts as literals, and the live one that watches the request
+# reach the wire.
+mutate_case 35 "drop accounts.google.com from the navigation allowlist" \
+  "src/main/navigation.js" \
+  "the four hosts a Google sign-in goes through are on the allowlist BY NAME|every host a Google sign-in is redirected through really goes ON THE WIRE" \
+  -- src/main/navigation.js \
+"  'accounts.google.com',
+  'accounts.youtube.com'," \
+"  'accounts.youtube.com',"
+
+# A UA THAT IS NOT A STOCK CHROME UA. Real Chrome has reported
+# `<major>.0.0.0` since its UA reduction; the full build number is the shape an
+# embedded framework has, which is the thing being avoided.
+mutate_case 36 "report the full Chromium build number, which no stock Chrome does" \
+  "src/main/useragent.js" \
+  "the stock Chrome user-agent is Chrome-shaped on every platform|the source partition presents a STOCK CHROME user-agent" \
+  -- src/main/useragent.js \
+"Chrome/\${major}.0.0.0 Safari/537.36\`;" \
+"Chrome/\${String(chromeVersion)} Safari/537.36\`;"
+
+# THE TABLE, WIDENED TO OUR OWN SESSION. `makeSession()` refuses this outright
+# rather than applying it, so the app does not boot — which is the right shape
+# of failure and is reported alongside the pure assertion the case is for.
+mutate_case 37 "declare the app's own session as one that presents the disguise" \
+  "src/main/useragent.js" \
+  "only USER-owned sessions present the disguise" \
+  -- src/main/useragent.js \
+"export const UA_SESSIONS = Object.freeze(['youtube']);" \
+"export const UA_SESSIONS = Object.freeze(['youtube', 'app']);"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
 # "32 mutations were caught" is not the claim worth making. The claim is that

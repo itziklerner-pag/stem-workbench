@@ -648,21 +648,30 @@ ok('...and the refusal is visible in the chrome bar, not silently swallowed  [en
  * `accounts.google.com.evil.test` is somebody else's host with our sign-in host
  * as a prefix, and it must be refused by the same guard in the same run.
  *
+ * THE WITNESS IS THE WIRE, and the obvious one was wrong. `did-start-navigation`
+ * was tried first and it fires for a navigation `will-navigate` has already
+ * cancelled (measured, Electron 44.0.0 — `src/main/youtube.js` records it), so
+ * admitted and refused look identical through it. A ROW IN THE SESSION'S REQUEST
+ * LOG cannot: a cancelled navigation never becomes a request, so a row is the
+ * navigation having really reached Chromium's network stack.
+ *
  * NO PACKET LEAVES THE BOX. The four are mapped to a closed loopback port by
- * `--host-resolver-rules` at the launch above; the guard decides before the
- * network, so the verdict is unchanged and the gate does not depend on Google.
+ * `--host-resolver-rules` at the launch above, and `onBeforeRequest` fires
+ * before the connection — so the verdict is unchanged and this gate does not
+ * depend on Google being up, or on being online at all.
  */
 const SI = O(R.signin);
 const attempted = A(SI.attempted);
-const started = A(SI.started);
-const reached = attempted.filter((u) => started.includes(u));
+const onWire = A(SI.onTheWire).map((r) => O(r).url);
+const reached = attempted.filter((u) => onWire.includes(u));
 const refusedTrap = A(SI.refused).filter((r) => O(r).url === SI.offList);
-ok('every host a Google sign-in is redirected through can be NAVIGATED TO from the source view, and the `includes()` trap '
-  + 'cannot  [entry point: the will-navigate guard in createSourceView(), src/main/youtube.js]',
+ok('every host a Google sign-in is redirected through really goes ON THE WIRE from the source view, and the `includes()` '
+  + 'trap never does  [entry point: the will-navigate guard in createSourceView(), src/main/youtube.js]',
   attempted.length === 4 && reached.length === 4
-  && refusedTrap.length === 1 && A(SI.refused).length === 1 && !started.includes(SI.offList),
-  `${reached.length}/${attempted.length} started: ${attempted.map((u) => `${new URL(u).hostname}${reached.includes(u) ? '' : ' NOT-STARTED'}`).join(' ')}`
-  + ` · ${SI.offList} -> ${refusedTrap.length === 1 ? 'refused' : `ADMITTED (${A(SI.refused).length} refusals in this section)`}`);
+  && refusedTrap.length === 1 && A(SI.refused).length === 1 && !onWire.includes(SI.offList),
+  `${reached.length}/${attempted.length} requested: ${attempted.map((u) => `${new URL(u).hostname}${reached.includes(u) ? '' : ' NEVER-REQUESTED'}`).join(' ')}`
+  + ` · ${SI.offList} -> ${refusedTrap.length === 1 && !onWire.includes(SI.offList) ? 'refused, and nothing was requested'
+    : `ADMITTED (${A(SI.refused).length} refusal(s), on the wire ${onWire.includes(SI.offList)})`}`);
 
 // -------------------------------------------------------- 2.7 what it drew
 /**
