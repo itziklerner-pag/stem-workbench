@@ -417,6 +417,39 @@ ok('...and every battery under tools/suites is one of those two kinds, so a thir
     : `${allBatteries.length} batteries: ${batteries.length} bash, ${jsBatteries.length} js`);
 
 /**
+ * ...AND EVERY BASH BATTERY REFUSES AN ID IT DOES NOT HAVE, BEFORE IT TAKES THE
+ * MUTEX.
+ *
+ * Each of these takes the machine-global browser mutex and runs a real baseline
+ * launch, and applies the case filter only afterwards. So a typo'd id used to
+ * queue for the lock, launch Electron, run ZERO cases, and fall through every
+ * verdict branch to a SILENT `exit 1`. Measured: `shell-mutations.sh 42 43 44 45
+ * 46 47 48` on a battery whose ids stop at 41 spent five minutes of queue and a
+ * windowed launch to print nothing, while four other agents waited behind it.
+ * All fourteen had it.
+ *
+ * THE ASSERTION IS POSITIONAL, NOT A MARKER HUNT. A validator that sits after
+ * the lock is the defect wearing the fix's name, so this checks that the guard
+ * appears BEFORE the first thing that costs anything — the mutex, or the
+ * baseline. Comments are stripped first, because these files describe the guard
+ * at length above it and a prose mention would satisfy a naive search.
+ */
+const COSTS = /^\s*(exec 9>|flock |LOCK="?\$\(node|run_suite )/m;
+const lateGuard = batteries.filter((n) => {
+  const t = code(readSuite(n), 'sh');
+  const g = t.indexOf('_CASE_KNOWN');
+  if (g < 0) return true;
+  const m = COSTS.exec(t);
+  return m ? m.index < g : false;
+});
+ok('every bash battery refuses an unknown case id BEFORE it takes the mutex or runs a baseline — a typo must not '
+  + 'cost a lock acquisition and a windowed launch to say nothing  [entry point: the same *-mutations.sh glob, comments stripped]',
+  batteries.length > 0 && lateGuard.length === 0,
+  lateGuard.length
+    ? `NO GUARD, OR IT SITS AFTER THE COST: ${lateGuard.join(', ')}`
+    : `${batteries.length} bash batteries, each validating before its first lock or launch`);
+
+/**
  * ...AND A BATTERY THAT COMPUTES COVERAGE SAYS WHEN IT DID NOT.
  *
  * `coverage.py` — and the `covered`/`allNames` pair in the two `.mjs`

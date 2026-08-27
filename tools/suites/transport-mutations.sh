@@ -27,6 +27,39 @@
 # real Electron launch under the shared browser mutex. A case declares which it
 # is, and `--static` runs the cheap half — which is most of the L1 evidence.
 set -uo pipefail
+
+# ---------------------------------- refuse a case id that does not exist
+# FIRST, BEFORE THE MUTEX AND BEFORE THE BASELINE — which is the whole point.
+# Every battery here takes the machine-global browser mutex and runs a real
+# baseline launch, and the case filter is applied only afterwards. So a typo'd
+# id used to queue for the lock, launch Electron, run ZERO cases, and then fall
+# through every verdict branch to a SILENT `exit 1`. Measured on this box:
+# `shell-mutations.sh 42 43 44 45 46 47 48` on a battery whose ids stop at 41
+# spent five minutes of queue and one windowed launch to print nothing, while
+# four other agents waited behind it. An instrument that says nothing is bad; one
+# that consumes the single scarce resource in order to say nothing is worse.
+#
+# THE KNOWN SET IS READ OUT OF THIS FILE, so it cannot go stale as cases are
+# added, and it makes NO ASSUMPTION ABOUT THE SHAPE OF AN ID. That is not
+# caution for its own sake: ids in this repository include `13b`, `39a`, `3b`,
+# `1b` and — in `vendor-unit-mutations.sh` — plain `A` and `B`. A pattern like
+# `[0-9]+[a-z]*` looks right, matches most of them, and REJECTS A VALID CASE,
+# which is worse than no check at all. Field two, verbatim, whatever it is.
+#
+# `-*` is skipped so flags (`--static`, and anything a battery adds) pass through
+# to the parsing below untouched.
+_CASE_KNOWN=$(grep -oE '^(mutate_case|canary_case|M) +[^ ]+' "$0" | awk '{print $2}' | tr '\n' ' ')
+_CASE_BAD=''
+for _c in "$@"; do
+  case "$_c" in -*) continue ;; esac
+  case " $_CASE_KNOWN " in *" $_c "*) ;; *) _CASE_BAD="$_CASE_BAD $_c" ;; esac
+done
+if [ -n "$_CASE_BAD" ]; then
+  echo "no such case:$_CASE_BAD" >&2
+  echo "known cases: $_CASE_KNOWN" >&2
+  echo "nothing ran, and the shared browser mutex was not taken." >&2
+  exit 2
+fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/transport-mutations"
