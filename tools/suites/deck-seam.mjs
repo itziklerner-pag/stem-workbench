@@ -49,7 +49,7 @@
  *     `src/main/deck-host.js` as text; it does not run the gesture.
  *
  * ===========================================================================
- * WATCHED RED BY MUTATION — see docs/TESTING.md §12 for the table
+ * WATCHED RED BY MUTATION — `tools/suites/deck-seam-mutations.sh`
  * ===========================================================================
  * Every assertion here has been watched failing against a deliberate edit of the
  * file it names. An assertion nobody has seen fail is an assumption.
