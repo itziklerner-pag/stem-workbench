@@ -196,8 +196,7 @@ M 18 "separate(): return a fresh buffer instead of the caller's \`out\`" "$N" \
 
 M 19 "separate(): TRANSFER the caller's mix — the measured, silent, destructive path" "$N" \
   "      const r = await call({ t: 'separate', mix: mix.slice(0) });" \
-  "      const r = await call({ t: 'separate', mix });
-      void mix;" \
+  "      const r = await call({ t: 'separate', mix: structuredClone(mix, { transfer: [mix] }) });" \
   "...and NEITHER IS EVER DETACHED"
 
 M 20 "separate(): put the caller's 16.5 MB \`out\` on the wire too" "$N" \
@@ -221,8 +220,9 @@ M 23 "dispose(): forget the reason, so a later call is not refused by name" "$N"
   "      deadReason = 'disposed';" \
   "...and a call that arrives AFTERWARDS is refused rather than left hanging, by name"
 
-M 24 "the utility process goes on answering a backend that was given back" "$C" \
-  "    if (disposed && m.t !== 'dispose') {" "    if (false) {" \
+M 24 "the utility process DROPS a call that arrives after dispose — the silence that hangs a caller" "$C" \
+  "      return fail(m.t === 'separate' ? 'separated' : 'loaded', m.id," \
+  "      return undefined && fail(m.t === 'separate' ? 'separated' : 'loaded', m.id," \
   "the utility process refuses a separate() that arrives after dispose"
 
 M 25 "serveInference: assume one port flavour — the silent-hang bug" "$C" \
@@ -266,9 +266,9 @@ M 32 "the hole crashes instead of degrading when the factory is missing" "$H" \
   "  const native = g.__wbNativeBackend || (() => { throw new TypeError('no factory'); });" \
   "...a \`native\` choice with NO factory installed still degrades to the worker"
 
-M 33 "the hole reads no Host answer as 'native'" "$H" \
+M 33 "the hole assumes the bridge is there — the missing-guard bug" "$H" \
   "  const choice = (g.__wbEngine && g.__wbEngine.backend) || null;" \
-  "  const choice = (g.__wbEngine && g.__wbEngine.backend) || { kind: 'native' };" \
+  "  const choice = g.__wbEngine.backend || null;" \
   "...and with no Host answer at all, the default is the backend that always exists"
 
 M 34 "separate() throws before it reaches the engine — the queue then runs nothing" "$N" \
@@ -289,6 +289,14 @@ M 36 "the utility entry opens the weights itself, behind the unit's verification
   "const require = createRequire(import.meta.url);
 const _leak = () => require('node:fs').readFileSync('/dev/null');" \
   "...and it takes the weights from the wire rather than opening a file"
+
+M 37 "chooseBackend: every gate removed, so everything is the native backend" "$B" \
+  "  if (!nativeIsPossible(f.platform, f.arch)) {" \
+  "  if (f.preference !== 'worker') {
+    return Object.freeze({ kind: KINDS.native, ep: 'coreml', why: 'mutation 37 — every gate removed' });
+  }
+  if (!nativeIsPossible(f.platform, f.arch)) {" \
+  "selection row 4|selection row 8|selection row 12|selection row 13|selection row 14|selection row 15|selection row 16|selection row 17|selection row 18|selection row 19|selection row 20|a probe that claims \`ok\` on a platform that cannot run it is still refused"
 
 echo
 echo "${C_D}=== vendor-intact — rule V1 still holds after the hole was edited and restored${C_X}"
