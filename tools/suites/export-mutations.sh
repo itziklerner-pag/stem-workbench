@@ -77,6 +77,7 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/export-mutations"
+mkdir -p "$OUT"
 cd "$ROOT"
 # THE MUTATION GUARD. Traps are the belt: this battery restores on INT, TERM and
 # HUP, and `timeout` sends TERM — the way a long battery is most likely to die,
@@ -87,7 +88,6 @@ MG_BATTERY='export-mutations'; MG_ROOT="$ROOT"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
 
 mg_begin
-rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
 
@@ -266,6 +266,38 @@ mutate_case() {
 }
 
 ONLY=("$@")
+
+# ------------------------------------------------- the mutex, for the whole run
+# THE PATH IS ASKED FOR, NOT RE-DERIVED. `tools/lib/locks.mjs` is the one place
+# in `tools/` allowed to name a lock; a second literal is what let two lines of
+# work queue on two different files and then race each other on `xvfb-run -a`.
+# `void-canary` goes red if one comes back.
+#
+# TAKEN ONCE, ON fd 9, FOR THE WHOLE BATTERY — not once per case. The launched
+# lane is eighteen cases of TWO real launches each, and thirty-six separate
+# acquisitions on a box three agents share turns half an hour into an afternoon.
+# The suite is told with `STEM_WORKBENCH_BROWSER_LOCK_HELD=1` so it does not
+# deadlock trying to take a lock its own parent already holds — `flock(1)` opens
+# its own descriptor and a nested acquisition blocks for ever.
+#
+# ANCHORS-ONLY RUNS LAUNCH NOTHING, so they take nothing.
+if [ "${MUT_DRY:-0}" != "1" ]; then
+  LOCK="$(node "$ROOT/tools/lib/locks.mjs" browser)"
+  exec 9>"$LOCK"
+  echo "${C_D}waiting for the shared browser mutex ($LOCK)…${C_X}"
+  if ! flock 9; then echo "${C_R}could not take $LOCK${C_X}"; exit 2; fi
+  echo "${C_D}mutex held for the whole battery; it is released when this script exits${C_X}"
+  export STEM_WORKBENCH_BROWSER_LOCK_HELD=1
+  # THE WIPE IS AFTER THE LOCK, AND THAT ORDERING IS A BUG FIX RATHER THAN
+  # TIDINESS. It used to be the fourth line of this file, before the mutex
+  # existed here at all — so a second battery QUEUEING for the mutex would delete
+  # the running one's backups from under it, and the running one would then fail
+  # to restore a mutated file with `cp: cannot stat`. Measured in this repository,
+  # on `smoke-mutations.sh`, on the run that produced its table. Nothing under
+  # `$OUT` is touched until this process owns the box.
+  rm -rf "$OUT"; mkdir -p "$OUT"
+fi
+
 PURE='EXPORT_ONLY=pure node tools/suites/export.mjs'
 FULL='node tools/suites/export.mjs'
 S='src/main/files.js'

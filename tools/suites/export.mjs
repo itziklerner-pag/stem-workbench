@@ -252,6 +252,19 @@ const OUT = path.join(ROOT, 'out', ID);
 const LOCK = BROWSER_LOCK;
 announceLock();
 const LOCK_MARK = '__WB_LOCKED__';
+/**
+ * AN ANCESTOR MAY ALREADY HOLD IT, AND THEN TAKING IT AGAIN IS A DEADLOCK.
+ * `flock(1)` opens its own descriptor, so a nested acquisition on the same file
+ * blocks forever on the lock its own parent is holding.
+ *
+ * `tools/suites/export-mutations.sh` holds the mutex across its whole battery —
+ * eighteen launched cases, TWO launches each, so thirty-six separate
+ * acquisitions on a box three agents share is the difference between half an
+ * hour and an afternoon. It sets this; nothing else should, and it must never
+ * point anywhere but at the one path `tools/lib/locks.mjs` names.
+ * `tools/suites/smoke.mjs` takes the same position for the same reason.
+ */
+const LOCK_HELD = process.env.STEM_WORKBENCH_BROWSER_LOCK_HELD === '1';
 
 // ------------------------------------------------------------- the harness
 let pass = 0, fail = 0;
@@ -725,7 +738,7 @@ if (process.env.EXPORT_ONLY === 'pure') {
 const electron = path.join(ROOT, 'node_modules', '.bin', 'electron');
 if (!fs.existsSync(electron)) skip('electron is not installed — npm i');
 if (!hasBin('xvfb-run')) skip('xvfb-run is not on PATH and this box has no DISPLAY');
-if (!hasBin('flock')) skip('flock is not on PATH — the shared browser mutex cannot be taken');
+if (!LOCK_HELD && !hasBin('flock')) skip('flock is not on PATH — the shared browser mutex cannot be taken');
 // A MACHINE PROPERTY, LIKE THE OTHER THREE. Without `xdotool` there is no way to
 // answer a native chooser, and a native chooser is the thing under test — so
 // this cannot be worked around, only skipped honestly. `docs/TESTING.md` §3
@@ -751,9 +764,10 @@ const PLANES_JSON = JSON.stringify(planeJSON(PLANES));
 const launches = {};
 for (const phase of ['first', 'again']) {
   const dir = path.join(OUT, phase);
-  const r = await run('flock', [LOCK, '-c',
-    `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
-    + `--gate=${sh(dir)} --gate-probe=export --source-url=${sh(player)} --user-data=${sh(userData)}`],
+  const line = `echo ${LOCK_MARK}; exec xvfb-run -a -s '-screen 0 1280x1024x24' ${sh(electron)} . `
+    + `--gate=${sh(dir)} --gate-probe=export --source-url=${sh(player)} --user-data=${sh(userData)}`;
+  const [bin, args] = LOCK_HELD ? ['sh', ['-c', line]] : ['flock', [LOCK, '-c', line]];
+  const r = await run(bin, args,
   {
     cwd: ROOT,
     timeoutMs: 180000,
