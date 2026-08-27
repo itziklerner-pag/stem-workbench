@@ -27,7 +27,11 @@
  *                         two. On Linux the answer is always the worker.
  *
  * Every channel added here is a channel a compromised renderer can call, so the
- * two that ARE here are the two that could not be anywhere else.
+ * channels that ARE here are the things that could not be anywhere else: the
+ * bus, the capture claim, and — since v1.1 — the EXPORT SINK, whose files can
+ * only be written in main, over the app's own folder dialog. The duty in the
+ * hole module holds the WritableStreams; these four channels are the narrow
+ * path their chunks take to the disk (`src/main/files.js` §5).
  *
  * ---------------------------------------------------------------------------
  * THE SHAPE RULE, AND THE MISTAKE IT AVOIDS
@@ -139,4 +143,27 @@ contextBridge.exposeInMainWorld('__wbEngine', {
    * built on (docs/HOST-DESIGN.md §5.2).
    */
   claimCapture: (token) => ipcRenderer.invoke('capture:claim', token),
+
+  // ------------------------------------------------------------ the export sink
+  // THE FOUR CHANNELS THE `exportSink` DUTY IS BUILT ON. Each one resolves
+  // `{ok, ...}` or `{ok: false, code, message}` and NEVER rejects on a refusal,
+  // so the hole module's throw is the one the engine reports — a refused open
+  // must surface as the duty's own Error, not as an ipc error, and a chunk that
+  // arrives for a file this session never opened must be refused, not queued.
+  //
+  // `openExportSink` opens EVERY file of the plan at once, behind the same
+  // ask-once folder rule the E1 writer uses (`src/main/files.js` §5): one
+  // gesture, one dialog, all files. The other three are addressed by the file's
+  // BASE NAME — the names the duty itself handed out, which are the only names
+  // this session knows.
+  //
+  // Bytes only: `writeExportSink` takes an ArrayBuffer or a typed-array view,
+  // which is what a WritableStream's `write()` receives from the unit. The
+  // renderer-side session is append-only — the frame count is known before the
+  // first chunk, so the WAV header the main process wrote on open is never
+  // patched and no seekable handle ever exists.
+  openExportSink: (plan) => ipcRenderer.invoke('export:sink', plan),
+  writeExportSink: (name, chunk) => ipcRenderer.invoke('export:write', name, chunk),
+  closeExportSink: (name) => ipcRenderer.invoke('export:close', name),
+  abortExportSink: (name) => ipcRenderer.invoke('export:abort', name),
 });
