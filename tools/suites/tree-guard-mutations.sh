@@ -90,13 +90,13 @@ canary_case() {
 # ==========================================================================
 # 1-3  THE ASSERTIONS THEMSELVES
 # ==========================================================================
-canary_case 1 "a battery loses its INT/TERM/HUP trap" \
+canary_case 1 "a bash battery loses its INT/TERM/HUP trap" \
   "tools/suites/deck-seam-mutations.sh" \
   "trap mg_on_signal INT TERM HUP" \
   "true # trap removed" \
-  "every mutation battery installs the guard and traps INT, TERM and HUP"
+  "every BASH mutation battery installs the guard and traps INT, TERM and HUP"
 
-canary_case 2 "a battery stops claiming a sentinel before it edits" \
+canary_case 2 "a bash battery stops claiming a sentinel before it edits" \
   "tools/suites/transport-mutations.sh" \
   '  mg_claim "$n" "${mg_pairs[@]}"' \
   '  : # claim removed' \
@@ -110,6 +110,57 @@ canary_case 3 "blind the sentinel reader, so it reports a clean tree whatever is
   "  return names.filter((n) => n.endsWith('.json')).sort().map((n) => {" \
   "  return [].map((n) => {" \
   "INSTRUMENT CHECK: a planted sentinel is seen, and a tree without one is not accused"
+
+# ==========================================================================
+# 6-9  THE SAME FOUR THINGS FOR THE JAVASCRIPT BATTERIES
+#
+# Cases 1 and 2 glob `*-mutations.sh`, and so did the assertions they watch —
+# which is how two `.mjs` batteries came to be outside the rule entirely and both
+# arrived broken. A `.mjs` file cannot carry a bash `trap`, so what is watched
+# here is the property the trap is FOR: a SIGTERM arriving while an edit is
+# standing puts the file back. Case 9 is the one that would have caught the blind
+# spot itself rather than its consequences.
+# ==========================================================================
+canary_case 6 "a JS battery stops installing the guard, so nothing handles its signals" \
+  "tools/suites/deck-host-mutations.mjs" \
+  "const guard = mutationGuard({ battery: ID, root: ROOT });" \
+  "const guard = { claim() {}, restore() {}, release() {} };   // guard removed" \
+  "every JS mutation battery installs the guard, which is where its INT, TERM and HUP handlers come from"
+
+canary_case 7 "a JS battery stops claiming a sentinel before it edits" \
+  "tools/suites/deck-host-mutations.mjs" \
+  "  guard.claim(m.id, files);" \
+  "  /* claim removed */" \
+  "...and every one of THEM claims a sentinel before it edits and releases it after the restore"
+
+# THE GUARD ITSELF, NOT A GREP FOR IT. Cases 6 and 7 are text searches, and a
+# text search is an assumption with a regex in front of it: a battery can import
+# the module, call every method, and still strand its edit if the module stopped
+# listening. This breaks the module and requires the temp-tree kill to notice.
+canary_case 8 "the guard stops registering its handlers, so a SIGTERM strands the edit" \
+  "tools/lib/mutation-guard.mjs" \
+  "  for (const sig of GUARD_SIGNALS) process.on(sig, () => onSignal(sig));" \
+  "  void GUARD_SIGNALS; void onSignal;   // nothing is registered" \
+  "INSTRUMENT CHECK: a SIGTERM delivered while a JS battery's edit is standing puts the file back"
+
+# A THIRD KIND OF BATTERY, WHICH IS THE ORIGINAL DEFECT IN ITS PUREST FORM: not a
+# battery that is wrong, a battery that nothing looks at. The mutation is a file
+# rather than an edit, so it does not go through `canary_case`.
+if wanted 9; then
+  echo; echo "${C_D}=== mutation 9 — a battery arrives in a third language, which neither check globs${C_X}  $(date +%H:%M:%S)"
+  ran=$((ran + 1))
+  rogue="$ROOT/tools/suites/rogue-mutations.py"
+  printf '# a battery in a language neither row globs\n' > "$rogue"
+  code=0; node tools/suites/void-canary.mjs > "$OUT/9.log" 2>&1 || code=$?
+  rm -f "$rogue"
+  ok9=1
+  grep -E '^FAIL' "$OUT/9.log" | grep -qF -- "...and every battery under tools/suites is one of those two kinds" || ok9=0
+  check 9 "$ok9" "...and every battery under tools/suites is one of those two kinds" || true
+  [ "$code" -ne 0 ] || { echo "  ${C_R}MISS${C_X}   void-canary exited 0 with an unchecked battery on the tree"; ok9=0; }
+  [ -e "$rogue" ] && { echo "  ${C_R}THE ROGUE FILE WAS LEFT BEHIND${C_X}"; ok9=0; }
+  echo "  ${C_D}exit $code · $(tail -1 "$OUT/9.log") · log out/tree-guard-mutations/9.log${C_X}"
+  if [ "$ok9" = 1 ]; then caught=$((caught + 1)); else missed=$((missed + 1)); fi
+fi
 
 # ==========================================================================
 # 4  THE DEFECT ITSELF, END TO END, WITH NO TRAP IN THE WAY

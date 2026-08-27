@@ -35,7 +35,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { STEPS, classify, verdict } from '../verify.mjs';
 import { LOCK_MARKERS, sinkLock, strayLockPaths } from '../lib/locks.mjs';
 import { standingMutations } from '../lib/tree-guard.mjs';
@@ -319,25 +319,154 @@ ok('...and it turns the whole run RED, so a refusal can never be reported as gre
  * EVERY BATTERY TRAPS INT AND TERM AND RESTORES. Three of the nine did not when
  * this was written — `deck-seam`, `engine-host` and `transport` — and a battery
  * without the trap is exactly how #22 happened. This is the audit made
- * mechanical, so the tenth battery cannot arrive without one.
+ * mechanical, so the eleventh battery cannot arrive without one.
  */
-const batteries = fs.readdirSync(path.join(ROOT, 'tools', 'suites'))
-  .filter((n) => n.endsWith('-mutations.sh')).sort();
+const SUITES = path.join(ROOT, 'tools', 'suites');
+const readSuite = (n) => fs.readFileSync(path.join(SUITES, n), 'utf8');
+const allBatteries = fs.readdirSync(SUITES).filter((n) => /-mutations\.[^.]+$/.test(n)).sort();
+
+/**
+ * THE CODE, WITHOUT THE PROSE — and this is not tidiness.
+ *
+ * Every row below is a text search for a call, and these files document
+ * themselves at length: the first version of the `.mjs` sentinel row could not
+ * be watched red, because deleting `guard.claim(...)` from
+ * `deck-host-mutations.mjs` left the *comment* explaining `guard.claim()`
+ * behind and the search still found it. An assertion whose mutation cannot turn
+ * it red is the exact thing `AGENTS.md` forbids, so the searches read code.
+ *
+ * WHOLE-LINE and BLOCK comments only, in both languages. A `#` or a `//` inside
+ * a string is left alone deliberately: over-stripping risks a FALSE RED, which
+ * costs an investigation, and the strings in these files carry no call to any of
+ * the names searched for.
+ */
+function code(text, lang) {
+  const withoutBlocks = lang === 'js' ? text.replace(/\/\*[\s\S]*?\*\//g, '\n') : text;
+  const lineComment = lang === 'js' ? /^\s*\/\// : /^\s*#/;
+  return withoutBlocks.split('\n').filter((l) => !lineComment.test(l)).join('\n');
+}
+
+const batteries = allBatteries.filter((n) => n.endsWith('.sh'));
 const untrapped = batteries.filter((n) => {
-  const t = fs.readFileSync(path.join(ROOT, 'tools', 'suites', n), 'utf8');
+  const t = readSuite(n);
   return !/^trap mg_on_signal INT TERM HUP/m.test(t) || !/mutation-guard\.sh/.test(t);
 });
-ok(`every mutation battery installs the guard and traps INT, TERM and HUP  [${batteries.length} batteries]`,
+ok(`every BASH mutation battery installs the guard and traps INT, TERM and HUP  [${batteries.length} batteries]`,
   batteries.length > 0 && untrapped.length === 0,
   untrapped.length ? `NO TRAP: ${untrapped.join(', ')}` : batteries.join(' '));
 
 const unclaimed = batteries.filter((n) => {
-  const t = fs.readFileSync(path.join(ROOT, 'tools', 'suites', n), 'utf8');
+  const t = code(readSuite(n), 'sh');
   return !/mg_claim /.test(t) || !/mg_release /.test(t);
 });
 ok('...and every one of them claims a sentinel before it edits and releases it after the restore',
   unclaimed.length === 0,
   unclaimed.length ? `NO SENTINEL: ${unclaimed.join(', ')}` : `${batteries.length} claim and release`);
+
+/**
+ * ---------------------------------------------------------------------------
+ * AND THE SAME OBLIGATION FOR THE JAVASCRIPT BATTERIES — the blind spot this
+ * whole block was written in.
+ * ---------------------------------------------------------------------------
+ * The two rows above globbed `*-mutations.sh`. Two batteries are `.mjs`, so
+ * neither the trap nor the sentinel was ever asserted for them, and both were
+ * broken in exactly the way the assertions exist to prevent:
+ * `youtube-mutations.mjs` had no signal handling at all behind three rows that
+ * edit `src/`, and `deck-host-mutations.mjs` had a hand-rolled handler over an
+ * in-memory original and no sentinel — a backup that lives only in the memory
+ * of the process being killed.
+ *
+ * A `.mjs` file cannot carry a bash `trap`, so the check could not be copied
+ * across as written. THE PROPERTY IT IS ABOUT can: a SIGTERM arriving while an
+ * edit is standing puts the file back, and something on disk names the edit
+ * until it does. `tools/lib/mutation-guard.mjs` is the JS half of
+ * `tools/lib/mutation-guard.sh`; installing it is the equivalent of the trap,
+ * and `claim`/`release` are `mg_claim`/`mg_release` under their own names.
+ * Exempting these two would have put the hole back where it was.
+ */
+const jsBatteries = allBatteries.filter((n) => n.endsWith('.mjs'));
+const unguarded = jsBatteries.filter((n) => {
+  const t = code(readSuite(n), 'js');
+  return !/from '\.\.\/lib\/mutation-guard\.mjs'/.test(t) || !/mutationGuard\(/.test(t);
+});
+ok(`every JS mutation battery installs the guard, which is where its INT, TERM and HUP handlers come from  `
+  + `[${jsBatteries.length} batteries]`,
+  jsBatteries.length > 0 && unguarded.length === 0,
+  unguarded.length ? `NO GUARD: ${unguarded.join(', ')}` : jsBatteries.join(' '));
+
+const unclaimedJs = jsBatteries.filter((n) => {
+  const t = code(readSuite(n), 'js');
+  return !/\.claim\(/.test(t) || !/\.release\(/.test(t);
+});
+ok('...and every one of THEM claims a sentinel before it edits and releases it after the restore',
+  unclaimedJs.length === 0,
+  unclaimedJs.length ? `NO SENTINEL: ${unclaimedJs.join(', ')}` : `${jsBatteries.length} claim and release`);
+
+/**
+ * AND NOTHING FALLS BETWEEN THE TWO. This is the row that would have caught the
+ * blind spot itself rather than its consequences: the `.sh` glob was not wrong
+ * about the files it matched, it was silent about the files it did not, and a
+ * battery nobody checks reads exactly like a battery that passed.
+ */
+const unchecked = allBatteries.filter((n) => !n.endsWith('.sh') && !n.endsWith('.mjs'));
+ok('...and every battery under tools/suites is one of those two kinds, so a third cannot arrive unchecked  '
+  + '[entry point: the tools/suites/*-mutations.* glob above]',
+  unchecked.length === 0 && batteries.length + jsBatteries.length === allBatteries.length,
+  unchecked.length
+    ? `NEITHER .sh NOR .mjs, AND THEREFORE UNASSERTED: ${unchecked.join(', ')}`
+    : `${allBatteries.length} batteries: ${batteries.length} bash, ${jsBatteries.length} js`);
+
+/**
+ * ...AND THE OBLIGATION IS REAL, NOT A GREP. The four rows above are textual, in
+ * both languages, and a textual assertion about a runtime property is an
+ * assumption with a regex in front of it. So the property itself is watched:
+ * a throwaway battery in a temp tree, a real edit on disk, a real SIGTERM, and
+ * the file read back afterwards.
+ *
+ * THE CONTROL IS THE `finally` — which is what `youtube-mutations.mjs` had, and
+ * what `mg_on_signal` exists because of. It does not run on a signal, so the
+ * same kill over the same edit must leave it standing. A check that came back
+ * "restored" for both would be measuring nothing.
+ */
+function killWhileMutating(guarded) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mutation-guard-'));
+  fs.mkdirSync(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'src', 'shipped.js'), 'export const original = true;\n');
+  const guardUrl = pathToFileURL(path.join(ROOT, 'tools', 'lib', 'mutation-guard.mjs')).href;
+  const R = JSON.stringify(root), F = JSON.stringify(path.join(root, 'src', 'shipped.js'));
+  fs.writeFileSync(path.join(root, 'battery.mjs'), guarded
+    ? `import fs from 'node:fs';\n`
+      + `import { mutationGuard } from ${JSON.stringify(guardUrl)};\n`
+      + `const guard = mutationGuard({ battery: 'canary-battery', root: ${R} });\n`
+      + `guard.claim('1', ['src/shipped.js']);\n`
+      + `fs.writeFileSync(${F}, 'MUTATED\\n');\n`
+      + `process.kill(process.pid, 'SIGTERM');\n`
+      + `setTimeout(() => process.exit(7), 5000);\n`
+    : `import fs from 'node:fs';\n`
+      + `try {\n`
+      + `  fs.writeFileSync(${F}, 'MUTATED\\n');\n`
+      + `  process.kill(process.pid, 'SIGTERM');\n`
+      + `  await new Promise((r) => setTimeout(r, 5000));\n`
+      + `} finally { fs.writeFileSync(${F}, 'export const original = true;\\n'); }\n`);
+  const r = spawnSync('node', [path.join(root, 'battery.mjs')], { encoding: 'utf8', timeout: 30000 });
+  const out = {
+    status: r.status,
+    signal: r.signal,
+    restored: fs.readFileSync(path.join(root, 'src', 'shipped.js'), 'utf8') === 'export const original = true;\n',
+    sentinels: standingMutations(root).length,
+  };
+  fs.rmSync(root, { recursive: true, force: true });
+  return out;
+}
+const kGuard = killWhileMutating(true);
+const kBare = killWhileMutating(false);
+ok('INSTRUMENT CHECK: a SIGTERM delivered while a JS battery\'s edit is standing puts the file back and drops '
+  + 'the sentinel — and the same kill over a bare `finally` does not  '
+  + '[entry point: mutationGuard() in tools/lib/mutation-guard.mjs]',
+  kGuard.restored && kGuard.sentinels === 0 && kGuard.status === 130 && !kBare.restored,
+  `guarded: exit ${kGuard.status}${kGuard.signal ? `/${kGuard.signal}` : ''}, file `
+  + `${kGuard.restored ? 'restored' : 'STILL MUTATED'}, ${kGuard.sentinels} sentinel(s) left · `
+  + `control (finally only): ${kBare.restored ? 'RESTORED — the control cannot lose' : 'still mutated, as it must be'}`);
 
 // ---------------------------------------- 3. the VOID rule, against the real classifier
 /**

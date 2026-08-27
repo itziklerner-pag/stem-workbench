@@ -201,7 +201,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 35,
+    assertions: 39,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },

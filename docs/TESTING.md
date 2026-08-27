@@ -133,7 +133,7 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 35 | the runner's own VOID rule, and the steps table against this document |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 39 | the runner's own VOID rule, the steps table against this document, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 49 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
@@ -325,10 +325,34 @@ investigation as a real defect and additionally teaches everyone to distrust
 reds — and this one is *contagious*, because it outlives the run that caused it
 and lands on whoever measures next.
 
-**Belt.** Every battery sources `tools/lib/mutation-guard.sh` and installs
+**Belt.** Every bash battery sources `tools/lib/mutation-guard.sh` and installs
 `trap mg_on_signal INT TERM HUP`, which restores and exits 130. A battery that
 had its own handler keeps it — `MG_ALSO` chains it after the restore. Three of
 the nine had no trap at all when this was written.
+
+Two batteries are **JavaScript** — `deck-host-mutations.mjs` and
+`youtube-mutations.mjs` — and a `.mjs` file cannot carry a bash `trap`. The
+obligation is the property, not the keyword: **a SIGTERM arriving while an edit
+is standing puts the file back.** `tools/lib/mutation-guard.mjs` is the twin of
+the shell half and supplies it; `mutationGuard({battery, root})` installs the
+INT/TERM/HUP handlers and returns `claim` / `restore` / `release`, which are
+`mg_claim` / `mg_restore` / `mg_release` under their own names. It differs in
+one way, deliberately: **it writes the backup itself**, because a JS battery
+that held its original in a `const` had nothing on disk for `restore-all` to
+copy back — and both of them did.
+
+`void-canary` asserts all of it, and it asserts the two families SEPARATELY
+because it used to assert only one. Its battery check globbed
+`tools/suites/*-mutations.sh`, so neither `.mjs` battery was covered by the trap
+row or the sentinel row, and both were broken in exactly the way those rows
+exist to prevent — `youtube-mutations.mjs` had no signal handling at all behind
+three rows that edit `src/`. A fourth row closes the gap rather than its
+consequence: **every `tools/suites/*-mutations.*` must be one of the two
+kinds**, so a third cannot arrive unchecked. And because those four rows are
+textual, the property itself is watched too — a throwaway battery in a temp
+tree, a real SIGTERM, and the file read back, against a control whose only
+protection is a `finally`, which does not run on a signal and must therefore
+still be mutated.
 
 **Braces.** A trap closes `timeout` and Ctrl-C and closes *nothing* for
 `kill -9`, a crashed host or a full disk. So while a mutation is standing there
@@ -340,6 +364,17 @@ mg_claim "$n" "src/main/main.js=$OUT/8.main.js.bak"   # before the first edit
 mg_release "$n"                                        # after a VERIFIED restore
 ```
 
+```js
+const guard = mutationGuard({ battery: 'deck-host-mutations', root: ROOT });
+guard.claim(m.id, ['src/main/deck-host.js']);          // before the first edit
+guard.restore(); guard.release(m.id);                  // in the `finally`
+```
+
+`release()` verifies the restored bytes against the backup and **throws** if
+they differ, leaving the sentinel standing. That is the direction that fails
+safe: a restore that did not work stops the next run and names the file, rather
+than being reported as one that did.
+
 **Every suite refuses to start while one is present**, naming the file and the
 case, and a refusal is an **ERROR** — exit 3, no `SKIPPED`, no assertion line —
 so `tools/verify.mjs` reports it as a FAIL and the plan is RED. "I declined to
@@ -347,6 +382,24 @@ measure" must not read as green any more than silence may. A suite also refuses
 on an uncommitted `src/` with no sentinel at all; if that is your own work in
 progress, `STEM_WORKBENCH_ALLOW_DIRTY=1` measures anyway and **prints every
 dirty path in the transcript**, so a run that measured a dirty tree says so.
+
+**AND A BATTERY THAT DOES NOT CLAIM IS A BATTERY THAT CANNOT MEASURE.** The
+sentinel is what tells a suite that the dirty `src/` it is looking at is its own
+parent's doing. Neither `.mjs` battery claimed one, so under every row the suite
+printed `REFUSING TO RUN — src/ has uncommitted changes`, the battery found no
+`FAIL` lines in the refusal, and every row reported
+
+```
+0 reds: (none — the suite is blind to this)
+```
+
+which is the shape of a clean sweep. Both claim now, and both additionally pass
+`STEM_WORKBENCH_ALLOW_DIRTY=1` to the suite they spawn — the sentinel covers the
+mutated rows, the flag covers the **clean reference run**, which happens before
+any sentinel exists and which the author of an unlanded slice needs. That
+reference run is VOID-checked too: a baseline that asserted nothing is a hard
+exit 2, because "no `FAIL` lines" is what a green run and a refusal both look
+like.
 
 A battery runs its own suites without tripping its own sentinel because the
 sentinel records the battery's **PID** and a suite ignores only sentinels owned
