@@ -627,9 +627,18 @@ mutate_case_exact 26 "the no-source refusal loses its name and its sentence" \
 # THE RELAY THAT STOPPED RELAYING. Nothing else in the app notices: the deck
 # still gets its STATE, the engine still works, and the bar simply says nothing
 # about a separation that is running.
+#
+# IT TAKES THE ROW BELOW IT WITH IT, AND THAT IS THE ROW BELOW WORKING. The
+# two-way check found this: assertion 23 asks whether a SPOOFED state was
+# filtered out, and with nothing relayed at all there is no relayed value to
+# read — so it cannot look, and `docs/TESTING.md` §3 rule 7 says a suite that
+# cannot look FAILS. A version of 23 that stayed green here would be one that
+# reports "the spoof was ignored" over a build where every state is ignored,
+# which is the estimator-saturation failure `AGENTS.md` forbids. So it is
+# DECLARED rather than explained away.
 mutate_case_exact 27 "the progress relay never stores what the engine reported" \
   "src/main/main.js" \
-  "separation progress on the bar is the ENGINE's own report, relayed" \
+  "separation progress on the bar is the ENGINE's own report, relayed|...and a STATE that did not come from the ENGINE's own renderer is ignored" \
   -- src/main/main.js \
 "    lastProgress = line;
     state.progress = next;" \

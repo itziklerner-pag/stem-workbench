@@ -105,6 +105,22 @@ const FOLDER_ASK_TITLES = [FOLDER_DIALOG.title, FILE_DIALOG.title];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * THE TWO BUDGETS, AND THEY ARE NOT STOPWATCHES CARRYING A CLAIM. Every step
+ * below waits for a COUNT to move; these bound how long a BROKEN build may take
+ * to fail, so that it fails instead of hanging.
+ *
+ * MEASURED, on a green run: every ipc round trip settled in 0-1 ms, and every
+ * native chooser mapped in well under a second (the 3.6 s in the report is the
+ * xdotool answer sequence, not the mapping). They used to be 15-30 s each, which
+ * was harmless on a green run and fatal on a red one: under the mutation that
+ * ships `#export` `disabled`, eleven of them burn in a row and the launch passes
+ * the suite's own 180 s kill — so the mutation would have been reported as a
+ * TIMEOUT rather than as the twelve assertions it actually breaks.
+ */
+const ROUND_TRIP = 8000;
+const CHOOSER = 15000;
+
+/**
  * WHERE THE OPEN BUTTON IS, as an offset from the chooser's bottom-right corner.
  *
  * Measured on this box at 1124x822: the button's centre is (1075, 797), i.e.
@@ -340,17 +356,17 @@ export async function runGate({ state, outDir }) {
      */
     R.noSourcePress = await press('export');
     R.noSourceSettled = await until('the bar to draw the no-source refusal',
-      async () => ((await read()).exportBtn || {}).outcome !== null, 15000);
+      async () => ((await read()).exportBtn || {}).outcome !== null, ROUND_TRIP);
     R.afterNoSource = { bar: await read(), folderAsks: files.stats.folderAsks, fileAsks: files.stats.fileAsks };
 
     // ------------------------------------------------------- the source picker
     if (fixture) {
       R.filePress = await press('source-file');
-      const fseen = await waitForChooser(FILE_DIALOG.title, 30000);
+      const fseen = await waitForChooser(FILE_DIALOG.title, CHOOSER);
       R.fileChooserMapped = !!fseen;
       R.fileAnswered = fseen ? await answerChooser(FILE_DIALOG.title, fixture, 5000) : { answered: false, why: 'no chooser to answer' };
       R.fileSettled = await until('the bar to draw the chosen file',
-        async () => ((await read()).sourceBtn || {}).outcome !== null, 30000);
+        async () => ((await read()).sourceBtn || {}).outcome !== null, ROUND_TRIP);
       R.afterPick = { bar: await read(), fileAsks: files.stats.fileAsks };
       /**
        * WHAT REACHED THE INTAKE, read out of `main`'s own state rather than off
@@ -386,19 +402,19 @@ export async function runGate({ state, outDir }) {
     // (src/renderer/chrome.js), and the de-duplication lives beside the picker.
     const rememberedBefore = files.stats.remembered;
     R.export1Press = await press('export');
-    const seen = await waitForChooser(FOLDER_DIALOG.title, 30000);
+    const seen = await waitForChooser(FOLDER_DIALOG.title, CHOOSER);
     R.chooserMapped = !!seen;
     R.export1DupPress = await press('export');
     R.joined = await until('the second press to join the ask already in flight',
-      async () => files.stats.joinedPending >= 1, 15000);
+      async () => files.stats.joinedPending >= 1, ROUND_TRIP);
     R.asksWhileChooserUp = files.stats.folderAsks;
     R.joinedPending = files.stats.joinedPending;
 
     R.answered = seen ? await answerChooser(FOLDER_DIALOG.title, target, 5000) : { answered: false, why: 'no chooser to answer' };
     R.export1Settled = await until('the chosen folder to be remembered',
-      async () => files.stats.remembered > rememberedBefore, 30000);
+      async () => files.stats.remembered > rememberedBefore, ROUND_TRIP);
     R.export1Drawn = await until('the bar to draw the destination',
-      async () => ((await read()).dest || {}).text !== '\u2014', 15000);
+      async () => ((await read()).dest || {}).text !== '\u2014', ROUND_TRIP);
     R.afterFirst = { bar: await read(), folderAsks: files.stats.folderAsks };
 
     // THEN THE WRITER — the gesture the previous slice landed, driven directly
@@ -421,7 +437,7 @@ export async function runGate({ state, outDir }) {
     R.export2Press = await press('export');
     const watch = answerIfItAppears(FOLDER_DIALOG.title, target, 6000);
     R.export2Settled = await until('the second export to resolve from memory',
-      async () => files.stats.folderFromMemory > memoryBefore, 30000);
+      async () => files.stats.folderFromMemory > memoryBefore, ROUND_TRIP);
 
     // THE WRITER AGAIN — the same remembered folder, resolved with no picker.
     // Its own answerer stands by, for the same reason export #1's does: a
@@ -449,13 +465,13 @@ export async function runGate({ state, outDir }) {
       fs.writeFileSync(notAudio, 'not audio\n');
       const refusedBefore = files.stats.refused;
       R.refusedPress = await press('source-file');
-      const nseen = await waitForChooser(FILE_DIALOG.title, 30000);
+      const nseen = await waitForChooser(FILE_DIALOG.title, CHOOSER);
       R.refusedChooserMapped = !!nseen;
       R.refusedAnswered = nseen ? await answerChooser(FILE_DIALOG.title, notAudio, 5000) : { answered: false, why: 'no chooser to answer' };
       R.refusedSettled = await until('the intake to refuse the pick',
-        async () => files.stats.refused > refusedBefore, 30000);
+        async () => files.stats.refused > refusedBefore, ROUND_TRIP);
       R.refusedDrawn = await until('the bar to draw a refusal on the control that produced it',
-        async () => ((await read()).sourceBtn || {}).outcome !== 'ok', 15000);
+        async () => ((await read()).sourceBtn || {}).outcome !== 'ok', ROUND_TRIP);
       R.afterRefused = { bar: await read(), fileAsks: files.stats.fileAsks };
       R.notAudio = notAudio;
     }
@@ -547,11 +563,11 @@ export async function runGate({ state, outDir }) {
     // the same control first. That is the product's own order of gestures.
     if (fixture) {
       R.filePress = await press('source-file');
-      const fseen = await waitForChooser(FILE_DIALOG.title, 30000);
+      const fseen = await waitForChooser(FILE_DIALOG.title, CHOOSER);
       R.fileChooserMapped = !!fseen;
       R.fileAnswered = fseen ? await answerChooser(FILE_DIALOG.title, fixture, 5000) : { answered: false, why: 'no chooser to answer' };
       R.fileSettled = await until('the bar to draw the chosen file',
-        async () => ((await read()).sourceBtn || {}).outcome !== null, 30000);
+        async () => ((await read()).sourceBtn || {}).outcome !== null, ROUND_TRIP);
     }
     R.asksBeforeExport = files.stats.folderAsks;
 
@@ -559,7 +575,7 @@ export async function runGate({ state, outDir }) {
     R.export3Press = await press('export');
     const watch = answerIfItAppears(FOLDER_DIALOG.title, target, 6000);
     R.export3Settled = await until('the export after a restart to resolve from memory',
-      async () => files.stats.folderFromMemory > memoryBefore, 30000);
+      async () => files.stats.folderFromMemory > memoryBefore, ROUND_TRIP);
 
     // THE WRITER AFTER A RESTART — the same remembered folder, still no picker.
     // Its own answerer stands by, for the same reason export #1's does.
@@ -604,13 +620,13 @@ export async function runGate({ state, outDir }) {
     // and drawn. The writer then writes into the NEW folder, not the dead one.
     const rememberedBefore = files.stats.remembered;
     R.export4Press = await press('export');
-    const seen4 = await waitForChooser(FOLDER_ASK_TITLES, 30000);
+    const seen4 = await waitForChooser(FOLDER_DIALOG.title, CHOOSER);
     R.goneChooserMapped = !!seen4;
     R.goneAnswered = seen4 ? await answerChooser(FOLDER_ASK_TITLES, moved, 5000) : { answered: false, why: 'no chooser to answer' };
     R.export4Settled = await until('the new folder to be chosen and remembered',
-      async () => files.stats.remembered > rememberedBefore, 30000);
+      async () => files.stats.remembered > rememberedBefore, ROUND_TRIP);
     R.export4Drawn = await until('the bar to draw the new destination',
-      async () => ((await read()).dest || {}).title === moved, 15000);
+      async () => ((await read()).dest || {}).title === moved, ROUND_TRIP);
     R.afterGone = { bar: await read(), folderAsks: files.stats.folderAsks };
     R.asksAfterGone = files.stats.folderAsks;
     R.askReason = files.stats.lastAskReason;

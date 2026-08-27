@@ -164,20 +164,21 @@
  *      calling the dialog                                 chooser (the count alone stays at 1)
  *  23  files.js rememberedFolder: drop the statSync     -> ...and a remembered folder that has
  *      directory check (issue #6's branch)                been DELETED is not used
- *  24  gate/export.mjs: `{ pressed: true }` without     -> INSTRUMENT CHECK: every gesture below
- *      the `was` (slice S8a)                               is a PRESS on a LIVE control
- *  25  chrome.html: `#export` ships `disabled`           -> ...and a dead control takes EVERY
- *      (slice S8a, the defect this suite was               count to zero — the pair to 24, in
- *      rewired to see)                                     the shape of 16 and 22
- *  26  main.js: the `no-source` refusal loses its        -> pressing Export with nothing loaded
- *      code and its sentence (slice S8a)                   is REFUSED BY NAME on the bar
- *  27  main.js: hand the bar the whole record +          -> ...and the bar was told the title and
- *      chrome.js: print the path (slice S8a)               the MIME and NEITHER the path NOR the
- *                                                          token
- *  28  main.js: never draw the destination               -> ...and the bar SHOWS where the stems
- *      (slice S8a)                                         go, having said `—` before
- *  29  main.js: never read the remembered folder         -> ...and the bar carries it at BOOT,
- *      at boot (slice S8a)                                 before any gesture in that run
+ *  24  gate/export.mjs: press without recording        -> INSTRUMENT CHECK: every gesture below
+ *      whether the control was enabled                    is a PRESS on a LIVE control — and
+ *                                                         nothing else
+ *  25  chrome.html: `#export` ships `disabled`          -> TWELVE assertions, which is the point:
+ *      (the defect this suite was rewired to see)          a dead control now takes every count
+ *                                                         in this suite to zero
+ *  26  main.js: the no-source refusal loses its name    -> pressing Export with nothing loaded is
+ *      and its sentence                                    REFUSED BY NAME on the bar
+ *  27  main.js + chrome.js: the bar is handed the       -> ...and the bar was told the title and
+ *      whole record, and prints the path                   the MIME and NEITHER the path NOR the
+ *                                                         token
+ *  28  main.js: the destination is never drawn          -> ...and the bar SHOWS where the stems go
+ *      after an export                                     AND the DELETED-folder row
+ *  29  main.js: the remembered folder is not read       -> ...and the bar carries it at BOOT,
+ *      at boot, so the bar starts blank                    before any gesture in that run
  *  30  files.js encodeWav call: bitDepth 16              -> G1: the header assertion goes red (the
  *      (the plan's G1 mutation, at the call site)          writer refuses, so there is no file)
  *  31  files.js exportStems: multiply by 0.9             -> G2a: the byte-identical assertion
@@ -210,6 +211,17 @@
  *                                                           that cannot be returned)
  *  42  host.js exportSink: validate nothing about the    -> ...and the same at the seam, for an
  *      plan + files.js openSink: accept files: []          empty plan driven through the duty
+
+ * CASES 24-29 DECLARE THEIR RED SET IN BOTH DIRECTIONS — an undeclared red fails
+ * the case. The `coverage.py` line over the whole battery is a claim about the
+ * UNION of every mutation, so coverage MIGRATING between mutations leaves it
+ * unchanged; the per-case declaration is the instrument that can see that.
+
+ * 24 AND 25 ARE THE SECOND PAIR THAT FAILS IN OPPOSITE DIRECTIONS, in the shape
+ * of 16 and 22 below. 24 leaves the app perfect and takes the INSTRUMENT away.
+ * 25 leaves the instrument perfect and takes the CONTROL away. Neither one on
+ * its own would have found the other, and the second is the defect this
+ * repository actually shipped once, on the Arm button.
  *
  * CASES 16 AND 22 ARE THE PAIR THAT KEEPS THE OTHERS HONEST, and they fail in
  * opposite directions on purpose. 16 leaves every count correct — the wrapper

@@ -200,6 +200,24 @@
  *  22  main.js: the bar's gesture always arms            -> 3b, the toggle
  *  23  netguard.js: take() installs nothing              -> 19, the guard in main
  *  24  signin.js: the anonymous VERDICT throws            -> 8a, the anonymous fallback
+ *  25  chrome.html: `#source-file` ships `disabled`       -> 20, both File gestures live
+ *  26  main.js: the no-source refusal loses its code      -> 21, refused BY NAME on the bar
+ *      and its sentence
+ *  27  main.js: the progress relay never stores what      -> 22, the engine's own report — AND
+ *      the engine reported                                  23, which cannot LOOK with nothing
+ *                                                           relayed at all
+ *  28  main.js: the tap believes `from` instead of        -> 23, a spoofed STATE is ignored
+ *      the sender
+ *
+ * CASES 25-28 DECLARE THEIR RED SET IN BOTH DIRECTIONS — an undeclared red fails
+ * the case. `coverage.py` is a claim about the UNION of every mutation, so
+ * coverage MIGRATING from the mutation written for an assertion to a different
+ * one leaves it unchanged; the per-case declaration is the only instrument that
+ * sees that, and it was a real loss in this build. It paid for itself here: case
+ * 27's SECOND red was not predicted, and it turned out to be assertion 23
+ * refusing to report a green it could not justify — with nothing relayed there
+ * is no relayed value to check the spoof against, and a suite that cannot look
+ * FAILS (docs/TESTING.md §3 rule 7).
  *
  * TWO OF THESE FOUND A DEFECT IN AN ASSERTION RATHER THAN IN THE APP, which is
  * what a battery is for and is why both are written down here.
