@@ -203,7 +203,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 45,
+    assertions: 46,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
@@ -613,6 +613,49 @@ export const STEPS = [
      * each declaring the assertion names it must turn red, with
      * `tools/suites/coverage.py` over the whole battery refusing an assertion
      * that has never been seen on a FAIL line.
+     */
+  },
+  {
+    id: 'export',
+    assertions: 22,
+    title: 'node tools/suites/export.mjs — file intake: the allowlist, the title, the one-shot path token, and the export folder asked exactly once over two real launches',
+    cmd: ['node', 'tools/suites/export.mjs'],
+    window: true,
+    /**
+     * THE ONLY STEP THAT ANSWERS A NATIVE OPERATING-SYSTEM DIALOG, and the only
+     * one that needs `xdotool`.
+     *
+     * The plan's G3 says the folder is asked exactly once and says HOW it must be
+     * measured: *"the dialog count MUST be instrumented by counting invocations
+     * in the main process... it must NOT be measured by replacing, stubbing, or
+     * monkey-patching `dialog.showOpenDialog`"*. So this suite launches the app
+     * twice over ONE profile, lets it open the real GTK chooser, answers it with
+     * a real pointer and real keystrokes, and reads the count off the counter
+     * `src/main/files.js` keeps beside its own call. Its first launched assertion
+     * is the instrument check that the intake is holding electron's own module —
+     * every count after it is worthless without that one.
+     *
+     * IT SKIPS, RATHER THAN FAILS, WITHOUT `xdotool`, for the same reason the
+     * other windowed steps skip without `xvfb-run`: a native chooser that cannot
+     * be answered is a property of the box (`docs/TESTING.md` §3 rule 8), and it
+     * is the thing under test, so there is nothing to fall back to.
+     *
+     * IT LAUNCHES WITH `DBUS_SESSION_BUS_ADDRESS=disabled:`. On a box with a
+     * session bus and no `xdg-desktop-portal` — this one, and every hosted CI
+     * runner — Chromium asks the portal for a file dialog and never falls back to
+     * GTK: nothing maps and the promise never settles. The suite's header carries
+     * the measurement and what the substitution costs.
+     *
+     * HALF OF IT NEEDS NO DISPLAY. Nine assertions drive the allowlist, the title
+     * derivation and the path tokens in plain node, and `--quick` therefore drops
+     * assertions it did not have to — the same trade `deck-host` makes and for the
+     * same reason: splitting them would let the pure half go green over an app
+     * that cannot ask for a folder at all.
+     *
+     * THE COUNT MOVES WHEN THE EXPORT WRITER LANDS. G1, G2a and G2b-path — the
+     * bit-exact 32-bit-float headers, six planes written unaltered in `STEMS`
+     * order, and a title that cannot escape the folder ON DISK — belong to this
+     * step and are not built yet. The suite's header says so in as many words.
      */
   },
   {

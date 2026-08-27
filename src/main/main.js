@@ -83,7 +83,7 @@
  */
 import './netguard.js';
 
-import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
+import { app, BaseWindow, BrowserWindow, WebContentsView, dialog, ipcMain, Menu } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -96,6 +96,7 @@ import { createBus, BUS } from './bus.js';
 import { createTransport } from './transport.js';
 import { createEngineMessages } from './engine-messages.js';
 import { createStorage } from './storage.js';
+import { createFileIntake, createPathTokens } from './files.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
 import { createSessions } from './sessions.js';
 import { createUpdateCheck } from './update.js';
@@ -250,6 +251,8 @@ const state = {
   transport: null,       // the source view's transport (src/main/transport.js)
   engineMessages: null,  // the three messages the Host owes the engine (§5)
   storage: null,         // the deck's two storage areas (src/main/storage.js)
+  pathTokens: null,      // one-shot handles on absolute paths (src/main/files.js)
+  files: null,           // the File source's intake: the two pickers, the ask-once folder
   deckHost: null,        // the deck's Host, main-process half (src/main/deck-host.js)
   deckH: DECK_H,         // what the deck last measured itself to be, already clamped
   deckClosed: false,     // `page.close()` — the surface goes, the audio does not
@@ -501,6 +504,28 @@ async function boot() {
    * of. A Host with no player passes `transport: null` — spelled, never omitted.
    */
   state.storage = createStorage({ dir: app.getPath('userData') });
+
+  /**
+   * THE FILE INTAKE, and `dialog` is handed to it rather than imported by it.
+   *
+   * `src/main/files.js` keeps no `electron` import for `claims.js`'s reason —
+   * its allowlist, its title derivation and its path tokens are worth asserting
+   * in plain node. THIS IS THE ONE PLACE AN INTAKE IS BUILT, and it is built
+   * over electron's own `dialog`: `tools/suites/export.mjs` asserts exactly that
+   * (`files.usesDialog()`) before it counts anything, because a dialog count is
+   * only a fact about this app if the picker it counts is the real one.
+   *
+   * THE STORAGE IS PASSED, NEVER IMPORTED, like the transport below it: the
+   * export folder is a preference and lives in the `local` area, which is the
+   * half of `src/main/storage.js` that survives a restart.
+   */
+  state.pathTokens = createPathTokens();
+  state.files = createFileIntake({
+    dialog,
+    window: () => state.win,
+    storage: state.storage,
+    tokens: state.pathTokens,
+  });
   state.deckHost = installDeckHost({
     storage: state.storage,
     bus: state.bus,
