@@ -25,6 +25,23 @@
  *     and `dist-linux` is the only step anywhere that builds an artifact.
  *
  * ===========================================================================
+ * WHY THE HOMOGENEOUS ROWS EXIST — do not trim them as redundant
+ * ===========================================================================
+ * Assertion 15 hands `pickRelease()` a list of ONLY pre-releases and then one of
+ * ONLY stable releases. Beside the mixed rows above it it looks like a duplicate,
+ * and it is the opposite: it is the only row that can lose.
+ *
+ * Every MIXED fixture here passes even if the channel predicate is inverted to
+ * `r.prerelease === true` — the beta the assertion wants is in the list either
+ * way, so the right answer comes back for the wrong reason. That is not a
+ * missing case. It is a whole table of cases that AGREE WITH EACH OTHER for the
+ * wrong reason, which is `AGENTS.md`'s control rule in the shape it actually
+ * turns up in: a fixture set that cannot distinguish the hypothesis from its
+ * negation. Only "betas and nothing else" and "stable and nothing else" separate
+ * them, and mutation case 10 exists to prove it — one edit, three reds, and this
+ * is the third.
+ *
+ * ===========================================================================
  * WATCHED RED BY MUTATION — every row, and the exact edit
  * ===========================================================================
  * Every row below was watched failing against a deliberate edit, and the battery
