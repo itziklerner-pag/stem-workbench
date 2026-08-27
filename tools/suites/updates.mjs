@@ -29,7 +29,7 @@
  * ===========================================================================
  * Every row below was watched failing against a deliberate edit, and the battery
  * that reproduces it is `tools/suites/updates-mutations.sh` — 33 cases, and its
- * final line is `coverage: all 35 assertions in the suite have been watched red`.
+ * final line is `coverage: all 36 assertions in the suite have been watched red`.
  * The `case` column is that script's own numbering, so a row and its mutation
  * can be run on their own.
  *
@@ -49,27 +49,28 @@
  * | 12 | `stable` skips a newer pre-release               | 10   | the same edit, from the other side                           |
  * | 13 | newest by `published_at`, not by array order     | 12   | delete `usable.sort(...)`                                    |
  * | 14 | an unknown channel THROWS                        | 13   | drop the `UPDATE_CHANNELS.includes` guard                    |
- * | 15 | empty, absent and single-object answers are null | 14   | `if (!Array.isArray(list)) return null` -> `list = [list]`    |
- * | 16 | the toggle DEFAULTS ON when absent               | 15   | `AUTO_UPDATE_DEFAULT = false`                                |
- * | 17 | ...and only an explicit `false` turns it off     | 16   | `autoUpdateFrom` -> `return stored === true`                 |
- * | 18 | ...and it lives in the `local` area              | 17   | `AUTO_UPDATE_AREA = 'session'`                               |
- * | 19 | THE TOGGLE SURVIVES A RESTART                    | 17   | the same edit — this is the row that MEASURES it             |
- * | 20 | ...and the CONTROL: `session` would not survive  | 19   | make `storage.js`'s two Maps one Map                         |
- * | 21 | `setEnabled()` moves the wire, and is counted    | 20   | `setEnabled` -> count the move without making it             |
- * | 22 | ...and a check while off DECLINES                | 21   | `if (!on)` -> `if (false)`                                   |
- * | 23 | main creates the STORE before the check          | 22   | move `createStorage` back below `createUpdateCheck`          |
- * | 24 | ...and ANDs the preference with the flag         | 23   | `UPDATE_CHECK && autoUpdate` -> `autoUpdate`                 |
- * | 25 | OFF MEANS OFF — one call site, no timer          | 35   | add an hourly `setInterval(... .check())` in main.js         |
- * | 26 | the toggle is wired across the three files       | 24   | delete `setAutoUpdate` from src/preload/chrome.cjs           |
- * | 27 | ...and it is a real input, not a menu item       | 25   | `<input type="checkbox">` -> `<span>`                        |
- * | 28 | mac: hardened runtime, entitlements, notarize    | 26   | `build.mac.notarize` -> `false`                              |
- * | 29 | ...and the entitlements file is a real plist     | 27   | rename `allow-jit` in build/entitlements.mac.plist           |
- * | 30 | win: nsis, and UNSIGNED during beta              | 28   | put `azureSignOptions` into `build.win`                      |
- * | 31 | ...and Azure Trusted Signing IS configured       | 29   | drop `-c.win.azureSignOptions.endpoint=` from the script     |
- * | 32 | linux: AppImage and deb, with a maintainer       | 30   | delete `build.linux.maintainer`                              |
- * | 33 | `--publish never` on EVERY dist script           | 31   | drop it from `dist:linux`                                    |
- * | 34 | ...and `build.publish` NAMES the feed            | 32   | `build.publish.provider` -> `null`                           |
- * | 35 | ...and CI creates no Release                     | 33   | add a `gh release create` step to package.yml                |
+ * | 15 | a HOMOGENEOUS list, on both channels             | 10   | the channel guard -> `r.prerelease === true`                 |
+ * | 16 | empty, absent and single-object answers are null | 14   | `if (!Array.isArray(list)) return null` -> `list = [list]`    |
+ * | 17 | the toggle DEFAULTS ON when absent               | 15   | `AUTO_UPDATE_DEFAULT = false`                                |
+ * | 18 | ...and only an explicit `false` turns it off     | 16   | `autoUpdateFrom` -> `return stored === true`                 |
+ * | 19 | ...and it lives in the `local` area              | 17   | `AUTO_UPDATE_AREA = 'session'`                               |
+ * | 20 | THE TOGGLE SURVIVES A RESTART                    | 17   | the same edit — this is the row that MEASURES it             |
+ * | 21 | ...and the CONTROL: `session` would not survive  | 19   | make `storage.js`'s two Maps one Map                         |
+ * | 22 | `setEnabled()` moves the wire, and is counted    | 20   | `setEnabled` -> count the move without making it             |
+ * | 23 | ...and a check while off DECLINES                | 21   | `if (!on)` -> `if (false)`                                   |
+ * | 24 | main creates the STORE before the check          | 22   | move `createStorage` back below `createUpdateCheck`          |
+ * | 25 | ...and ANDs the preference with the flag         | 23   | `UPDATE_CHECK && autoUpdate` -> `autoUpdate`                 |
+ * | 26 | OFF MEANS OFF — one call site, no timer          | 35   | add an hourly `setInterval(... .check())` in main.js         |
+ * | 27 | the toggle is wired across the three files       | 24   | delete `setAutoUpdate` from src/preload/chrome.cjs           |
+ * | 28 | ...and it is a real input, not a menu item       | 25   | `<input type="checkbox">` -> `<span>`                        |
+ * | 29 | mac: hardened runtime, entitlements, notarize    | 26   | `build.mac.notarize` -> `false`                              |
+ * | 30 | ...and the entitlements file is a real plist     | 27   | rename `allow-jit` in build/entitlements.mac.plist           |
+ * | 31 | win: nsis, and UNSIGNED during beta              | 28   | put `azureSignOptions` into `build.win`                      |
+ * | 32 | ...and Azure Trusted Signing IS configured       | 29   | drop `-c.win.azureSignOptions.endpoint=` from the script     |
+ * | 33 | linux: AppImage and deb, with a maintainer       | 30   | delete `build.linux.maintainer`                              |
+ * | 34 | `--publish never` on EVERY dist script           | 31   | drop it from `dist:linux`                                    |
+ * | 35 | ...and `build.publish` NAMES the feed            | 32   | `build.publish.provider` -> `null`                           |
+ * | 36 | ...and CI creates no Release                     | 33   | add a `gh release create` step to package.yml                |
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -281,6 +282,25 @@ const src = (rel) => strip(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
   ok('...and a channel this app does not have THROWS rather than quietly picking one  [entry point: pickRelease()]',
     threw(() => pickRelease([beta], 'nightly')) !== null && threw(() => pickRelease([beta], 'prerelease')) === null,
     String(threw(() => pickRelease([beta], 'nightly')) || '(did not throw)').slice(0, 110));
+
+  /**
+   * THE HOMOGENEOUS LISTS, both channels, because a mixed list can hide a
+   * predicate that is right for the wrong reason. A `prerelease` channel that
+   * accidentally required `r.prerelease === true` still passes every mixed
+   * fixture above — the beta is there to be picked — and only fails when handed
+   * a list with no pre-release in it at all. Same in reverse for `stable`.
+   */
+  const onlyBetas = [beta, olderBeta];
+  const onlyStable = [stable, R('v0.1.0', { published_at: '2026-06-01T00:00:00Z' })];
+  ok('...and a HOMOGENEOUS list answers on both channels — only pre-releases, then only stable releases  '
+    + '[entry point: pickRelease()]',
+    tagOf(pickRelease(onlyBetas, 'prerelease')) === beta.tag_name
+    && pickRelease(onlyBetas, 'stable') === null
+    && tagOf(pickRelease(onlyStable, 'prerelease')) === stable.tag_name
+    && tagOf(pickRelease(onlyStable, 'stable')) === stable.tag_name,
+    `betas-only -> prerelease ${tagOf(pickRelease(onlyBetas, 'prerelease'))} / stable `
+    + `${JSON.stringify(pickRelease(onlyBetas, 'stable'))}; stable-only -> `
+    + `${tagOf(pickRelease(onlyStable, 'prerelease'))} on both — a mixed list cannot tell these apart`);
 
   ok('...and an empty, absent or malformed answer is `null`, never a tag  [entry point: pickRelease()]',
     pickRelease([], 'prerelease') === null && pickRelease(null, 'prerelease') === null

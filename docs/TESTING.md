@@ -143,7 +143,7 @@ node tools/verify.mjs --list         # the steps table
 | `deck-host` | `tools/suites/deck-host.mjs` | window | 27 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
-| `updates` | `tools/suites/updates.mjs` | — | 35 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
+| `updates` | `tools/suites/updates.mjs` | — | 36 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
 | `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `dist-linux` | `tools/suites/dist-linux.mjs` | window | 10 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
@@ -2317,7 +2317,7 @@ reporting a green step as VOID.
 cannot be armed without an owner deciding to name a second host. This is what
 the two suites assert.
 
-### `updates` — 35 assertions, no display, ~0.2 s
+### `updates` — 36 assertions, no display, ~0.2 s
 
 | # | claim |
 |---|---|
@@ -2325,15 +2325,15 @@ the two suites assert.
 | 4 | **the host is the one `PRIVACY.md` and `CONTRIBUTING.md` promise the reader.** This is the one re-point `p1` CANNOT see — that suite builds its fake TLS certificate FROM `UPDATE_HOST`, so `UPDATE_HOST = 'api.example.com'` came back 24 passed, 0 failed through a full windowed run. Two documents lying is a claim about files this constant does not control |
 | 5 | the endpoint is the LIST, not `/releases/latest` — which GitHub defines as the newest **non**-prerelease, so the old code could never have followed the beta channel at all |
 | 6–8 | the channel is `prerelease` in the code, in `package.json`'s `build.publish.releaseType`, and as one object compared **both ways** against `UPDATER_FEED` |
-| 9–15 | `pickRelease()` over a table: a draft is never offered on either channel; `prerelease` offers a pre-release AND a newer stable one; `stable` skips a newer pre-release; newest is by `published_at` and not by the order GitHub sent; an unknown channel throws; empty, absent and single-object answers are `null` |
-| 16–22 | the toggle: default ON when absent, only an explicit `false` turns it off, the area is `local` — **and the restart is measured**: written through one `createStorage()`, read back through a second over the same directory, with a **control** proving the same value in `session` does not survive. Then `setEnabled()` really moves what `check()` may do, and a check while off DECLINES rather than asking |
-| 23–24 | `main` creates the store before the check, and ANDs the preference with the command line rather than replacing it |
-| 25 | **OFF MEANS OFF** — issue #13: the check is asked EXACTLY ONCE in the whole of `src/main/`, and no `setInterval`, `setTimeout`, `before-quit` or `will-quit` goes anywhere near it. Case 21 is the runtime half; this is the second-call-site half |
-| 26–27 | the toggle is wired across `main.js` + `chrome.cjs` + `chrome.js` as a real `<input type="checkbox">` |
-| 28–32 | the three platform blocks: macOS hardened runtime + entitlements + notarize with a plist that really carries the four the wasm engine needs and no microphone entitlement; Windows NSIS with **no signer in `build.win`** and Azure Trusted Signing configured on `dist:win:signed` with all four fields; Linux AppImage + deb with the `maintainer` the deb cannot be built without |
-| 33–35 | `--publish never` on every `dist:*` script, `build.publish` nevertheless NAMING the feed, and CI uploading artifacts rather than creating a Release |
+| 9–16 | `pickRelease()` over a table — every list shape Ruling 17 names: a draft is never offered on either channel; `prerelease` offers a pre-release AND a newer stable one; `stable` skips a newer pre-release; newest is by `published_at` and not by the order GitHub sent; an unknown channel throws; a **homogeneous** list answers on both channels (only pre-releases, then only stable — a mixed list cannot tell a predicate that is right for the wrong reason from one that is right); and empty, absent and single-object answers are `null` |
+| 17–23 | the toggle: default ON when absent, only an explicit `false` turns it off, the area is `local` — **and the restart is measured**: written through one `createStorage()`, read back through a second over the same directory, with a **control** proving the same value in `session` does not survive. Then `setEnabled()` really moves what `check()` may do, and a check while off DECLINES rather than asking |
+| 24–25 | `main` creates the store before the check, and ANDs the preference with the command line rather than replacing it |
+| 26 | **OFF MEANS OFF** — issue #13: the check is asked EXACTLY ONCE in the whole of `src/main/`, and no `setInterval`, `setTimeout`, `before-quit` or `will-quit` goes anywhere near it. Case 21 is the runtime half; this is the second-call-site half |
+| 27–28 | the toggle is wired across `main.js` + `chrome.cjs` + `chrome.js` as a real `<input type="checkbox">` |
+| 29–33 | the three platform blocks: macOS hardened runtime + entitlements + notarize with a plist that really carries the four the wasm engine needs and no microphone entitlement; Windows NSIS with **no signer in `build.win`** and Azure Trusted Signing configured on `dist:win:signed` with all four fields; Linux AppImage + deb with the `maintainer` the deb cannot be built without |
+| 34–36 | `--publish never` on every `dist:*` script, `build.publish` nevertheless NAMING the feed, and CI uploading artifacts rather than creating a Release |
 
-All 35 watched red by `tools/suites/updates-mutations.sh` (33 cases, coverage
+All 36 watched red by `tools/suites/updates-mutations.sh` (33 cases, coverage
 green). The one that is not in that battery is the one that belongs to `p1`:
 adding a SECOND host to `check()` — `github.com`, exactly what arming
 electron-updater would add — turns `p1` RED with
@@ -2366,6 +2366,16 @@ against its schema before it packages anything and refuses unknown properties, s
 a green `dist-linux` says electron-builder ACCEPTS those two blocks rather than
 that their JSON looks plausible. `updates` §4 is the shape check; this is the
 tool's own opinion of it.
+
+**IT SKIPS IN THE MAIN CHECKOUT TODAY, and that is a ruling rather than a
+defect.** `electron-builder` is declared in `devDependencies` and has never been
+installed there; installing it means `npm ci`, which deletes `node_modules` —
+which every concurrent worktree is hardlinked to (`.handoff/WORKTREES.md` §2.3).
+It is scheduled with a re-seed sweep once the desktop worktrees are torn down.
+The skip line names `electron-builder` and the `npm ci` fix so nobody has to
+guess. The evidence itself is not deferred: the AppImage and the deb were built
+and the AppImage launched, in a worktree, on 2026-08-26.
+[`docs/UPDATES.md`](UPDATES.md) §3 records it with the date.
 
 **It SKIPS on a machine and FAILS on a defect**, §3 rule 8: no electron-builder,
 no weights, no ORT drop, no `xvfb-run`, no `flock` — each named in the `SKIPPED`

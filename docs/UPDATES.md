@@ -27,7 +27,7 @@ whole point of this file.
 | when | once, after the window is up, never awaited, never able to fail a boot |
 | default | ON. `AUTO_UPDATE_DEFAULT = true`, `local` storage, key `autoUpdate` |
 | toggle | a checkbox in the 44 px chrome bar (`src/renderer/chrome.html` `#autoupdate`) |
-| gates | `updates` (35 assertions, no display) and `p1` (24, one real launch) |
+| gates | `updates` (36 assertions, no display) and `p1` (24, one real launch) |
 
 ### `/releases/latest` could never follow the pre-release channel
 
@@ -209,6 +209,29 @@ not have: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`. The
 endpoint region and the two account names are placeholders until somebody buys
 the certificate; they are spelled out so the shape is reviewable rather than
 discovered by whoever runs it first.
+
+### Known-deferred verification — `dist-linux` SKIPs in the main checkout
+
+**Recorded 2026-08-26. Deferred by ruling, not by oversight.**
+
+`electron-builder` is declared in `devDependencies` and **has never been
+installed in the main checkout** — which is why `npm run dist:linux` had never
+run on this box at all before this slice. Everything above was measured in a
+worktree seeded with an INDEPENDENT copy of `node_modules` rather than the usual
+`cp -al` hardlink farm, precisely so an `npm install` there could not corrupt the
+main checkout for the other agents working on it.
+
+Installing it in the main checkout means `npm ci`, and `npm ci` **deletes
+`node_modules`** — which every concurrent worktree is hardlinked to
+(`.handoff/WORKTREES.md` §2.3). Running it while agents are gating would break
+their trees mid-flight. So it is scheduled for after the desktop worktrees are
+landed and torn down, together with a re-seed sweep.
+
+| | |
+|---|---|
+| **until then** | `dist-linux` SKIPs, with a machine reason that names `electron-builder` and says `npm ci` in the main checkout is the fix. A SKIP is the correct verdict for *"the toolchain is not installed here"* — `docs/TESTING.md` §3 rule 8 — and `--strict` turns it into exit 2 rather than letting it read as success |
+| **what is NOT deferred** | the evidence. The AppImage and the deb were built and the AppImage was launched to the app's own `[main] ready` line, in the worktree, on 2026-08-26. What is deferred is the same run happening from the canonical checkout |
+| **who** | the integrator, on the `npm ci` + re-seed sweep |
 
 ### The deb needed a maintainer, and the first build proved it
 

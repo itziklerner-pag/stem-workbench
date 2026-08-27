@@ -173,9 +173,21 @@ const MB = (n) => `${(n / 1e6).toFixed(1)} MB`;
 // 0. PREFLIGHT — every one of these is a property of the machine, not the code
 // ==========================================================================
 const builder = path.join(ROOT, 'node_modules', '.bin', 'electron-builder');
+/**
+ * THE EXPECTED STATE OF THE MAIN CHECKOUT TODAY, and the skip line has to say so
+ * in words somebody can act on. `electron-builder` is declared in
+ * `devDependencies` and has never been installed there — which is why
+ * `npm run dist:linux` had never run on this box at all. Installing it means
+ * `npm ci`, which DELETES `node_modules`, and `.handoff/WORKTREES.md` has every
+ * concurrent agent seeding a `cp -al` hardlink farm against exactly that
+ * directory. So it is deferred by ruling until the desktop worktrees are landed
+ * and torn down (`docs/UPDATES.md` §3, "Known-deferred verification").
+ */
 if (!fs.existsSync(builder)) {
-  skip('electron-builder is not installed in node_modules — it is in devDependencies, so `npm ci` installs it. '
-    + 'Nothing can be packaged without it');
+  skip('electron-builder is NOT INSTALLED in this checkout\'s node_modules. It is declared in '
+    + 'devDependencies, so the fix is `npm ci` IN THE MAIN CHECKOUT — which deletes node_modules and '
+    + 'therefore needs a re-seed of every worktree hardlinked to it (.handoff/WORKTREES.md §2.3). '
+    + 'Deferred by ruling; see docs/UPDATES.md §3. Nothing can be packaged until then');
 }
 const model = path.join(ROOT, 'models', 'htdemucs_6s.onnx');
 if (!fs.existsSync(model)) {
