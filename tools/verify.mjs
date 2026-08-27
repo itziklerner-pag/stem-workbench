@@ -677,8 +677,8 @@ export const STEPS = [
   },
   {
     id: 'export',
-    assertions: 23,
-    title: 'node tools/suites/export.mjs — file intake: the allowlist, the title, the one-shot path token, and the export folder asked exactly once over two real launches',
+    assertions: 44,
+    title: 'node tools/suites/export.mjs — file intake: the allowlist, the title, the one-shot path token, the export WRITER (G1, G2a, G2b-path), the export sink, and the folder asked exactly once over two real launches',
     cmd: ['node', 'tools/suites/export.mjs'],
     window: true,
     /**
@@ -707,16 +707,19 @@ export const STEPS = [
      * GTK chooser appear, so it is done for the launch rather than left to the
      * machine. The suite's header carries the measurement and what it costs.
      *
-     * HALF OF IT NEEDS NO DISPLAY. Nine assertions drive the allowlist, the title
-     * derivation and the path tokens in plain node, and `--quick` therefore drops
-     * fourteen assertions it did not have to — the same trade `deck-host` makes and for the
-     * same reason: splitting them would let the pure half go green over an app
-     * that cannot ask for a folder at all.
+     * HALF OF IT NEEDS NO DISPLAY. Eighteen assertions drive the allowlist, the
+     * title derivation, the path tokens, the writer's own bytes and the sink
+     * session in plain node, and `--quick` therefore drops twenty-six assertions
+     * it did not have to — the same trade `deck-host` makes and for the same
+     * reason: splitting them would let the pure half go green over an app that
+     * cannot ask for a folder at all.
      *
-     * THE COUNT MOVES WHEN THE EXPORT WRITER LANDS. G1, G2a and G2b-path — the
-     * bit-exact 32-bit-float headers, six planes written unaltered in `STEMS`
-     * order, and a title that cannot escape the folder ON DISK — belong to this
-     * step and are not built yet. The suite's header says so in as many words.
+     * THE WRITER IS IN. G1, G2a and G2b-path — the bit-exact 32-bit-float
+     * headers, six planes written unaltered in `STEMS` order, and a title that
+     * cannot escape the folder ON DISK — are built and driven here: exports
+     * #1-#4 of the probe are all writer gestures, and the engine-facing export
+     * sink rides the same two launches through the real duty, the real preload
+     * bridge and the real main-process session.
      */
   },
   {

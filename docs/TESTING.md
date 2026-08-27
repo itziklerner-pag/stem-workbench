@@ -146,7 +146,7 @@ node tools/verify.mjs --list         # the steps table
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
 | `updates` | `tools/suites/updates.mjs` | — | 36 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
 | `smoke` | `tools/suites/smoke.mjs` | window | 22 | boot, the Host seam, the transport, the deck — against a **local fake player** — and **seed §9's anonymous fallback**: with an empty cookie jar the app works out that it is signed out, says so, and arms and plays anyway |
-| `export` | `tools/suites/export.mjs` | window | 23 | **file intake** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, and **the export folder asked exactly once** over two real launches sharing one profile. The dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog`. The export WRITER (G1, G2a, G2b-path) lands in this step later and moves the count |
+| `export` | `tools/suites/export.mjs` | window | 44 | **file intake AND the export writer AND the engine-facing export sink** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, **the export folder asked exactly once** over two real launches sharing one profile, the WRITER's six WAVs byte-identical to the planes (G1, G2a, G2b-path), and the vendored exportSink duty driven end to end through the real preload bridge into main's append-only session. The dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog` |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `dist-linux` | `tools/suites/dist-linux.mjs` | window | 10 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
@@ -1644,16 +1644,18 @@ launch half cannot test late binding at all.
 
 ---
 
-## 5f. `export` — file intake, and the folder chosen once
+## 5f. `export` — file intake, the export writer, and the folder chosen once
 
-`tools/suites/export.mjs`, 23 assertions, `window`. **The only suite anywhere in
+`tools/suites/export.mjs`, 44 assertions, `window`. **The only suite anywhere in
 this repository that answers a native operating-system dialog.**
 
-Nine of the twenty-three need no display at all — the extension/MIME allowlist, the
-title derivation and the one-shot path tokens are plain functions in
-`src/main/files.js`, which keeps no `electron` import for the reason
-`src/main/claims.js` keeps none. The other fourteen come out of **two real
-launches of `electron .` sharing one profile**.
+Eighteen of the forty-four need no display at all — the extension/MIME
+allowlist, the title derivation, the one-shot path tokens, the writer's own
+bytes (the pure half of G1, G2a and G2b-path, re-derived by the suite with
+plain `Buffer` ops against the vendored encoder) and the sink session are plain
+functions in `src/main/files.js`, which keeps no `electron` import for the
+reason `src/main/claims.js` keeps none. The other twenty-six come out of **two
+real launches of `electron .` sharing one profile**.
 
 ### The dialog is never stubbed, and that is a requirement rather than a taste
 
@@ -1677,10 +1679,12 @@ The first launched assertion is the instrument check that makes the rest mean
 anything: the intake the running app is holding compares equal, by identity, to
 `electron`'s own `dialog`. Its mutation (case 16) builds the intake over a
 *wrapper* that still opens the real dialog, so every count stays correct and only
-that one assertion notices — `21 passed, 1 failed`. Its opposite (case 22) leaves
-the instrument alone and answers the folder without opening a picker at all, and
-the count alone stays at 1. Neither of the two would have found the other, which
-is why both are in the battery.
+that one assertion notices — measured `43 passed, 1 failed` over the full
+forty-four-assertion suite (the `21 passed, 1 failed` figure dates from before
+the export writer landed). Its opposite (case 22) leaves the instrument alone and
+answers the folder without opening a picker at all, and the count alone stays at
+1. Neither of the two would have found the other, which is why both are in the
+battery.
 
 ### Three machine facts, measured, because each one costs an afternoon
 
@@ -1712,34 +1716,45 @@ is why both are in the battery.
 | the instrument | the intake holds electron's own `dialog`; a launch on its own asks for nothing |
 | **G3** | the first export opens the real chooser and is answered; the options are a folder picker that may create one; a second export while the chooser is up JOINS that ask rather than stacking a second modal; **the folder is asked exactly once across two consecutive exports**, and export #2 resolves to the remembered folder with no chooser |
 | **G4** | **the remembered folder survives a restart** — a second launch on the same profile asks zero times — and it is the same folder, out of the `local` area, with `session` empty; and a folder DELETED behind the app's back is not used: it asks again, with reason `gone`, and takes the new answer (issue #6) |
+| **G1** | the writer's header is bit-exact — fmt tag 3, 32-bit float, 44100 Hz, stereo, `fact` present, data = frames × 8 — asserted pure against the real vendored `encodeWav` AND on disk in the app: exports #1-#4 of the probe are all writer gestures now |
+| **G2a** | the six WAVs are byte-identical to the planes' own bytes, in `STEMS` order — no scaling, no dither, no normalisation — and the suite re-derives the expected bytes with plain `Buffer` ops, never calling `encodeWav` |
+| **G2b-path** | a title cannot escape the chosen folder ON DISK — `../../escape` resolves to a child of the chosen folder, proven by reading the bytes back |
+| the sink | the engine-facing export sink opens every file of a deliverable at once and streams chunks over the real preload bridge into main's append-only session; **a refused open is a THROW, never an empty map** (the user cancelling is the ordinary case); a second session cannot open while one is live, and a chunk cannot invent a file |
 | the file picker | it admits a real audio file, derives its title and mints a one-shot token that resolves over the running app's own registry; and a file the allowlist does not admit is refused BY NAME over that same chooser |
 
 ### Deliberately not asserted here
 
-- **THE EXPORT WRITER.** Six 32-bit-float / 44.1 kHz / stereo WAVs in `STEMS`
-  order at unity, bit-exact headers, and a title that cannot escape the folder ON
-  DISK — the plan's G1, G2a and G2b-path. They belong to this step and land with
-  the writer, and **the pinned count moves when they do**. Nothing here writes or
-  reads a WAV.
 - **THE PORTAL CHOOSER.** See §11.
 - **THE GESTURE IN FRONT OF THE DIALOG.** Nothing a user can press reaches the
   intake yet, so the probe calls `ensureExportFolder()` and `chooseSourceFile()`
   directly from inside main. That is the entry point the writer and the chrome
-  bar will both use, and every assertion names it — but it is one step short of
-  §5c's standard, and the export COMMAND is what closes the gap. When the writer
-  lands, this suite should drive the export rather than the intake.
+  bar both use, and every assertion names it — but it is one step short of
+  §5c's standard. The writer has landed since that line was written, and exports
+  #1-#4 are all real writer gestures — but the export COMMAND, the chrome-bar
+  item a user actually presses, is its own slice and it is what closes the gap.
 
 ### Watched red
 
-`tools/suites/export-mutations.sh`, 23 cases in two lanes: eleven run
-`EXPORT_ONLY=pure` in under a second each, twelve are the whole suite and take
-two real launches apiece. `tools/suites/coverage.py` over the full battery
-refuses an assertion that has never appeared on a `FAIL` line. The suite's header
-block carries the case-by-case table.
+`tools/suites/export-mutations.sh`, 36 cases in two lanes: thirteen run
+`EXPORT_ONLY=pure` in under a second each (cases 1-11, 34, 36), twenty-three are
+the whole suite and take two real launches apiece. Cases 24-27 run the whole
+suite on purpose: their mutations are the plan's G1/G2a/G2b-path, and they must
+redden the IN-THE-APP assertions too, not only the pure ones — an in-app
+assertion with no launched watcher is a gap `tools/suites/coverage.py` exists to
+catch. `tools/suites/coverage.py` over the full battery refuses an assertion
+that has never appeared on a `FAIL` line. The suite's header block carries the
+case-by-case table.
 
-Two of the cases are the plan's own, verbatim: **case 12** deletes the
+Two of the original cases are the plan's own, verbatim: **case 12** deletes the
 persisted-folder read and the count becomes 2 (G3), and **case 13** keeps the
 folder in the `session` area instead of `local` and the relaunch asks again (G4).
+So is **case 24**, the plan's G1 mutation at the writer's call site: `bitDepth:
+16` at the `encodeWav` call, and the float encoder refuses — there is no file at
+all. Cases 24-27 run the whole suite, so the in-the-app G1/G2a/G2b-path
+assertions and the writer's G4 ("six real WAVs into the remembered folder after
+a restart") go red under them as well — previously they were pure-only, and a
+launched assertion with no launched watcher is exactly what `coverage.py`
+refuses.
 
 ## 6. `smoke` — Playwright-for-Electron against a local fake player
 
