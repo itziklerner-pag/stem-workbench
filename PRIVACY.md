@@ -60,7 +60,7 @@ Releases, for the update check, and nothing else.*
 | **where** | `api.github.com`, and nothing else: `GET /repos/itziklerner-pag/stem-workbench/releases`. It follows the **pre-release** channel, because that is what a beta is |
 | **what it reveals** | what any HTTP request necessarily reveals to the host it is sent to: your IP address and your user agent. GitHub's privacy statement governs what they log |
 | **what it does not carry** | no installation identifier, no machine identifier, no usage counter, no opt-out token. There is nothing in it that distinguishes you from anyone else running the same version |
-| **can you turn it off** | yes — a visible toggle. It is **on by default**, and the reason is below |
+| **can you turn it off** | yes — a visible checkbox in the app's own bar, marked *auto-update*. It is **on by default**, and the reason is below. Turning it off is remembered across restarts, and the gate measures that rather than asserting it (`docs/TESTING.md` §10b) |
 
 **Why an update check exists at all, when the extension has none.** This app
 ships its own Chromium and loads youtube.com in it, so it owns Chromium's

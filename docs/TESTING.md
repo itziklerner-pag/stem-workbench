@@ -2692,6 +2692,67 @@ reporting a green step as VOID.
 
 ---
 
+## 10b. `updates` and `dist-linux` — the release channel, and an installer that runs
+
+`docs/UPDATES.md` is the long form: what runs, what is configured, and what
+cannot be armed without an owner deciding to name a second host. This is what
+the two suites assert.
+
+### `updates` — 34 assertions, no display, ~0.2 s
+
+| # | claim |
+|---|---|
+| 1–3 | the check resolves ONE host; the app-owned policy admits that URL and refuses four others, including the two `github.com` / `objects.githubusercontent.com` that arming electron-updater would need |
+| 4 | **the host is the one `PRIVACY.md` and `CONTRIBUTING.md` promise the reader.** This is the one re-point `p1` CANNOT see — that suite builds its fake TLS certificate FROM `UPDATE_HOST`, so `UPDATE_HOST = 'api.example.com'` came back 24 passed, 0 failed through a full windowed run. Two documents lying is a claim about files this constant does not control |
+| 5 | the endpoint is the LIST, not `/releases/latest` — which GitHub defines as the newest **non**-prerelease, so the old code could never have followed the beta channel at all |
+| 6–8 | the channel is `prerelease` in the code, in `package.json`'s `build.publish.releaseType`, and as one object compared **both ways** against `UPDATER_FEED` |
+| 9–15 | `pickRelease()` over a table: a draft is never offered on either channel; `prerelease` offers a pre-release AND a newer stable one; `stable` skips a newer pre-release; newest is by `published_at` and not by the order GitHub sent; an unknown channel throws; empty, absent and single-object answers are `null` |
+| 16–22 | the toggle: default ON when absent, only an explicit `false` turns it off, the area is `local` — **and the restart is measured**: written through one `createStorage()`, read back through a second over the same directory, with a **control** proving the same value in `session` does not survive. Then `setEnabled()` really moves what `check()` may do, and a check while off DECLINES rather than asking |
+| 23–26 | `main` creates the store before the check, ANDs the preference with the command line rather than replacing it, and the toggle is wired across `main.js` + `chrome.cjs` + `chrome.js` as a real `<input type="checkbox">` |
+| 27–31 | the three platform blocks: macOS hardened runtime + entitlements + notarize with a plist that really carries the four the wasm engine needs and no microphone entitlement; Windows NSIS with **no signer in `build.win`** and Azure Trusted Signing configured on `dist:win:signed` with all four fields; Linux AppImage + deb with the `maintainer` the deb cannot be built without |
+| 32–34 | `--publish never` on every `dist:*` script, `build.publish` nevertheless NAMING the feed, and CI uploading artifacts rather than creating a Release |
+
+All 34 watched red by `tools/suites/updates-mutations.sh` (32 cases, coverage
+green). The one that is not in that battery is the one that belongs to `p1`:
+adding a SECOND host to `check()` — `github.com`, exactly what arming
+electron-updater would add — turns `p1` RED with
+`GOT ["https://api.github.com","https://github.com"]`.
+
+### `dist-linux` — 9 assertions, window, ~2 min
+
+It is the only step anywhere that builds an installer and runs it. Every other
+windowed suite launches `electron .` over the CHECKOUT, and three differences
+break silently between that and an installer: `app.isPackaged` flips and the
+weights move to `process.resourcesPath`; the app is read out of an asar, so
+anything the `files` glob forgot is simply absent; and `app-update.yml` — the
+updater feed, and therefore the release channel — exists only inside an artifact.
+
+| # | claim |
+|---|---|
+| 1 | `electron-builder --linux --publish never` builds **both** targets. A SET, not a count: the first Linux build on this box wrote the AppImage and then failed the deb for a missing `maintainer` (`FpmTarget.ts:126`), so `dist/` looked like a successful build with one file missing |
+| 2–3 | the built installer CARRIES `app-update.yml`, and it is on the **pre-release** channel. `publish: null` produced no such file at all — an app that can never update itself however well it is written |
+| 4 | `latest-linux.yml` describes exactly the two files that were built, at their real byte counts on disk |
+| 5 | the 109 MB of weights are in `resources/model/` at the unit's own pinned byte count |
+| 6 | `tools/` is NOT in the asar, so the module `--gate-probe` names is not on disk in a shipped build |
+| 7 | **the packaged AppImage launches and reaches the app's own `[main] ready` line** — one match, COUNTED, and the process group is killed the moment it arrives. Nothing sleeps |
+| 8 | ...and the vendored deck came out of the asar over `app://` with the engine cross-origin isolated and SAB available |
+| 9 | ...and the bundled weights were hash-verified by the unit through `process.resourcesPath` — **rule M1 over the installer's own copy**, a branch no other suite reaches — and `--gate=DIR` passed to the shipped binary did nothing |
+
+**It SKIPS on a machine and FAILS on a defect**, §3 rule 8: no electron-builder,
+no weights, no ORT drop, no `xvfb-run`, no `flock` — each named in the `SKIPPED`
+line, each turned into exit 2 by `--strict`. The one non-preflight skip is
+narrow: nothing produced AND a resolver error in the transcript, because a first
+build fetches the Electron zip, `appimagetool` and `fpm` from the network. A
+build that RAN and rejected our configuration is a FAIL.
+
+**What it does not prove:** the sandbox (the launch passes `--no-sandbox`,
+because `chrome-sandbox` in a freshly built tree is not setuid root and nothing
+here runs as root — renderer isolation is `shell`'s claim); any audio; and
+anything at all about macOS or Windows.
+
+It is **not** in `.github/workflows/gate.yml`, for the same reason `engine-host`
+is not: it needs the 109 MB of weights. Packaging lives in `package.yml`.
+
 ## 11. What is verified here, and what is only configured
 
 **Linux is the verification platform for this phase, by ruling.** The plan's pass
@@ -2700,10 +2761,19 @@ Apple credential on this machine, so the substitute is:
 
 | | |
 |---|---|
-| **verified** | a runnable Linux app that starts and arms on this box, proven by `smoke`, `capture-mute` and `p1` under `xvfb-run` |
+| **verified** | a runnable Linux app that starts and arms on this box, proven by `smoke`, `capture-mute` and `p1` under `xvfb-run` — and, since `dist-linux`, a Linux **installer** that is built and then run |
 | **configured, never built or signed here** | the electron-builder configuration and CI for macOS and Windows |
 
 Say that plainly wherever it matters. It is not a caveat to bury.
+
+**One row of that table moved, and only one.** `dist-linux` builds the AppImage
+and the deb with `electron-builder --linux --publish never` and then LAUNCHES the
+AppImage under `xvfb`, waiting for the app's own `[main] ready` line. So "a
+runnable Linux app" is now a claim about an artifact rather than about a
+checkout — which matters, because `app.isPackaged` flips in a packaged build and
+takes the weights to `process.resourcesPath` down a branch no other suite
+reaches. **macOS and Windows did not move at all**: no dmg, zip or exe has been
+produced on any machine, and nothing has been signed or notarized anywhere.
 
 **Both halves now exist, and the second one is still not evidence.** The
 configuration is `package.json`'s `build` key (dmg + zip for macOS with the

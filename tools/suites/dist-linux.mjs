@@ -140,10 +140,18 @@ if (!fs.existsSync(model)) {
   skip('models/htdemucs_6s.onnx is absent (109 MB, gitignored, `bash tools/vendor-unit.sh --model`) — '
     + '`build.extraResources` packages it and the build cannot run without it');
 }
+/**
+ * THE FILE NAMED HERE IS THE ONE `vendor/.pin`'s `ort` block HASHES, so the
+ * preflight and the pin cannot disagree about what "the drop is present" means.
+ * The first draft of this line named `ort.webgpu.bundle.min.mjs`, which does not
+ * exist in the 1.27.0 drop at all — the suite SKIPPED on a fully seeded tree and
+ * the SKIP read exactly like a machine that was missing something.
+ */
 const ort = path.join(ROOT, 'vendor', 'stem-splitter-live', 'extension', 'vendor', 'ort');
-if (!fs.existsSync(path.join(ort, 'ort.webgpu.bundle.min.mjs'))) {
-  skip('the ONNX Runtime drop is absent (~27 MB, gitignored, `bash vendor/stem-splitter-live/tools/fetch-vendor.sh`) — '
-    + 'an installer built without it cannot boot its engine');
+if (!fs.existsSync(path.join(ort, 'ort.all.bundle.min.mjs'))
+  || !fs.existsSync(path.join(ort, 'ort-wasm-simd-threaded.jsep.wasm'))) {
+  skip('the ONNX Runtime drop is absent or incomplete (~27 MB, gitignored, '
+    + '`bash vendor/stem-splitter-live/tools/fetch-vendor.sh`) — an installer built without it cannot boot its engine');
 }
 if (!hasBin('xvfb-run')) skip('xvfb-run is not on PATH and this box has no DISPLAY');
 if (!hasBin('flock')) skip('flock is not on PATH — the shared browser mutex cannot be taken');
@@ -299,7 +307,7 @@ if (!appImage.length || !debs.length) done();
  * suite is about packaging and `p1` is the suite that measures the network.
  * `--gate=` is passed ON PURPOSE and must do nothing: see the assertion.
  */
-const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
+const fixture = fileUrl(path.join(ROOT, 'tools', 'fixture', 'player.html'));
 const userData = path.join(OUT, 'userdata');
 const gateDir = path.join(OUT, 'gate-must-stay-empty');
 fs.mkdirSync(gateDir, { recursive: true });
@@ -360,7 +368,14 @@ done();
 // ------------------------------------------------------------------ helpers
 function sh(s) { return `'${String(s).replace(/'/g, `'\\''`)}'`; }
 function lastLine(s) { const l = String(s).trimEnd().split('\n'); return l[l.length - 1] || '(no output)'; }
-function pathToFileURL(p) { return new URL(`file://${path.resolve(p)}`).href; }
+/**
+ * NAMED `fileUrl`, NOT `pathToFileURL`. The first draft shadowed node's own name
+ * and then called `.href` on its RESULT — which is already a string, so `href`
+ * was `undefined` and the app was launched with `--source-url=undefined`. It was
+ * caught by reading the process table of a queued run, not by the suite, which
+ * would have gone red at the ready line with a confusing reason.
+ */
+function fileUrl(p) { return new URL(`file://${path.resolve(p)}`).href; }
 function hasBin(name) {
   for (const dir of (process.env.PATH || '').split(':')) {
     try { fs.accessSync(path.join(dir, name), fs.constants.X_OK); return true; } catch { /* next */ }
