@@ -32,7 +32,8 @@
  * | 1 | the check names one host                    | `UPDATE_HOST = 'api.example.com'` -> also turns `p1` red          |
  * | 2 | ...and the policy admits exactly it         | `mayRequest` -> `return u.protocol === 'https:'`                  |
  * | 3 | ...and the electron-updater feed host too    | `UPDATER_FEED.provider = 'generic'`                               |
- * | 4 | the path is channel-capable                 | `UPDATE_PATH` -> `/releases/latest`                               |
+ * | 4 | the host is the one the USER is promised     | `UPDATE_HOST = 'api.example.com'` — the ONE thing `p1` cannot see |
+ * | 5 | the path is channel-capable                 | `UPDATE_PATH` -> `/releases/latest`                               |
  * | 5 | the channel is `prerelease`                 | `UPDATE_CHANNEL = 'stable'`                                       |
  * | 6 | ...and package.json says the same word      | `build.publish.releaseType` -> `'release'`                        |
  * | 7 | ...and the feed matches package.json both ways | add a key to `UPDATER_FEED` only                               |
@@ -144,6 +145,40 @@ const src = (rel) => strip(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
     UPDATER_FEED.provider === 'github' && mayRequest('app', 'https://github.com/x') === false,
     `provider=${UPDATER_FEED.provider}; the public GitHubProvider's host is github.com `
     + `(electron-updater@6.8.9 out/providers/GitHubProvider.js:32), and P1' names ${UPDATE_HOST}`);
+
+  /**
+   * THE PIN THAT `p1` CANNOT MAKE, AND THIS WAS MEASURED RATHER THAN REASONED.
+   *
+   * `src/main/update.js` used to claim that `tools/suites/p1.mjs` *"closes the
+   * other direction by standing up a fake host whose CERTIFICATE carries this
+   * name, so a re-point that nobody meant fails to resolve."* IT DOES NOT. The
+   * suite generates that certificate FROM `UPDATE_HOST` at run time, so the fake
+   * host is renamed along with the app: `UPDATE_HOST = 'api.example.com'` was
+   * watched through a full windowed `p1` run and came back **24 passed, 0
+   * failed**. Every gate in this repository imports the constant, which is what
+   * makes them measure "one host" rather than "this host" — and it is exactly
+   * why nothing could see the one being moved.
+   *
+   * What CAN see it is the promise. `PRIVACY.md` and `CONTRIBUTING.md` both
+   * spell the host to the reader, and one of them is the sentence the user is
+   * asked to believe. Re-pointing the constant makes both documents lie, and
+   * that is a claim about two files rather than a restatement of one.
+   *
+   * `p1` still owns the other half, and it is the half that matters more: a
+   * SECOND host was added to `check()` — `github.com`, which is precisely what
+   * arming electron-updater would add — and `p1` went RED with
+   * `GOT ["https://api.github.com","https://github.com"]`.
+   */
+  const promises = ['PRIVACY.md', 'CONTRIBUTING.md'].map((f) => {
+    const text = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const claimed = [...text.matchAll(/\{\s*https:\/\/([a-z0-9.-]+)\s*\}/g)].map((mm) => mm[1]);
+    return { f, claimed, namesIt: text.includes(UPDATE_HOST) };
+  });
+  ok('...and the host is the one the USER is promised, by name, in both documents that make the promise  '
+    + '[entry point: PRIVACY.md and CONTRIBUTING.md vs UPDATE_HOST — the re-point p1 cannot see, because it '
+    + 'builds its fake certificate FROM the constant]',
+    promises.every((x) => x.namesIt && x.claimed.length > 0 && x.claimed.every((h) => h === UPDATE_HOST)),
+    promises.map((x) => `${x.f}: names it ${x.namesIt}, claims {${x.claimed.join(', ') || 'nothing'}}`).join(' · '));
 
   /**
    * `/releases/latest` IS DEFINED AS "the most recent NON-PRERELEASE, non-draft

@@ -30,9 +30,23 @@
  * the three re-types it. That is deliberate and it is the difference
  * between a gate and a tautology in ONE direction only: re-pointing this
  * constant moves the policy and the assertion WITH it, so the gate keeps
- * measuring "one host" rather than "this host" — and `tools/suites/p1.mjs`
- * closes the other direction by standing up a fake host whose CERTIFICATE
- * carries this name, so a re-point that nobody meant fails to resolve.
+ * measuring "one host" rather than "this host".
+ *
+ * THE OTHER DIRECTION USED TO BE CLAIMED HERE AND WAS NOT TRUE. This comment
+ * said `tools/suites/p1.mjs` *"closes the other direction by standing up a fake
+ * host whose CERTIFICATE carries this name, so a re-point that nobody meant
+ * fails to resolve."* It does not: that suite generates the certificate FROM
+ * this constant at run time, so the fake host is renamed along with the app.
+ * Measured — `UPDATE_HOST = 'api.example.com'` through a full windowed `p1` run
+ * came back **24 passed, 0 failed**.
+ *
+ * What DOES close it is `tools/suites/updates.mjs`, against the two documents
+ * that promise the host to the reader — `PRIVACY.md` and `CONTRIBUTING.md`.
+ * Re-pointing this constant makes both of them lie, and that is a claim about
+ * files this one does not control. What `p1` catches, and catches hard, is a
+ * SECOND host: adding `github.com` to `check()` — precisely what arming
+ * electron-updater would add — turns it RED with
+ * `GOT ["https://api.github.com","https://github.com"]`.
  *
  * ---------------------------------------------------------------------------
  * `/releases/latest` COULD NEVER FOLLOW THE PRE-RELEASE CHANNEL. IT IS GONE.
