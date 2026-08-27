@@ -151,7 +151,13 @@
  * Every assertion below, with the edit that broke it. Run on 2026-08-26 against
  * Electron 44.0.0 / Chromium 152.0.7977.54 on Linux: **19 of 19 caught, and
  * `coverage.py` over the whole battery found all 18 assertions on a FAIL line.**
- * Case 24 was added with the anonymous fallback and watched red on its own.
+ *
+ * CASE 24 AND THE ANONYMOUS-FALLBACK ROW CAME LATER, and what was run for them
+ * is stated exactly rather than folded into the line above: a GREEN baseline
+ * (22 passed, 0 failed) and case 24 alone, watched red, one assertion. The
+ * whole-battery numbers and the blast-radius tally below were measured BEFORE
+ * that row existed and have not been re-measured over it — the next full battery
+ * is what re-establishes them, and `coverage.py` refuses a subset the claim.
  *
  * CASE 24 IS THE ONE THAT HAD TO BE AIMED CAREFULLY, and the reason is worth
  * reading before touching `src/main/signin.js`. The obvious mutation — make
@@ -166,7 +172,10 @@
  * The right-hand column of that script is what ACTUALLY went red, not what was
  * expected to. Fifteen of the nineteen turn exactly one assertion red; the four
  * with a wider blast radius are 4 (six — the deck never boots), 7 (three), and
- * 1, 5 and 11 (two each).
+ * 1, 5 and 11 (two each). Those counts predate the anonymous-fallback row, which
+ * conjoins the arm and the play, so the cases that break either of those will
+ * take it too — information, and the runner prints every red rather than only
+ * the expected one.
  *
  *   1  main.js: never addChildView(source.view)           -> 1, the topology
  *   2  smoke.mjs: guard only OUR session                  -> 2, the guard itself
@@ -190,7 +199,7 @@
  *  21  chrome.html: put `disabled` back on Arm           -> 3a and 3b, the bar
  *  22  main.js: the bar's gesture always arms            -> 3b, the toggle
  *  23  netguard.js: take() installs nothing              -> 19, the guard in main
- *  24  signin.js: the anonymous VERDICT throws            -> 20, the anonymous fallback
+ *  24  signin.js: the anonymous VERDICT throws            -> 8a, the anonymous fallback
  *
  * TWO OF THESE FOUND A DEFECT IN AN ASSERTION RATHER THAN IN THE APP, which is
  * what a battery is for and is why both are written down here.
