@@ -1085,10 +1085,18 @@ autoplay-muted default. That needs a manual re-check on a cadence.
 ### R10 — macOS and Windows are configured, never built `[decided, standing]`
 
 electron-builder targets and CI workflows for all three platforms are written in
-this phase; only Linux is built and run. Notarization, Azure Trusted Signing and
-`electron-updater` against the pre-release channel are configuration with no
-evidence behind them, and every document that mentions them says so in those
-words.
+this phase; only Linux is built and run. Notarization and Azure Trusted Signing
+are configuration with no evidence behind them, and every document that mentions
+them says so in those words.
+
+**UPDATED 2026-08-26.** "Only Linux is built and run" is now literally true
+rather than aspirational: `dist-linux` builds the AppImage and the deb and then
+LAUNCHES the AppImage, waiting for the app's own `[main] ready` line. The
+pre-release channel moved with it — it is inside the built artifact's
+`app-update.yml` and that suite reads it back out. What did NOT move:
+`electron-updater` is configured and is not a dependency of this app, because
+its transport makes a session outside `src/main/sessions.js` and its provider's
+host is `github.com` rather than the one host P1′ names. `docs/UPDATES.md` §2.
 
 ### R11 — The preload bridge shape `[read, and cheap to get wrong]`
 

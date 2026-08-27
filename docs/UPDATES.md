@@ -130,6 +130,36 @@ empty coverage `AGENTS.md` forbids, with an unobserved session attached.
 Until (1) is an owner decision, this section is the honest status and the app
 tells the user a newer pre-release exists rather than fetching it.
 
+### The AppImage update problem, and the decision it forces — issue #12
+
+Issue #12 states it and asks for a decision rather than an absorption:
+
+> Windows NSIS and macOS zip updates are **differential**: the unchanged model
+> blocks — around 109 MiB of the ~300 MB artifact — are not re-downloaded. **A
+> Linux AppImage update re-ships the whole artifact.** Every update is a full
+> 300 MB download for a change of a few kilobytes of JavaScript.
+
+It offers three options: accept it and say so at the point the user is offered
+an update; prefer the `.deb` where the user installed one; or do not auto-update
+the AppImage at all and notify instead.
+
+**This implementation takes the third, and takes it on every platform.** That is
+not a Linux workaround that happened to fit — it falls out of P1' above, which
+forbids the second host a download needs on any platform at all. So the question
+issue #12 raises does not get a Linux-specific answer here; it gets an answer
+that applies everywhere and removes the asymmetry:
+
+| | |
+|---|---|
+| **what the app does** | tells you a newer pre-release exists |
+| **what it does not do** | fetch it, verify it, stage it, or restart into it — on Linux, macOS or Windows |
+| **what that costs** | the user does a manual download. On AppImage that is the 300 MB they would have paid anyway; on Windows and macOS it is a differential update they no longer get |
+| **when it changes** | when an owner widens P1' to name the hosts a download needs. Section 2's list, in order |
+
+The AppImage's 197 MB and the deb's 158 MB were measured on this box, from the
+build `dist-linux` makes. The differential advantage NSIS and zip would have had
+is real and is being given up; saying that plainly is the point of this table.
+
 ---
 
 ## 3. Platforms
@@ -197,4 +227,10 @@ check that something was produced.
 - **The AppImage launch runs `--no-sandbox`**, because `chrome-sandbox` in a
   freshly built tree is not setuid root and nothing here runs as root. Renderer
   isolation is `shell`'s claim, over a checkout.
+- **The `.deb` is built and never installed.** Issue #12 asks for the bundled
+  model to be readable *"inside an AppImage and inside a `.deb` install"*;
+  `dist-linux` proves the first — the unit hash-verifies the installer's own copy
+  through `process.resourcesPath` at runtime — and the second needs root on this
+  box and has not been done. The deb's contents are asserted only as a file that
+  exists at the size `latest-linux.yml` claims.
 - **macOS has never run this app at all** — `docs/TESTING.md` §11.

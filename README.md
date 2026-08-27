@@ -1,7 +1,10 @@
 # stem-workbench
 
-**Pre-alpha. There is nothing to install** — no installer, no signed build, no
-release, and none has ever been produced. There IS an application, and it works
+**Pre-alpha. There is nothing to install** — no release, nothing signed, nothing
+notarized, and no macOS or Windows build has ever been produced on any machine.
+A Linux AppImage and deb now *build*, and the gate step `dist-linux` builds one
+and then launches it; that is a fact about this repository's own box and not a
+thing anybody can download. There IS an application, and it works
 end to end: `npm start` opens a window with `youtube.com` in it, you press play,
 you arm it from the bar or the menu, and the app captures the page — muted, so
 you hear nothing of it — and separates what it captured into **six stems with
@@ -424,11 +427,22 @@ node tools/verify.mjs --quick          # ...minus anything that opens a window o
 node tools/verify.mjs --self-check     # the runner's own classifier, ~0 s
 node tools/verify.mjs --only shell     # one real launch of `electron .`, ~2 s
 node tools/verify.mjs --only youtube   # MANUAL: the real site, end to end, ~5 min
+node tools/verify.mjs --only dist-linux # BUILDS an AppImage + deb and LAUNCHES the AppImage, ~2 min
 node tools/verify.mjs --strict         # ...and a step that SKIPPED fails the run (exit 2)
 tools/suites/shell-mutations.sh        # watch every one of its assertions go red
 node tools/suites/youtube-mutations.mjs        # 43 rows over a recorded run, ~10 s
 node tools/suites/youtube-mutations.mjs --live # ...and three real edits to src/, one launch each
 ```
+
+**`dist-linux` is the only step that builds something a user would download**, and
+then runs it: `electron-builder --linux --publish never` produces the AppImage and
+the deb, and the AppImage is launched under `xvfb` until the app prints its own
+`[main] ready` line. It is where the pre-release channel is read back out of a
+built artifact's `app-update.yml` rather than out of `package.json`, and where the
+bundled 109 MB is hash-verified through `process.resourcesPath` — a branch no
+other suite reaches. It SKIPS, with a machine-readable reason, without
+electron-builder, the weights, the ONNX Runtime drop, `xvfb-run` or `flock`.
+[`docs/UPDATES.md`](docs/UPDATES.md) is the long form.
 
 **`youtube` is never on a default plan**, and the runner names it under *WHAT DID
 NOT RUN* on every run that leaves it out. It needs the network, the 109 MB

@@ -53,6 +53,7 @@
  * |21 | main reads the preference before the check  | move `createStorage` back below `createUpdateCheck`               |
  * |22 | main ANDs the flag with the preference      | `UPDATE_CHECK && autoUpdate` -> `autoUpdate`                      |
  * |23 | the bar exposes the toggle, three files     | delete `setAutoUpdate` from src/preload/chrome.cjs                |
+ * |23a| OFF MEANS OFF — one call site, no timer     | add a `setInterval(() => state.update.check(), …)` in main.js     |
  * |24 | ...and it is a real input, not a menu item  | delete the `<input type="checkbox" id="autoupdate">`              |
  * |25 | mac: hardened runtime, entitlements, notarize | `build.mac.notarize` -> `false`                                 |
  * |26 | ...and the entitlements file is real plist  | truncate build/entitlements.mac.plist                             |
@@ -387,6 +388,33 @@ const src = (rel) => strip(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
     && /setAutoUpdate:.*invoke\('chrome:autoUpdate'/.test(preload)
     && /__wbChrome\.setAutoUpdate\(/.test(renderer),
     'main handles it, the preload exposes it, the bar calls it');
+
+  /**
+   * OFF MEANS OFF — issue #13, in its own words: *"no check at launch, no check
+   * on a timer, no 'one last check' on quit."*
+   *
+   * The runtime half is asserted in §3 (`check()` DECLINES while the toggle is
+   * off, and the counter says so). This is the SHAPE half, and it is a
+   * different failure: a second call site that nobody wired to the toggle. So
+   * the whole of `src/` is scanned, comments stripped, for how many times the
+   * check is asked at all, and for the three places a second one would hide —
+   * an interval, a timeout, and a quit handler.
+   */
+  const srcFiles = fs.readdirSync(path.join(ROOT, 'src', 'main')).filter((f) => f.endsWith('.js'))
+    .map((f) => path.join('src', 'main', f));
+  const callSites = srcFiles.flatMap((rel) => [...src(rel).matchAll(/\.check\(\s*\)/g)].map(() => rel));
+  const sneaky = srcFiles.flatMap((rel) => {
+    const t = src(rel);
+    return [...t.matchAll(/setInterval\(|setTimeout\(|'before-quit'|'will-quit'/g)]
+      .filter((mm) => /update|\.check\(/i.test(t.slice(mm.index, mm.index + 400)))
+      .map((mm) => `${rel}:${t.slice(mm.index, mm.index + 24).replace(/\s+/g, ' ')}`);
+  });
+  ok('OFF MEANS OFF: the check is asked EXACTLY ONCE in the whole of `src/main/`, and no timer, timeout or '
+    + 'quit handler goes anywhere near it  [entry point: state.update.check() in src/main/main.js — issue #13]',
+    callSites.length === 1 && callSites[0] === path.join('src', 'main', 'main.js') && sneaky.length === 0,
+    sneaky.length ? `A SECOND PATH: ${sneaky.join(' · ')}`
+      : `${callSites.length} call site (${callSites.join(', ') || 'NONE'}); `
+        + `${srcFiles.length} files scanned for setInterval/setTimeout/before-quit/will-quit near the check`);
 
   ok('...and it is a VISIBLE control in the bar — a real checkbox, not a menu item nobody finds  '
     + '[entry point: #autoupdate in src/renderer/chrome.html]',

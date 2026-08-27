@@ -241,6 +241,28 @@ unfinished or quietly redefine the words, the pass condition is replaced:
 | **the cost, stated** | the platform the plan calls the priority is the platform with zero evidence. The first Mac to run this will be doing so for the first time, and decision 2's capture property is unproven there |
 | **the obligation this creates** | **every document in this repository says which of "verified", "configured but never built" and "written down only" a claim is.** [`docs/ARCHITECTURE.md` §7](../ARCHITECTURE.md) defines the three and [`CONTRIBUTING.md`](../../CONTRIBUTING.md) makes a sentence that omits it a bug in the document |
 
+**ADDENDUM, 2026-08-26 — one clause of this decision was implemented differently,
+and it is the words "via electron-updater".** Everything else in decision 6 is
+delivered: auto-update is on by default, the toggle is visible in the app's own
+bar and survives a restart, and the pre-release channel is set — in
+`src/main/update.js`, in `package.json`'s `build.publish`, and inside a built
+installer's own `app-update.yml`, which the `dist-linux` gate reads back out of
+the artifact.
+
+electron-updater itself is **configured and not a dependency of this app**, and
+the reason is this decision's own network rule, one paragraph below. Read at
+6.8.9 rather than assumed: it creates its own
+`session.fromPartition("electron-updater")`, which is a session outside
+`src/main/sessions.js` and therefore outside the P1′ observer; its public GitHub
+provider talks to `github.com`, not the `api.github.com` that P1′ names, so the
+policy cancels every request it makes; and a release asset redirects to
+`objects.githubusercontent.com`. The download path is **irreducibly two hosts**
+and P1′ names one — and this project never creates a GitHub Release, so there is
+nothing to download in any case. The delivery half therefore stays configured and
+unarmed. [`docs/UPDATES.md`](../UPDATES.md) §2 lists, in order, what an owner
+would have to decide before that changes; **widening P1′ is an owner's call and
+has not been asked for.**
+
 **P1′ — the network rule** — is part of this decision and not a separate one:
 successor to the extension's P1 (*"no network after the model download"*), it
 says the app's own code talks to **exactly one named host, GitHub Releases, for
