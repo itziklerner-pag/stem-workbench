@@ -120,7 +120,17 @@ const wire = () => globalThis.__wbEngine || null;
  * What they buy is the difference between "the engine sent nothing" and "the
  * wire dropped it", which is otherwise two indistinguishable silences.
  */
-const stats = { sent: 0, dropped: 0, received: 0, notMine: 0 };
+const stats = {
+  sent: 0, dropped: 0, received: 0, notMine: 0,
+  // THE EXPORT SINK (v1.1 ADDITIVE — `ENGINE_HOST_DUTIES` gains it at the pin
+  // bump; until then this export is inert to `assertHost`). Counts, never
+  // stopwatches: each is a number the export gate can watch red for the thing
+  // it names.
+  exportSinks: 0,        // deliverable gestures opened
+  exportBytes: 0,        // chunks that crossed the bridge into main
+  exportClosed: 0,       // streams closed cleanly
+  exportAborted: 0,      // streams aborted (main unlinked the file)
+};
 let announcedMissingBridge = false;
 function noBridge(duty) {
   if (announcedMissingBridge) return;
@@ -301,6 +311,116 @@ export const captureStream = async (sourceToken) => {
   }
 
   return stream;
+};
+
+/**
+ * OPEN ONE WRITABLE DESTINATION PER FILE OF A DELIVERABLE, WHEREVER THIS HOST
+ * PUTS ONE — `EngineHost.exportSink` in the v1.1 ADDITIVE duty table (the
+ * shared table gains it when the pin is bumped; this export is inert to
+ * `assertHost` until then, exactly like every other extra export).
+ *
+ * The unit has separated a track into six planar stems and names them
+ * `{title, files}`; this Host's place for them is a folder the user chose —
+ * `<folder>/<title>/` — and `main` owns that directory, the ask-once dialog
+ * and any collision policy (`src/main/files.js` §5). The engine renderer
+ * cannot write that folder; the intake in main can, and these streams are the
+ * wire between: each chunk crosses the preload bridge as bytes and lands on
+ * the file descriptor main opened for its name.
+ *
+ * ALL SIX (OR WHATEVER THE PLAN SAYS) AT ONCE, BEHIND ONE GESTURE. `main`'s
+ * `openExportSink` opens every file of the plan in one call, behind the SAME
+ * ask-once folder rule the E1 writer uses — the folder is asked for exactly
+ * once across the writer and this duty, and a re-export replaces.
+ *
+ * A REFUSAL IS A THROW, AND THIS IS THE ONE SHAPE THAT CANNOT BE RETURNED: an
+ * empty map. The user cancelling the folder picker is the ordinary refusal
+ * and it is an ERROR — the unit must hear "this deliverable did not happen",
+ * never "exported zero files", which is what a `{}` or a map missing a stem
+ * would mean. So the open is awaited and converted to a thrown Error BEFORE
+ * any stream is handed out.
+ *
+ * THE STREAMS ARE REAL `WritableStream`s, BECAUSE THE PAYLOAD IS REAL: six
+ * 32f stems of a four-minute track are ~508 MB, and "the sink accepted
+ * nothing" must not look like "the sink wrote the file". APPEND-ONLY IS
+ * ENOUGH and is what the streams enforce: the frame count is known before the
+ * first chunk — the unit separated a finite track — so the WAV header main
+ * wrote on open is correct forever and never patched, and there is no seekable
+ * handle anywhere in the path.
+ *
+ * `WritableStream` is used only at CALL time, never at import, so this module
+ * still imports cleanly in plain Node for the vendored `test.js` (module
+ * header).
+ *
+ * @param {{title: string, files: string[]}} plan  `files` are BASE NAMES — the
+ *   names the unit chose for its own files, and the names the returned map is
+ *   keyed by.
+ * @returns {Promise<Record<string, WritableStream>>} one stream per `plan.files`
+ *   name, keyed by that same name, each stream routing `write`/`close`/`abort`
+ *   to `main`'s session.
+ * @throws {Error} when the plan is refused — most ordinarily because the user
+ *   cancelled the folder picker — or when the wire is absent.
+ */
+export const exportSink = async (plan) => {
+  const w = wire();
+  if (!w) {
+    noBridge('exportSink');
+    throw new Error('EngineHost.exportSink: window.__wbEngine is absent — there is no way to open the export sink.');
+  }
+  if (!plan || typeof plan !== 'object' || typeof plan.title !== 'string'
+      || !Array.isArray(plan.files) || plan.files.length === 0
+      || plan.files.some((f) => typeof f !== 'string' || !f)) {
+    throw new Error('export refused: an export plan is a title and at least one file name');
+  }
+
+  const opened = await w.openExportSink({ title: plan.title, files: plan.files });
+  if (!opened || opened.ok !== true) {
+    throw new Error(`export refused: ${(opened && (opened.message || opened.code)) || 'the Host answered nothing'}`
+      + ` — nothing was opened, so nothing was exported`);
+  }
+  stats.exportSinks++;
+
+  const asBytes = (chunk) => {
+    if (chunk instanceof Uint8Array) return chunk;
+    if (chunk instanceof ArrayBuffer) return new Uint8Array(chunk);
+    if (ArrayBuffer.isView(chunk)) return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    throw new TypeError('an export sink accepts bytes — a WritableStream write of anything else is a plan bug');
+  };
+
+  const makeStream = (name) => {
+    let finished = false;
+    return new WritableStream({
+      write: async (chunk) => {
+        if (finished) throw new Error(`export refused: ${name} is already closed`);
+        const r = await w.writeExportSink(name, asBytes(chunk));
+        if (!r || r.ok !== true) {
+          throw new Error(`export refused: ${(r && (r.message || r.code)) || 'the Host answered nothing'}`
+            + ` — ${name} accepted nothing`);
+        }
+        stats.exportBytes += (typeof r.bytes === 'number' ? r.bytes : 0);
+      },
+      close: async () => {
+        if (finished) return;
+        finished = true;
+        const r = await w.closeExportSink(name);
+        if (!r || r.ok !== true) {
+          throw new Error(`export refused: ${(r && (r.message || r.code)) || 'the Host answered nothing'}`
+            + ` — ${name} did not close`);
+        }
+        stats.exportClosed++;
+      },
+      abort: async () => {
+        // Abort is a best-effort unlink and is usually reached while unwinding
+        // an error; a refusal here (the name is already closed) is counted,
+        // not thrown over the very error the caller is unwinding.
+        if (finished) return;
+        finished = true;
+        const r = await w.abortExportSink(name);
+        if (r && r.ok === true) stats.exportAborted++;
+      },
+    });
+  };
+
+  return Object.fromEntries(plan.files.map((name) => [name, makeStream(name)]));
 };
 
 /**
