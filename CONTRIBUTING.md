@@ -196,7 +196,7 @@ five assertions and the mutation that was watched red for each.
 
 The full rules, and a catalogue of the ways this project has already got them
 wrong at real cost, are in **`AGENTS.md` in `stem-splitter-live`**:
-<https://github.com/itziklerner-pag/stem-splitter-live/blob/v0.2.0/AGENTS.md>
+<https://github.com/itziklerner-pag/stem-splitter-live/blob/v0.3.1/AGENTS.md>
 
 **It applies here unchanged, and it is deliberately not copied into this
 repository.** A copy would drift, and a drifted copy of a rulebook is worse than
@@ -247,7 +247,7 @@ refuses `--tag` alone, because deriving those numbers from the run it is about
 to make would be the gate checking its own homework.
 
 The procedure the script automates is the upstream one in
-[`docs/VENDORING.md`](https://github.com/itziklerner-pag/stem-splitter-live/blob/v0.2.0/docs/VENDORING.md),
+[`docs/VENDORING.md`](https://github.com/itziklerner-pag/stem-splitter-live/blob/v0.3.1/docs/VENDORING.md),
 and its shape is fixed: fetch **the tag's** archive (never a branch — a copy
 taken off `main` is a copy whose verification step is theatre), verify it
 against `extension/unit.sha256`, derive the copy list from `extension/unit.json`
@@ -287,7 +287,7 @@ recording:
 ```bash
 cd vendor/stem-splitter-live && node tools/verify.mjs --unit --no-reap
 # GREEN (partial — the vendored unit's suites only; 12 of 23 steps)
-# 12 of 12 PASS, 1156 assertions, ~71 s, Node 22+.
+# 12 of 12 PASS, 1327 assertions, ~71 s, Node 22+.
 # No npm install, no browser, no GPU, no weights.
 ```
 
@@ -312,17 +312,21 @@ They are where `assetUrl`'s trailing slash, `send`'s `undefined` return and
 `storageGet`'s absent-versus-unreadable split get checked against a real
 implementation instead of a stub, and all three are green.
 
-**Pointed at our files with nothing underneath them, the group does not fail — it
-CRASHES**, `TypeError: listeners[0] is not a function`, taking 103 assertions
-with it including two groups that are about the unit rather than about us. That
-is an upstream defect and a sibling of `stem-splitter-live#30`. Supplying our own
-platform under it — `tools/conformance-platform.mjs`, a Node `--import` hook, and
-**not one vendored byte edited** — is what makes it complete: **612 assertions,
-593 passed, 19 failed.** `vendor/.conformance.json` pins every red by name with
-the reason it does not apply to a desktop Host, and the set is compared BOTH
+**Pointed at our files, the group runs to its end and fails cleanly — **766
+assertions, 747 passed, 19 failed** — every red named in `vendor/.conformance.json`
+with the reason it does not apply to a desktop Host, and the set compared BOTH
 ways: a red that vanishes fails the step as loudly as a red that appears, because
 a red that stops being reported is usually an assertion that stopped running.
 `docs/CONFORMANCE.md` is the argument, one red at a time.
+
+The platform under the group — `tools/conformance-platform.mjs`, a Node
+`--import` hook, and **not one vendored byte edited** — is what lets `test.js`
+run at all under plain Node: it is the Host surface the assertions drive, not a
+workaround. (It started as one: at v0.2.0 the group CRASHED without it,
+`TypeError: listeners[0] is not a function`, an upstream defect that took 103
+assertions with it. That is the sibling instrument check that shipped with
+`stem-splitter-live#30`'s fix (v0.3.0) — a report that crashes is not one, so
+the dereference is a named red — and this Host carries no copy of it.)
 
 **Do not "fix" a red under `vendor/` by editing anything under `vendor/`.** See
 rule V1. Every time.

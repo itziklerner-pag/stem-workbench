@@ -1,9 +1,9 @@
 {
   "_": "THE CONFORMANCE REPORT, PINNED. See docs/CONFORMANCE.md for the long form and tools/suites/conformance.mjs for the gate. Every `red` is an assertion in the vendored test.js's group('host') (plus group('verifyModel')'s platform scan) that this desktop Host does not pass, WITH the reason it does not apply. The set is compared BOTH WAYS on every run: a new red fails the step, and a red that disappears fails it too, because a red that stops being reported is an assertion that stopped running.",
-  "tag": "v0.2.0",
+  "tag": "v0.3.1",
   "command": "node --import ../../tools/conformance-platform.mjs test.js",
-  "total": 612,
-  "passed": 593,
+  "total": 766,
+  "passed": 747,
   "classes": {
     "platform": "The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.",
     "policy": "This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.",

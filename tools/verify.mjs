@@ -177,8 +177,8 @@ export function countOf(out) {
  * time, and make an unqualified GREEN impossible.
  *
  * `assertions: N` — THE EXACT COUNT THE SUITE MUST PRINT, and it is checked.
- * `vendor/.pin` pins the vendored plan's 544 both ways and
- * `vendor/.conformance.json` pins 612/593/19 both ways, for a reason `vendor-unit`
+ * `vendor/.pin` pins the vendored plan's 561 both ways and
+ * `vendor/.conformance.json` pins 766/747/19 both ways, for a reason `vendor-unit`
  * states out loud: *"the count of SUITES cannot see a suite that ran and asserted
  * less than it used to."* This repository's own twelve suites had no such pin,
  * and an audit showed the cost — `deck-seam` with its `ok()` silently dropping a
@@ -247,36 +247,46 @@ export const STEPS = [
      * `--unit` runs twelve suites. Eleven are ordinary and pass. The twelfth,
      * `unit`, runs the vendored `test.js` — which is BOTH the unit's largest
      * suite AND a conformance suite over the two hole modules a Host supplies —
-     * and with THIS Host's holes in place it does not fail, it CRASHES:
+     * and with THIS Host's holes in place it runs to its end and FAILS CLEANLY:
      *
-     *     TypeError: listeners[0] is not a function   at test.js:5833
+     *     FAIL  unit         10.6s    676 passed, 18 failed
+     *     RED — 18 failing assertions. Do not commit as green.
      *
-     * so the vendored runner exits 1 on every run, for ever. That is an upstream
-     * design gap with a ticket (`stem-splitter-live#30`), unfixable from this
-     * side and unpatchable here (rule V1, and `vendor-intact` runs first).
-     *
-     * A STEP THAT CAN NEVER BE GREEN IS THE SHAPE PEOPLE LEARN TO IGNORE, which
-     * is exactly what AGENTS.md says a red must never become. So this step stops
-     * demanding a green line that cannot happen and pins the report it really
-     * gets — in BOTH directions:
+     * That clean failure IS the upstream `stem-splitter-live#30` fix, landed in
+     * v0.3.0: a hole module that throws while `group('host')` exercises it is
+     * now a NAMED RED (the whole-group guard; the duty-refusal probes read
+     * `settled.resolved === false && msg.includes(duty)`, so our hole modules
+     * name the duty in their refusal messages) instead of the old
+     * `TypeError: listeners[0] is not a function` at test.js:5833 that killed
+     * the file mid-run. The crash is gone upstream; what remains is a report
+     * that completes, red and honest. Our holes cannot make `unit` green — the
+     * 18 reds include the transport, wire and chrome-scan assertions a
+     * non-Chrome Host cannot satisfy — so the vendored runner exits 1 on every
+     * run, for ever. A STEP THAT CAN NEVER BE GREEN IS THE SHAPE PEOPLE LEARN TO
+     * IGNORE, which is exactly what AGENTS.md says a red must never become. So
+     * this step stops demanding a green line that cannot happen and pins the
+     * report it really gets — in BOTH directions:
      *
      *   (i)  the ELEVEN other suites must all PASS and must sum to
-     *        `vendor/.pin`'s `assertions` (544). A shorter plan, a suite that
+     *        `vendor/.pin`'s `assertions` (561). A shorter plan, a suite that
      *        stopped running, or a suite that went red is a FAIL. This is the
      *        half that keeps the step worth running.
-     *   (ii) `unit` must be the ONLY non-PASS row — so a GREEN `unit` is ALSO a
-     *        FAIL. Post-swap a green `unit` cannot mean the unit got better; it
-     *        means the two files in `ours` are not this Host's any more.
+     *   (ii) `unit` must be the ONLY non-PASS row, and must have FAILED CLEANLY
+     *        — so a GREEN `unit` is ALSO a FAIL, and so is a CRASHED one.
+     *        Post-swap a green `unit` cannot mean the unit got better; it means
+     *        the two files in `ours` are not this Host's any more. And a crash
+     *        is not the pinned shape at all: the pinned case asserts and prints
+     *        its own RED banner, which is the whole point of the upstream fix.
      *
      * WATCHED RED BOTH WAYS, ON REAL RUNS, by
-     * `tools/suites/vendor-unit-mutations.sh` — which fetches the v0.2.0 archive
+     * `tools/suites/vendor-unit-mutations.sh` — which fetches the v0.3.1 archive
      * and checks its SHA-256 against this pin before it uses a byte of it:
      *
      *   A  `BPM_MIN_CONFIDENCE` 0.25 -> 0.99 in `extension/engine/bpmtap.js`
      *      -> `bpmtap` FAIL -> step FAIL: "10 suites passed, vendor/.pin pins
-     *      11; the passing suites assert 498, vendor/.pin (v0.2.0) pins 544".
+     *      11; the passing suites assert 515, vendor/.pin (v0.3.1) pins 561".
      *   B  the EXTENSION's own `ui/host.js` and `offscreen/host.js` put back
-     *      -> `unit` PASSES, 612 green, the whole vendored plan 12 of 12 and
+     *      -> `unit` PASSES, 766 green, the whole vendored plan 12 of 12 and
      *      EXIT 0 -> step FAIL: "exit 0, but … `unit` PASSED — … the two files
      *      `vendor/.pin` names in `ours` are not this Host's hole modules any
      *      more … never appeared".
@@ -287,9 +297,10 @@ export const STEPS = [
      * at the pinned non-zero code. `pin`'s own EVERY-suite-passed message covers
      * the same claim from the other side and is asserted in `--self-check`.
      *
-     * A CRASH IS NOT LAUNDERED INTO AN EXPECTED FAILURE. `unit` must still be a
-     * CRASH, carrying `crashMessage` at `crashAt`. A `unit` that asserts and
-     * fails cleanly, or one that crashes elsewhere, is different IN KIND from
+     * A CRASH IS NOT LAUNDERED INTO THE PINNED CLEAN FAILURE. `unit` must fail
+     * the way the pin says it fails: running to its end, asserting, and printing
+     * the RED banner with a counted red set. A `unit` that CRASHES — or one that
+     * fails with a row the pin does not recognise — is different IN KIND from
      * what is pinned and fails the step rather than being absorbed by it.
      *
      * THREE THINGS WERE TRIED AND REJECTED, so that nobody re-derives them:
@@ -300,13 +311,13 @@ export const STEPS = [
      *     (its `tools/verify.mjs:835`). There is no subset to ask for, and
      *     building one here is the second runner T1 rejected.
      *   · PUT `tools/conformance-platform.mjs` ON `NODE_OPTIONS` FOR THIS STEP.
-     *     It would stop the crash — and it would also hand a `window` global to
-     *     the eleven other suites, which is a change to what they measure. A
+     *     It would make `unit` pass — and it would also hand a `window` global
+     *     to the eleven other suites, which is a change to what they measure. A
      *     gate that alters its subject to keep itself green is worse than a red.
      *
      * THE VERDICT FOR `test.js` IS THE `conformance` STEP, which runs the same
-     * file, unedited, to completion under this Host's own platform: 612
-     * assertions, 593 passed, 19 failed, every red pinned by name in
+     * file, unedited, to completion under this Host's own platform: 766
+     * assertions, 747 passed, 19 failed, every red pinned by name in
      * `vendor/.conformance.json` and argued in `docs/CONFORMANCE.md`. Nothing is
      * lost here that is not measured there.
      */
@@ -332,10 +343,10 @@ export const STEPS = [
       why: 'the vendored runner\'s own RED banner. A run that EXITS 0 and prints its GREEN line instead '
         + 'means `unit` PASSED — which post-swap cannot mean the unit got better. It means the two files '
         + '`vendor/.pin` names in `ours` are not this Host\'s hole modules any more; check those against '
-        + '`git status` before anything else. While ours are in place test.js does not fail, it CRASHES at '
-        + ':5833 (vendor/.pin `hostSuite`, upstream stem-splitter-live#30), so this step pins the report it '
-        + 'really gets instead of a green that cannot happen. The verdict for test.js itself is the '
-        + '`conformance` step',
+        + '`git status` before anything else. While ours are in place test.js runs to its end and fails '
+        + 'cleanly — 676 passed, 18 failed, its own RED banner (vendor/.pin `hostSuite`; the upstream #30 '
+        + 'fix — a report that crashes is not one — makes the old dereference a named red since v0.3.0) — so this step pins the report it really gets instead '
+        + 'of a green that cannot happen. The verdict for test.js itself is the `conformance` step',
       /**
        * `pin` TAKES THE PIN AS AN ARGUMENT so `--self-check` can drive it over a
        * pin this repository does not have on disk — in particular one with no
@@ -381,35 +392,36 @@ export const STEPS = [
               + `[${other.map((r) => `${r.id} ${r.verdict}`).join(' ')}]`);
         }
 
-        // ---- A CRASH MUST NOT BE LAUNDERED INTO AN EXPECTED FAILURE.
+        // ---- A CLEAN FAILURE IS THE PINNED CASE; A CRASH IS NOT LAUNDERED IN.
         const unit = rows.find((r) => r.id === h.id);
         if (unit && unit.verdict !== 'PASS') {
           const d = unit.detail || '';
-          if (!/CRASHED/.test(d)) {
-            bad.push(`\`${h.id}\` failed WITHOUT crashing (${d}) — vendor/.pin pins a crash at ${h.crashAt}. `
-              + 'Asserting and failing is different IN KIND from dying, and probably good news: read '
-              + 'vendor/.pin `hostSuite` and re-pin deliberately');
-          } else if (h.crashMessage && !d.includes(h.crashMessage)) {
-            bad.push(`\`${h.id}\` crashed with something else: ${d} — vendor/.pin pins `
-              + `"${h.crashMessage}" at ${h.crashAt}`);
+          if (/CRASHED/.test(d)) {
+            bad.push(`\`${h.id}\` CRASHED (${d}) — vendor/.pin pins a clean failure: \`${h.id}\` runs to its `
+              + 'end, asserts, and prints its own RED banner (the upstream #30 fix — a report that crashes '
+              + 'is not one — makes the old dereference a named red since v0.3.0). A crash is different IN '
+              + 'KIND from a named red, and probably an upstream '
+              + 'regression: read vendor/.pin `hostSuite` and re-pin deliberately');
+          } else if (!/\d+ passed, \d+ failed/.test(d)) {
+            bad.push(`\`${h.id}\` failed in a shape the pin does not recognise (${d}) — vendor/.pin pins a `
+              + 'clean failure, with the assertion counts on the row and the RED banner in the transcript');
           }
         }
         return bad.length ? bad.join('; ') : null;
       },
       /**
-       * THE CRASH STAYS ON THE SUMMARY LINE. `summarise()` would read the first
-       * `N passed, M failed` in the transcript — which is some inner suite's —
-       * and print a green-looking number beside a step whose whole point is that
-       * one suite is dying. This says what actually happened, on the one line
-       * most people read.
+       * THE CLEAN FAILURE STAYS ON THE SUMMARY LINE. `summarise()` would read
+       * the first `N passed, M failed` in the transcript — which is some inner
+       * suite's — and print a green-looking number beside a step whose whole
+       * point is that one suite is red. This says what actually happened, on
+       * the one line most people read.
        */
       detail: (m, t) => {
         const rows = vendorRows(t);
         const passing = rows.filter((r) => r.verdict === 'PASS');
         const h = (readPin() || {}).hostSuite || {};
         return `${passing.length} suites PASS, ${passing.reduce((n, r) => n + r.count, 0)} assertions; `
-          + `\`${h.id || 'unit'}\` CRASHED at ${h.crashAt || '?'} as pinned (${m[1]} reds before it died, `
-          + 'upstream stem-splitter-live#30)';
+          + `\`${h.id || 'unit'}\` FAILED as pinned — RED, ${m[1]} failing assertions, no crash`;
       },
     },
   },
@@ -496,7 +508,7 @@ export const STEPS = [
      * that has never been seen on a FAIL line. Reading the battery is how you
      * find out which of this step's claims are load-bearing:
      *
-     *   the nine duties     cases 1-11, 20-22 and 29 edit the shipped hole module
+     *   the eleven duties  cases 1-11, 20-22 and 29 edit the shipped hole module
      *                       `vendor/…/offscreen/host.js` one duty at a time —
      *                       delete a duty, tidy assetUrl's trailing slash away,
      *                       drop the M1 containment guard, hand modelBytes a
@@ -604,21 +616,25 @@ export const STEPS = [
      * broken copy. A red here is a broken Host. One step could not mean both.
      *
      * IT RUNS THE VENDORED `test.js` UNEDITED, with `tools/conformance-platform.mjs`
-     * installed under it by `--import`. Without that platform the file does not
-     * fail, it CRASHES — `TypeError: listeners[0] is not a function` at
-     * `test.js:5833` — and takes 103 assertions with it, including
-     * `group('verifyModel')` and `group('backend')`, which are about the unit
-     * and not about us. That is an upstream defect and a sibling of
-     * `stem-splitter-live#30`; it is NOT patched here (rule V1, and
-     * `vendor-intact` runs first and would say so), and `docs/CONFORMANCE.md`
-     * records both the measurement and the finding.
+     * installed under it by `--import`. The platform is what lets the file run
+     * at all under plain Node — it supplies the Host surface the file exercises —
+     * and the file runs to its END: the upstream `stem-splitter-live#30`
+     * fix — a report that crashes is not one — makes the dereference that
+     * used to kill it at `test.js:5833` a NAMED RED since v0.3.0 (that crash
+     * took 103 assertions with it, including `group('verifyModel')` and
+     * `group('backend')`, which are about the unit and not about us). The
+     * vendored unit gate measures the same change from the other side: its
+     * `unit` suite over the same file, under the file's own fake Chrome, fails
+     * cleanly at 676/18 instead of crashing. Nothing is patched here (rule V1,
+     * and `vendor-intact` runs first and would say so), and
+     * `docs/CONFORMANCE.md` records both the measurement and the finding.
      *
      * THE RED SET IS PINNED IN `vendor/.conformance.json` AND COMPARED BOTH
      * WAYS. It is deliberately not an expected-red list — `AGENTS.md`: an
      * assertion parked on one stops being read at all. A red that VANISHES fails
      * this step too, because a red that stops being reported is usually an
-     * assertion that stopped running, which is exactly how the crash hid 103 of
-     * them while the transcript still looked busy.
+     * assertion that stopped running, which is exactly how the old crash once
+     * hid 103 of them while the transcript still looked busy.
      *
      * NO WINDOW, NO DISPLAY, NO MUTEX, ~65 s: it is plain Node over the vendored
      * suite, so it runs on the `--quick` plan with the other cheap steps.
@@ -872,7 +888,7 @@ export const STEPS = [
 /**
  * THE VENDORED RUNNER'S SUMMARY TABLE, parsed out of its transcript.
  *
- * `  PASS  unit         11.0s    612 passed, 0 failed` — two spaces, the verdict
+ * `  PASS  unit         10.8s    766 passed, 0 failed` — two spaces, the verdict
  * word, TWO more spaces, the padded step id, the seconds column, then that
  * step's own one-line detail. The seconds column is what separates these rows
  * from the individual `  PASS name  detail` assertion lines the same transcript
@@ -881,17 +897,18 @@ export const STEPS = [
  *
  * The shape is not guessed. It was read off an actual
  * `node tools/verify.mjs --unit --no-reap` run in `stem-splitter-live` at
- * v0.2.0 (tree byte-identical to the tag: `git diff --name-only v0.2.0..HEAD`
- * is empty), which printed 12 rows summing to 1156 — the number
+ * v0.3.1 (tree byte-identical to the tag: `git diff --name-only v0.3.1..HEAD`
+ * is empty), which printed 12 rows summing to 1327 — the number
  * `docs/VENDORING.md` §7 independently pins for a copy with the EXTENSION's hole
  * modules in it.
  *
- * `vendor/.pin` PINS 544 AND NOT THAT 1156, because this repository's copy does
- * not have the extension's holes in it: `test.js` crashes with ours, so its 612
- * are pinned by the `conformance` step instead and what is pinned here is the
- * ELEVEN suites that still pass. `hostSuite` in the pin is the prose; the step
- * above is the check, and it is a SET EQUALITY over the rows this function
- * returns rather than a floor under them.
+ * `vendor/.pin` PINS 561 AND NOT THAT 1327, because this repository's copy does
+ * not have the extension's holes in it: with ours, `test.js` runs to its end
+ * and fails cleanly (676 passed, 18 failed), so its reds are pinned by the
+ * `conformance` step instead and what is pinned here is the ELEVEN suites that
+ * still pass. `hostSuite` in the pin is the prose; the step above is the check,
+ * and it is a SET EQUALITY over the rows this function returns rather than a
+ * floor under them.
  *
  * WHY SUM THEM AT ALL, when the step count is already pinned: the count of
  * SUITES cannot see a suite that ran and asserted less than it used to. That is
@@ -1158,8 +1175,8 @@ export function classify(res) {
      * ---------------------------------------------------------------------
      * THE ABSENT-ASSERTION FAILURE, one level up from the vendored runner.
      * ---------------------------------------------------------------------
-     * `vendor/.pin` pins the vendored plan's 544 both ways and
-     * `vendor/.conformance.json` pins 612/593/19 both ways, for a reason
+     * `vendor/.pin` pins the vendored plan's 561 both ways and
+     * `vendor/.conformance.json` pins 766/747/19 both ways, for a reason
      * `vendor-unit`'s own comment states: *"the count of SUITES cannot see a
      * suite that ran and asserted less than it used to."* This repository's own
      * twelve suites had no such pin, and an audit showed what that costs — a
@@ -1205,16 +1222,20 @@ export function classify(res) {
    * ------------------------------------------------------------------------
    * `vendor-unit` runs a runner we do not own over a `test.js` that is BOTH the
    * unit's largest suite and a conformance suite over the two hole modules this
-   * Host supplies. With our holes in place that file CRASHES — an upstream
-   * design gap with a ticket (`stem-splitter-live#30`), unfixable from this side
-   * and unpatchable here (rule V1, and `vendor-intact` runs first) — so the
-   * vendored runner exits 1 on every run, for ever, and that step could only
-   * ever be red. AGENTS.md: a red is either investigated or the assertion is
-   * corrected, and a red nobody can ever clear is the one nobody investigates.
+   * Host supplies. With our holes in place that file runs to its end and fails
+   * cleanly — 676 passed, 18 failed, its own RED banner — because the upstream
+   * `stem-splitter-live#30` fix makes the old dereference a NAMED RED since
+   * v0.3.0 (the
+   * whole-group guard, unpatchable here under rule V1, and `vendor-intact`
+   * runs first) — so the vendored runner exits 1 on every run, for ever, and
+   * that step could only ever be red. AGENTS.md: a red is either investigated
+   * or the assertion is corrected, and a red nobody can ever clear is the one
+   * nobody investigates.
    *
    * So that step pins the WHOLE report instead (`vendor/.pin`'s `hostSuite`),
    * and the pin is a SET EQUALITY rather than a tolerance: a GREEN `unit` fails
-   * it too. That is what keeps this from being an ignore-list.
+   * it too, and so does a CRASHED one. That is what keeps this from being an
+   * ignore-list.
    *
    * WHAT IS NOT RELAXED, and must never be:
    *   · THE VOID RULE. A step that exits with its pinned code having asserted
@@ -1356,8 +1377,8 @@ function selfCheck() {
 
   // ---- the vendored unit's shapes, which stream through this classifier ----
   // Verbatim from `node tools/verify.mjs --unit --no-reap` in stem-splitter-live
-  // at v0.2.0 — the transcript this step will actually be handed.
-  check('the vendored test.js shape is a PASS here', cl('\n\x1b[32m612 passed, 0 failed\x1b[0m\n').verdict === 'PASS');
+  // at v0.3.1 — the transcript this step will actually be handed.
+  check('the vendored test.js shape is a PASS here', cl('\n\x1b[32m766 passed, 0 failed\x1b[0m\n').verdict === 'PASS');
   check('...and the suite-name-prefixed one', cl('seam-check: 17 passed, 0 failed\n').verdict === 'PASS');
   check('...and "all N <word> checks passed"', cl('all 37 chroma checks passed\n').verdict === 'PASS');
   check('...and a bare "all checks passed" counts its ok lines',
@@ -1382,25 +1403,29 @@ function selfCheck() {
 
   // ---- `expect`: the vendored gate, POST-SWAP, in BOTH directions --------
   /**
-   * `vendor-unit` is the ONE step whose expected outcome is a non-zero exit: its
-   * `test.js` crashes with this Host's hole modules in place, which is an
-   * upstream design gap with a ticket (`stem-splitter-live#30`) and unpatchable
-   * here (rule V1). `vendor/.pin`'s `hostSuite` block is the prose; everything
-   * below drives `classify()` over transcripts of exactly that shape.
+   * `vendor-unit` is the ONE step whose expected outcome is a non-zero exit: with
+   * this Host's hole modules in place, its `test.js` runs to its end and fails
+   * cleanly — 676 passed, 18 failed, its own RED banner — because the upstream
+   * `stem-splitter-live#30` fix makes the old dereference a NAMED RED since
+   * v0.3.0 (the
+   * whole-group guard, unpatchable here under rule V1). `vendor/.pin`'s
+   * `hostSuite` block is the prose; everything below drives `classify()` over
+   * transcripts of exactly that shape.
    *
    * The last five are the ones that matter, because they are the ways a pinned
-   * red turns into an ignore-list: a GREEN `unit` must FAIL, a crash that became
-   * a clean red must FAIL, a crash that MOVED must FAIL, a pin with no
-   * `hostSuite` block must FAIL, and silence must still be VOID.
+   * red turns into an ignore-list: a GREEN `unit` must FAIL, a CRASHED `unit`
+   * must FAIL (the pinned case asserts and prints its RED banner), a crash that
+   * MOVED must FAIL, a pin with no `hostSuite` block must FAIL, and silence must
+   * still be VOID.
    *
    * The rows are the shape `vendorRows()` parses out of a real `--unit`
-   * transcript; the numbers are the ones a real run prints, and 544 is their sum.
+   * transcript; the numbers are the ones a real run prints, and 561 is their sum.
    */
   const vstep = STEPS.find((s) => s.id === 'vendor-unit');
   const ROW = (v, id, secs, detail) => `  \x1b[32m${v}\x1b[0m  ${id.padEnd(12)} ${secs}s    ${detail}`;
   const ELEVEN = [
     ROW('PASS', 'seam', '0.1', '17 passed, 0 failed'),
-    ROW('PASS', 'ui', '0.0', '107 checks passed'),
+    ROW('PASS', 'ui', '0.0', '124 checks passed'),
     ROW('PASS', 'qa-edge', '0.0', '13 passed, 0 failed'),
     ROW('PASS', 'passthrough', '0.1', '16 passed, 0 failed'),
     ROW('PASS', 'pitch', '3.6', '23 passed, 0 failed'),
@@ -1411,8 +1436,8 @@ function selfCheck() {
     ROW('PASS', 'speed-pitch', '5.1', '10 passed, 0 failed'),
     ROW('PASS', 'embed-state', '0.1', '224 checks passed'),
   ].join('\n');
-  const CRASH = ROW('FAIL', 'unit', '14.4', 'CRASHED after start — TypeError: listeners[0] is not a function / at test.js:5833');
-  const BANNER = '\n\x1b[31m\x1b[1mRED\x1b[0m — 17 failing assertions. Do not commit as green.\n';
+  const UNIT_FAIL = ROW('FAIL', 'unit', '10.6', '676 passed, 18 failed');
+  const BANNER = '\n\x1b[31m\x1b[1mRED\x1b[0m — 18 failing assertions. Do not commit as green.\n';
   const post = (rows) => `${rows}\n${BANNER}`;
 
   check("the vendored gate's post-swap RED banner is recognised by the `expect` regex",
@@ -1421,48 +1446,48 @@ function selfCheck() {
     vstep.expect.code === 1 && STEPS.filter((s) => s.expect && s.expect.code !== undefined).length === 1,
     `${STEPS.filter((s) => s.expect && s.expect.code !== undefined).map((s) => s.id).join(',') || '(none)'}`);
 
-  const ok1 = cl(post(`${CRASH}\n${ELEVEN}`), 1, { expect: vstep.expect });
-  check('eleven suites passing and `unit` crashing exactly as pinned is a PASS, at exit 1',
+  const ok1 = cl(post(`${UNIT_FAIL}\n${ELEVEN}`), 1, { expect: vstep.expect });
+  check('eleven suites passing and `unit` FAILING CLEANLY as pinned is a PASS, at exit 1',
     ok1.verdict === 'PASS', `${ok1.verdict} · ${ok1.detail}`);
-  check('...and the crash is still on the summary line rather than some inner suite\'s green count',
-    /CRASHED at test\.js:5833 as pinned/.test(ok1.detail), ok1.detail);
+  check('...and the clean failure is on the summary line rather than some inner suite\'s green count',
+    /FAILED as pinned — RED, 18 failing assertions/.test(ok1.detail), ok1.detail);
 
   // THE SECOND DIRECTION, and it is the whole reason this is not an ignore-list.
   // TWO ASSERTIONS, because a green `unit` arrives at `classify()` by TWO doors
   // and only one of them reaches the pin: a real one exits 0 with the whole
   // vendored plan green, which is the exit-0 branch and `why`'s job.
   const V = "\n\x1b[32m\x1b[1mGREEN\x1b[0m \x1b[33m(partial — the vendored unit's suites only; 12 of 23 steps)\x1b[0m\n";
-  const realGreen = cl(`${ROW('PASS', 'unit', '10.9', '612 passed, 0 failed')}\n${ELEVEN}\n${V}`, 0, { expect: vstep.expect });
+  const realGreen = cl(`${ROW('PASS', 'unit', '10.8', '766 passed, 0 failed')}\n${ELEVEN}\n${V}`, 0, { expect: vstep.expect });
   check('a vendored plan that goes ENTIRELY GREEN and exits 0 is a FAIL, and the red says what a green `unit` means',
     realGreen.verdict === 'FAIL' && /`unit` PASSED/.test(realGreen.detail)
     && /not this Host's hole modules any more/.test(realGreen.detail), realGreen.detail);
 
-  const unitGreen = cl(post(`${ROW('PASS', 'unit', '14.4', '612 passed, 0 failed')}\n${ELEVEN}`), 1, { expect: vstep.expect });
+  const unitGreen = cl(post(`${ROW('PASS', 'unit', '10.8', '766 passed, 0 failed')}\n${ELEVEN}`), 1, { expect: vstep.expect });
   check('...and a green `unit` beside the pinned exit code is a FAIL too, naming the two files by path',
     unitGreen.verdict === 'FAIL' && /EVERY suite passed/.test(unitGreen.detail)
     && /extension\/ui\/host\.js/.test(unitGreen.detail), unitGreen.detail);
 
-  // A CRASH MUST NOT BE LAUNDERED INTO AN EXPECTED FAILURE.
-  const clean = cl(post(`${ROW('FAIL', 'unit', '14.4', '593 passed, 19 failed')}\n${ELEVEN}`), 1, { expect: vstep.expect });
-  check('...and a `unit` that FAILED WITHOUT CRASHING is a FAIL too — asserting and failing is not dying',
-    clean.verdict === 'FAIL' && /WITHOUT crashing/.test(clean.detail), clean.detail);
+  // A CRASH IS NOT THE PINNED SHAPE — THE PINNED CASE ASSERTS AND FAILS CLEANLY.
+  const crashed = cl(post(`${ROW('FAIL', 'unit', '10.6', 'CRASHED after start — TypeError: listeners[0] is not a function / at test.js:5833')}\n${ELEVEN}`), 1, { expect: vstep.expect });
+  check('...and a `unit` that CRASHES is a FAIL — the pinned case runs to its end and prints its RED banner',
+    crashed.verdict === 'FAIL' && /CRASHED/.test(crashed.detail), crashed.detail);
 
-  const moved = cl(post(`${ROW('FAIL', 'unit', '14.4', 'CRASHED after start — TypeError: x is not iterable / at test.js:99')}\n${ELEVEN}`), 1, { expect: vstep.expect });
-  check('...and a crash that MOVED is a FAIL — two earlier prose descriptions of this failure were stale when read',
-    moved.verdict === 'FAIL' && /crashed with something else/.test(moved.detail), moved.detail);
+  const moved = cl(post(`${ROW('FAIL', 'unit', '10.6', 'CRASHED after start — TypeError: x is not iterable / at test.js:99')}\n${ELEVEN}`), 1, { expect: vstep.expect });
+  check('...and a crash ANYWHERE is a FAIL — a crash is not a named red, wherever it lands',
+    moved.verdict === 'FAIL' && /CRASHED/.test(moved.detail), moved.detail);
 
-  const short = cl(post(`${CRASH}\n${ELEVEN.split('\n').slice(0, 8).join('\n')}`), 1, { expect: vstep.expect });
+  const short = cl(post(`${UNIT_FAIL}\n${ELEVEN.split('\n').slice(0, 8).join('\n')}`), 1, { expect: vstep.expect });
   check('...and FEWER suites than vendor/.pin promises is a FAIL — a smaller plan prints the same banner',
     short.verdict === 'FAIL' && /vendor\/\.pin pins 11/.test(short.detail), short.detail);
 
-  const thin = post(`${CRASH}\n${ELEVEN.replace('224 checks passed', '4 checks passed')}`);
+  const thin = post(`${UNIT_FAIL}\n${ELEVEN.replace('224 checks passed', '4 checks passed')}`);
   check('...and eleven PASSING suites that assert FEWER than the pinned total is a FAIL',
     cl(thin, 1, { expect: vstep.expect }).verdict === 'FAIL', cl(thin, 1, { expect: vstep.expect }).detail);
 
   // THE RE-VENDOR HOLE. `tools/vendor-unit.sh` REWRITES vendor/.pin, carrying
   // only the keys it is told to carry. A pin that came back without `hostSuite`
   // must not leave this step passing on no checks at all.
-  const noHost = vstep.expect.pin([, '17'], post(`${CRASH}\n${ELEVEN}`), { tag: 'v0.2.0', steps: 12, assertions: 544 });
+  const noHost = vstep.expect.pin([, '18'], post(`${UNIT_FAIL}\n${ELEVEN}`), { tag: 'v0.3.1', steps: 12, assertions: 561 });
   check('...and a vendor/.pin with NO `hostSuite` block fails the step rather than un-checking it',
     typeof noHost === 'string' && /no `hostSuite` block/.test(noHost), String(noHost));
 
@@ -1470,25 +1495,25 @@ function selfCheck() {
   const silent = cl(BANNER, 1, { expect: vstep.expect });
   check('...and a transcript with no assertion count at all is VOID at the pinned exit code, not PASS',
     silent.verdict === 'VOID', `${silent.verdict} · ${silent.detail}`);
-  const wrongCode = cl(post(`${CRASH}\n${ELEVEN}`), 2, { expect: vstep.expect });
+  const wrongCode = cl(post(`${UNIT_FAIL}\n${ELEVEN}`), 2, { expect: vstep.expect });
   check('...and a DIFFERENT non-zero exit does not reach that branch at all',
     wrongCode.verdict === 'FAIL' && !/as pinned/.test(wrongCode.detail), `${wrongCode.verdict} · ${wrongCode.detail}`);
 
   // ---- the vendored summary TABLE, pinned against a real transcript -------
   // Every line below is verbatim from `node tools/verify.mjs --unit --no-reap`
-  // run in stem-splitter-live at v0.2.0 on 2026-08-26 (tree byte-identical to
-  // the tag). The first two are summary rows; the third is an ASSERTION line
-  // from inside test.js, and it is here because it is the thing the row parser
-  // must NOT count.
+  // run in stem-splitter-live at v0.3.1 on 2026-08-27 (tree byte-identical to
+  // the tag, the extension's own holes). The first two are summary rows; the
+  // third is an ASSERTION line from inside test.js, and it is here because it
+  // is the thing the row parser must NOT count.
   const REAL = [
-    '  \x1b[32mPASS\x1b[0m  unit         11.0s    612 passed, 0 failed',
+    '  \x1b[32mPASS\x1b[0m  unit         10.8s    766 passed, 0 failed',
     '         \x1b[2mnode test.js — DSP, WAV, rings, mixer\x1b[0m',
-    '  \x1b[32mPASS\x1b[0m  ui           0.0s     107 checks passed',
+    '  \x1b[32mPASS\x1b[0m  ui           0.0s     124 checks passed',
     '  \x1b[32mPASS\x1b[0m RIFF/WAVE/fmt  tags',
   ].join('\n');
   const rows = vendorRows(REAL);
   check('the vendored runner\'s summary rows are recovered, with their counts',
-    rows.length === 2 && rows[0].count === 612 && rows[1].count === 107,
+    rows.length === 2 && rows[0].count === 766 && rows[1].count === 124,
     rows.map((r) => `${r.id}=${r.count}`).join(' '));
   check('...and an ASSERTION line from inside a vendored suite is not counted as a row',
     !rows.some((r) => /RIFF/.test(r.id)), `${rows.length} rows`);
@@ -1501,7 +1526,7 @@ function selfCheck() {
   check('with nothing vendored and no pin, vendor-unit is a SKIP',
     vendorPrecheck(noTree, tmp).verdict === 'SKIP', vendorPrecheck(noTree, tmp).detail);
   fs.mkdirSync(path.join(tmp, 'vendor'));
-  fs.writeFileSync(path.join(tmp, 'vendor', '.pin'), JSON.stringify({ tag: 'v0.2.0', steps: 12 }));
+  fs.writeFileSync(path.join(tmp, 'vendor', '.pin'), JSON.stringify({ tag: 'v0.3.1', steps: 12 }));
   check('...and the moment vendor/.pin claims a tag, a missing tree is a hard FAIL instead',
     vendorPrecheck(noTree, tmp).verdict === 'FAIL', vendorPrecheck(noTree, tmp).detail);
   fs.rmSync(tmp, { recursive: true, force: true });

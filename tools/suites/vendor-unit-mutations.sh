@@ -4,11 +4,13 @@
 #
 # WHY THIS STEP NEEDS ITS OWN BATTERY. `vendor-unit` is the only step in
 # `tools/verify.mjs` whose expected outcome is a NON-ZERO EXIT: the vendored
-# `test.js` crashes with this Host's hole modules in place (upstream issue
-# stem-splitter-live#30 — see `vendor/.pin`'s `hostSuite` block, which is the
-# prose for all of this). A step that expects a red is one keystroke away from a
-# step that ignores one, so the pin is a SET EQUALITY over the whole report and
-# it has to be watched failing from BOTH sides:
+# `test.js` fails cleanly with this Host's hole modules in place — 676 passed,
+# 18 failed, its own RED banner (the upstream stem-splitter-live#30 fix — a
+# report that crashes is not one — makes the old dereference a named red since
+# v0.3.0 — see `vendor/.pin`'s `hostSuite` block, which is
+# the prose for all of this). A step that expects a red is one keystroke away
+# from a step that ignores one, so the pin is a SET EQUALITY over the whole
+# report and it has to be watched failing from BOTH sides:
 #
 #   A  one of the ELEVEN other suites stops passing        -> the step is RED
 #   B  `unit` PASSES                                       -> the step is RED
@@ -17,7 +19,7 @@
 # cannot mean the unit got better — it can only mean the two files in
 # `vendor/.pin`'s `ours` are not this Host's hole modules any more. Case B
 # reproduces that literally, by putting the EXTENSION's own `ui/host.js` and
-# `offscreen/host.js` back from the v0.2.0 archive.
+# `offscreen/host.js` back from the v0.3.1 archive.
 #
 # The archive is fetched once, held in `out/vendor-unit-mutations/`, and its
 # SHA-256 is checked against `vendor/.pin` before a byte of it is used. There is
@@ -27,10 +29,9 @@
 #   tools/suites/vendor-unit-mutations.sh          # both
 #   tools/suites/vendor-unit-mutations.sh B        # only that one
 #
-# Each case costs one full `--unit` run (~95 s, and ~110 s for B, which is the
-# only case where `test.js` runs to the end). NO DISPLAY, NO BROWSER, NO MUTEX:
-# `--unit` is plain node, which is why this battery can run beside a windowed
-# one.
+# Each case costs one full `--unit` run (~95 s, and ~110 s for B, the only case
+# where the whole plan goes green). NO DISPLAY, NO BROWSER, NO MUTEX: `--unit` is
+# plain node, which is why this battery can run beside a windowed one.
 #
 # IT RESTORES ON SIGINT, SIGTERM AND SIGHUP. Every file a case is about to touch
 # is copied to `$OUT/<case>.<basename>.bak` and its path is written to
@@ -137,7 +138,7 @@ run_step() {   # -> writes $1, returns the runner's exit code
   node tools/verify.mjs --only vendor-unit --no-reap >"$1" 2>&1
 }
 
-# ------------------------------------------------- the v0.2.0 archive, verified
+# ------------------------------------------------- the v0.3.1 archive, verified
 PIN="$ROOT/vendor/.pin"
 ARCHIVE="$OUT/upstream.tar.gz"
 UP="$OUT/upstream"
@@ -270,7 +271,7 @@ echo "  ${C_G}green${C_X}  $(sed 's/\x1b\[[0-9;]*m//g' "$OUT/baseline.log" | gre
 # A  ONE OF THE ELEVEN STOPS PASSING
 #
 # This is the half that keeps the step worth running at all: eleven suites and
-# 544 assertions are still gated over the exact bytes we pinned, and the
+# 561 assertions are still gated over the exact bytes we pinned, and the
 # expected red on the twelfth does not buy them an exemption. A confidence floor
 # nothing can clear takes `bpmtap` down and nothing else with it.
 # ==========================================================================
@@ -285,10 +286,10 @@ mutate_case A "raise bpmtap's confidence floor so nothing can ever lock" \
 # B  THE EXTENSION'S OWN HOLE MODULES COME BACK
 #
 # THE DIRECTION AN IGNORE-LIST NEVER HAS. With the extension's `ui/host.js` and
-# `offscreen/host.js` in place, `test.js` does not crash and `unit` is 612 green
-# — the whole plan passes, 1156 assertions, exactly as a fresh copy reports. A
-# step that merely tolerated a red `unit` would call that a pass and would have
-# stopped noticing that this repository's Host had been deleted.
+# `offscreen/host.js` in place, `test.js` is 766 green — the whole plan passes,
+# 1327 assertions, exactly as a fresh copy reports. A step that merely tolerated
+# a red `unit` would call that a pass and would have stopped noticing that this
+# repository's Host had been deleted.
 #
 # IT ARRIVES BY THE EXIT-0 DOOR, WHICH IS WHY `expect.why` CARRIES THE FINDING.
 # Measured, and it corrected the first version of this case: a green `unit`
@@ -301,7 +302,7 @@ mutate_case A "raise bpmtap's confidence floor so nothing can ever lock" \
 # ==========================================================================
 PREPARE=install_upstream_holes
 install_upstream_holes() {
-  fetch_upstream || { echo "${C_R}could not fetch or verify the v0.2.0 archive — case B has no offline path${C_X}"; return 1; }
+  fetch_upstream || { echo "${C_R}could not fetch or verify the v0.3.1 archive — case B has no offline path${C_X}"; return 1; }
   cp "$UP/extension/ui/host.js" "$ROOT/$VEN_REL/extension/ui/host.js"
   cp "$UP/extension/offscreen/host.js" "$ROOT/$VEN_REL/extension/offscreen/host.js"
 }

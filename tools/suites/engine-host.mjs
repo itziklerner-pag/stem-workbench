@@ -4,12 +4,12 @@
  *
  * WHAT IT GATES. That the vendored `offscreen/engine.js` BOOTS under our
  * `EngineHost` — `assertHost` accepted it, the module evaluated to its last
- * line, and it said so on the bus; that all nine duties do what
+ * line, and it said so on the bus; that all eleven duties do what
  * `vendor/…/shared/host.js` declares, driven both directly and THROUGH the unit;
  * that the file-bytes duty `sourceBytes` answers over the REAL `/file/` ROOT
  * and the app's own token registry (driven directly — the vendored v0.2.0
- * engine has no caller for it; that caller arrives at the v0.3.0 pin, which is
- * also where the interface declares the duty);
+ * engine had no caller for it; the caller arrived at the v0.3.0 pin, which is
+ * also where the interface declares the duty, and the v0.3.1 pin carries both);
  * that the 109 MB of bundled weights reach the engine whole and are verified by
  * the unit over what this Host handed it; that ONNX Runtime really got shared
  * memory (a THREAD COUNT, not a stopwatch); that a real capture opens, is
@@ -339,9 +339,9 @@ ok('THE VENDORED ENGINE BOOTS UNDER THIS HOST — `assertHost` accepted it and i
 
 const duties = A(O(R.host).duties);
 const declared = Object.keys(ENGINE_HOST_DUTIES).sort();
-ok('...and the module it imported declares all nine duties, by the unit\'s own list  '
+ok('...and the module it imported declares all eleven duties, by the unit\'s own list  '
   + '[entry point: vendor/…/offscreen/host.js, against ENGINE_HOST_DUTIES]',
-  declared.length === 9 && declared.every((d) => duties.includes(d)),
+  declared.length === 11 && declared.every((d) => duties.includes(d)),
   O(R.host).THREW ? `the Host module could not be driven at all: ${O(R.host).THREW}`
     : `${duties.length} exported: ${duties.join(', ')}`);
 
@@ -554,8 +554,10 @@ ok('onTeardown() REGISTERS THE CALLER\'S OWN FUNCTION ON `pagehide`, AND IT RUNS
 
 // ------------------------------------------- 2.8 sourceBytes, the file half
 /**
- * THE FILE-BYTES DUTY, DRIVEN DIRECTLY — see the probe for why the vendored
- * v0.2.0 engine has no caller for it yet. Everything below is the shipping hole
+ * THE FILE-BYTES DUTY, DRIVEN DIRECTLY — see the probe for why it is driven
+ * directly rather than through the unit (the caller and the interface's
+ * declaration arrived together at the v0.3.0 pin; the v0.3.1 pin carries both).
+ * Everything below is the shipping hole
  * module answering over the shipping `/file/` ROOT and the app's own token
  * registry, against bytes THIS process wrote and hashed before the app existed.
  * `bytes` and `sha256` come back from `crypto.subtle` in the renderer, so a

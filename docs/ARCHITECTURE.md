@@ -42,7 +42,7 @@ Recorded, with their alternatives and their sources, in
 | **1** | **Electron, not Tauri.** Chromium ≥ 128 is the engine's floor, so Electron ≥ 32; the spike ran 44. | The three things Tauri lacks are the three things the engine needs: capture of an embedded frame's audio, `SharedArrayBuffer`, WebGPU. It also means this app owns a Chromium, and therefore owns Chromium's security patches — which is why auto-update is on by default (§6). |
 | **2** | **The audio comes from `getDisplayMedia`, answered by the main process with the YouTube view's `mainFrame`, and the view is muted before it plays.** | There is no `chrome.tabCapture` in Electron. The mute is what makes the product possible at all: the app hears the view, the user does not. Measured on Linux; **not** on macOS. §3. |
 | **3** | **The shape is a player window: youtube.com in a `WebContentsView`, the deck in the host window beneath it.** | No address bar, no tabs, navigation allow-listed. The deck is *not* injected into YouTube's DOM — same reasoning as the extension's, minus the iframe: YouTube's origin, YouTube's CSP, one stylesheet change from breaking. |
-| **4** | **The engine and the deck are VENDORED, not forked.** 35 files copied at tag `v0.2.0` and verified against `extension/unit.sha256`. | This repository writes a **Host** and nothing else that is audio. A unit file that differs from its recorded hash is a fork, and the check that says so is meant to run in CI. §2. |
+| **4** | **The engine and the deck are VENDORED, not forked.** 35 files copied at tag `v0.3.1` and verified against `extension/unit.sha256`. | This repository writes a **Host** and nothing else that is audio. A unit file that differs from its recorded hash is a fork, and the check that says so is meant to run in CI. §2. |
 | **5** | **The model ships inside the installer**, as an extra resource beside the asar. | No first-run download, works offline from first launch — and this product becomes a **distributor** of CC BY-NC 4.0 weights, so it is non-commercial permanently. `NOTICE.md` is the constraint, not a footnote. §5. |
 | **6** | **One `AudioContext` at 44 100 Hz and no JS resampling on the live path.** | Inherited from the unit, and it survives into Electron *only if the Host asks for it*: the captured track is already 44 100 / stereo, but a default renderer `AudioContext` opens at 48 000 and inserts a resampler. Measured. §4. |
 
@@ -180,7 +180,7 @@ that looks like YouTube's fault.
 
 ### What is vendored
 
-35 files, copied at tag **`v0.2.0`** by the procedure in the upstream
+35 files, copied at tag **`v0.3.1`** by the procedure in the upstream
 `docs/VENDORING.md`, with the repo-relative layout preserved because the layout
 is part of the contract. **Fifty paths in all**, as the upstream document counts
 them: 35 unit, 5 reference Host, 14 harness — seven of which are unit files that

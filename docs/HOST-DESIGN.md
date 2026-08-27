@@ -1122,7 +1122,7 @@ that 404s quietly.
 
 **Mitigation, in the order `VENDORING.md` prescribes:** (1) run
 `node tools/verify.mjs --unit` on the fresh copy *before* swapping the holes and
-record the green — `GREEN (partial …; 12 of 23 steps)`, 1156 assertions, 12/12
+record the green — `GREEN (partial …; 12 of 23 steps)`, 1327 assertions, 12/12
 PASS. (2) Swap the holes, expect `unit` red, and **read the reds**: they are a
 conformance report on our Host in the unit's own words. (3) Point `group('host')`
 at our files (VENDORING option 3, and the standing ruling), so those 122
@@ -1235,7 +1235,7 @@ count carries a claim wherever a stopwatch would.
 | # | claim | assertion | mutation that must turn it red |
 |---|---|---|---|
 | A1 | the copy is the tag | `sha256sum -c extension/unit.sha256` in CI, 35 × `: OK` | edit one byte of any unit file |
-| A2 | the unit arrived intact | `node tools/verify.mjs --unit` **before** the holes are swapped: 12/12 PASS, 1156 assertions | drop `engine/pitchbank.js` from the copy |
+| A2 | the unit arrived intact | `node tools/verify.mjs --unit` **before** the holes are swapped: 12/12 PASS, 1327 assertions | drop `engine/pitchbank.js` from the copy |
 | A3 | our Host conforms | `group('host')` in `test.js`, repointed at our two hole files | remove the trailing slash from `assetUrl('vendor/ort/')` |
 | A4 | the engine is isolated | `boot.sab === true` **and** `boot.coi === true` | delete COOP+COEP from the handler — **already watched red**: `SharedArrayBuffer is not defined` |
 | A5 | ~~wasm really got threads~~ **`createBackend` forwarded the unit's hooks** | `onReady({threads}) → threads >= 2` | **not** A4 — measured: `threads` stays 4 with COOP/COEP gone, because ORT pins the number. Drop the `...hooks` spread in `createBackend` and it is `null`. See §2.4 |
@@ -1378,7 +1378,7 @@ stem-workbench/
                      storage.js keys.js youtube.js speed.js autonav.js menu.js
   src/preload/       engine.cjs deck.cjs chrome.cjs youtube.cjs
   src/renderer/      engine.html  chrome.html  chrome.js  chrome.css
-  vendor/stem-splitter-live/        ← the 50-file copy at v0.2.0, layout preserved
+  vendor/stem-splitter-live/        ← the 50-file copy at v0.3.1, layout preserved
       extension/…                     35 unit files, byte-identical, gated by A1
       extension/offscreen/host.js     ← OURS (a hole)
       extension/ui/host.js            ← OURS (a hole)

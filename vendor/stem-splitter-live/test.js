@@ -14,7 +14,14 @@
  * header that lies about its filters is how a run ends up asserting nothing
  * while reporting success. Keep this list and `if (group('…'))` in step.
  *
- *   window   the export window is upstream Demucs' triangular transition weight
+ *   window   the export window is upstream Demucs' triangular transition weight,
+ *            AND THE WAV BYTE MAP: encodeWav/decodeWav round-trip at 32f, 24-bit
+ *            and 16-bit, the header field offsets, and the sample-conversion loop
+ *            that every writer in shared/wav.js shares — which is what makes this
+ *            group the coverage the wavstream group's mutation note defers to
+ *   wavstream  U1's streaming WAV writers: the chunked and the unknown-length
+ *            OPFS writer emit exactly the bytes encodeWav emits, the header is
+ *            final before any audio is written, and a wrong frame count throws
  *   fft      rfft agrees with a naive DFT; STFT/iSTFT round-trips
  *   ring     the SAB capture ring is lossless across wrap
  *   live     Mode 1: the causal chunk plan emits every sample exactly once, the
@@ -75,9 +82,11 @@
  * construction. When you add a test, say which kind it is.
  */
 
-import { encodeWav, decodeWav } from './extension/shared/wav.js';
+import { encodeWav, decodeWav, WavStreamEncoder, WavSyncWriter } from './extension/shared/wav.js';
 import { pipelineVersion, cacheKey, bytesForSeconds, CacheWriter, planEviction,
-  videoIdFromUrl, primeRefusal, commitRefusal } from './extension/shared/stemcache.js';
+  videoIdFromUrl, primeRefusal, commitRefusal, StemCache, CACHE_DIR,
+  CACHE_DIR_32F, separationRefusal,
+  fileIdFromBytes, fileIdentity, fileRefusal, fileCommitRefusal } from './extension/shared/stemcache.js';
 import { CachedDeck, resumeSeek } from './extension/offscreen/cacheddeck.js';
 // The transpose lanes' group delay, IMPORTED and never re-typed. It is a term in
 // the latency assertion below, and a second copy of 3072 in this file is a second
@@ -103,7 +112,7 @@ import {
   LIVE_HOPS, SEAM_XFADE_LAW, STEM_RING_HEADER_BYTES, RING_PLANES, TAU,
   LIVE_CUSHION_SEC, LIVE_LOW_WATER_SEC, MARGINAL_P95_FRACTION, MARGINAL_DROP_RATE, LIVE_HOP_DEFAULT,
   HEALTH_HZ, XF_CURVES, XF_CURVE_DEFAULT, XF_CUT_EDGE, XF_TARGETS, XF_ASSIGN_DEFAULT,
-  XF_POSITION_DEFAULT, DECKS, MODEL, STEM_CACHE_MAX_BYTES,
+  XF_POSITION_DEFAULT, DECKS, MODEL, STEM_CACHE_MAX_BYTES, STEM_CACHE_32F_MAX_BYTES,
 } from './extension/shared/config.js';
 
 let pass = 0, fail = 0;
@@ -127,6 +136,38 @@ function ok(name, cond, detail = '') {
 }
 const head = (s) => console.log(`\n\x1b[1m${s}\x1b[0m`);
 
+/**
+ * A THROW INSIDE A BLOCK IS A DEAD FILE, AND A DEAD FILE IS WORSE THAN A RED.
+ *
+ * This file is ONE process: a block that throws ends the run, so every later
+ * block's verdict is lost and the summary line never prints. That is the exact
+ * shape of upstream #30 — a suite whose ability to REPORT a defect was itself
+ * destroyed by the defect — and it has now appeared three times in the cache
+ * group alone: `CacheWriter.stems()` throwing on a frames/audio disagreement,
+ * a block reaching for a file a broken `put()` never wrote, and this suite's
+ * own apparatus doing the same.
+ *
+ * `stemcache.js` already does LAYER 1: it NAMES the failure instead of letting
+ * a `RangeError` escape from inside `Float32Array.set`. This is LAYER 2, and it
+ * belongs at the CALLER, because only the caller knows which block died.
+ *
+ * LAYER 1 SAYS WHAT WENT WRONG; LAYER 2 SAYS WHAT IT COST. Neither is the other's
+ * substitute. A named throw with no guard is a good message on a dead file; a
+ * guard with no naming is a live file reporting that something unspecified
+ * happened. Read together they give the whole account in one red line — the
+ * thrown sentence, the block it killed, and the assertions that never ran.
+ *
+ * ITS BOUND, MEASURED AND STATED: it converts a crash into a report. It does
+ * NOT recover the assertions after the throw — those did not run, are not
+ * counted, and the red says so in those words. A block that throws is still a
+ * failure; it is now a failure you can read the rest of the file around.
+ */
+function blockThrew(what, e) {
+  ok(`${what} — the block ran to its end without throwing`, false,
+    `THREW: ${(e && e.message) || e}  ...the assertions after that point DID NOT RUN and are not `
+    + 'counted. This names the death; it does not undo it.');
+}
+
 /** 20*log10(||a-b|| / ||b||) */
 function residualDb(a, b) {
   let num = 0, den = 0;
@@ -141,6 +182,116 @@ function noise(n, seed = 1) {
   const x = new Float32Array(n);
   for (let i = 0; i < n; i++) { s = (s * 1664525 + 1013904223) >>> 0; x[i] = (s / 4294967296) * 2 - 1; }
   return x;
+}
+
+/**
+ * A MINIMAL IN-MEMORY OPFS, AND THE ONLY ONE IN THIS FILE. Seeded by U0 (#33)
+ * for the two-instance isolation gate and extended by U10 (#34) for the rest of
+ * `StemCache`. One implementation, because two would be two chances to be
+ * wrong about the same platform.
+ *
+ * Only the calls `shared/stemcache.js` actually makes are implemented, and the
+ * TWO REJECTIONS ARE LOAD-BEARING: `getFileHandle` on a missing file and
+ * `removeEntry` on a missing entry must THROW, because those are exactly what
+ * `readJson()`, `get()`, `clear()` and `delete()` catch. A shim that resolved
+ * them would let a whole block pass against a cache that never stored anything
+ * — the VOID failure one level down.
+ *
+ * `navigator` IS A CONFIGURABLE GETTER WITH NO SETTER in Node 22, so a plain
+ * `globalThis.navigator = {...}` silently does nothing and leaves
+ * `navigator.storage` undefined. Measured, not assumed. `defineProperty` is the
+ * only thing that takes, and `restore()` puts the original descriptor back.
+ *
+ * WHY THIS IS A SHIM AT `navigator.storage` AND NOT A `dir()` SEAM — read this
+ * before "simplifying" it into one, because a seam is smaller and worse:
+ *
+ *  1. IT RUNS THE SHIPPED PATH. `dir()`, `readJson()`, `writeFile()`,
+ *     `loadManifest()` and the order `put()` writes in are all production code
+ *     under every assertion above. A `dir()` seam lets the tests agree with the
+ *     seam while the real `dir()` drifts — which is the exact failure these
+ *     suites exist to catch, so building the instrument out of it would be
+ *     circular.
+ *  2. THE SEAM WOULD SIT ON MOVING LINES. `dir()` had just become
+ *     instance-scoped for the 32f tier (U0, #33) — a seam threaded through it
+ *     would have had to be re-cut by that change, and an instrument that is
+ *     re-cut every time its anchor moves is one that will eventually be cut
+ *     wrong and go on passing.
+ *
+ * The apparatus beyond a plain filesystem is deliberate and named:
+ *   `written`  every file name in the order its bytes LANDED, which is how the
+ *              "manifest is written last" claim is checked rather than believed.
+ *   `failOn`   file names whose next close() throws, to interrupt a put mid-way
+ *              and see what a crash leaves behind.
+ */
+function installOpfs() {
+  const written = [];
+  const failOn = new Set();
+  const toBytes = (d) => {
+    if (d instanceof Uint8Array) return new Uint8Array(d);
+    if (d instanceof ArrayBuffer) return new Uint8Array(d.slice(0));
+    if (ArrayBuffer.isView(d)) return new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+    return new Uint8Array(Buffer.from(String(d), 'utf8'));
+  };
+  const mkDir = (name) => {
+    const files = new Map();
+    return {
+      name, files,
+      async getFileHandle(n, opts) {
+        if (!files.has(n)) {
+          if (!(opts && opts.create)) throw new Error(`NotFoundError: ${n}`);
+          files.set(n, new Uint8Array(0));
+        }
+        return {
+          async getFile() {
+            const b = files.get(n);
+            if (!b) throw new Error(`NotFoundError: ${n}`);
+            return {
+              size: b.byteLength,
+              async text() { return Buffer.from(b).toString('utf8'); },
+              async arrayBuffer() { return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); },
+            };
+          },
+          async createWritable() {
+            const parts = [];
+            return {
+              async write(data) { parts.push(toBytes(data)); },
+              async close() {
+                if (failOn.has(n)) { failOn.delete(n); throw new Error(`simulated write failure: ${n}`); }
+                let t = 0; for (const q of parts) t += q.byteLength;
+                const all = new Uint8Array(t);
+                let o = 0; for (const q of parts) { all.set(q, o); o += q.byteLength; }
+                files.set(n, all);
+                written.push(n);
+              },
+            };
+          },
+        };
+      },
+      async removeEntry(n) { if (!files.delete(n)) throw new Error(`NotFoundError: ${n}`); },
+    };
+  };
+  const dirs = new Map();
+  const root = {
+    async getDirectoryHandle(n, opts) {
+      if (!dirs.has(n)) {
+        if (!(opts && opts.create)) throw new Error(`NotFoundError: ${n}`);
+        dirs.set(n, mkDir(n));
+      }
+      return dirs.get(n);
+    },
+    async removeEntry(n) { if (!dirs.delete(n)) throw new Error(`NotFoundError: ${n}`); },
+  };
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { storage: { getDirectory: async () => root } }, configurable: true, writable: true,
+  });
+  return {
+    root, dirs, written, failOn,
+    cacheDir: () => root.getDirectoryHandle(CACHE_DIR, { create: true }),
+    /** What is actually on disk in one directory, sorted. */
+    names: (d = CACHE_DIR) => (dirs.has(d) ? [...dirs.get(d).files.keys()].sort() : []),
+    restore: () => { if (saved) Object.defineProperty(globalThis, 'navigator', saved); else delete globalThis.navigator; },
+  };
 }
 
 /**
@@ -213,6 +364,398 @@ if (group('window')) {
     // the exported length must equal the source length exactly (AUDIO.md §5.3)
     const buf = encodeWav([new Float32Array(7), new Float32Array(7)], { sampleRate: SR });
     ok('numFrames survives an odd short buffer', decodeWav(buf).channels[0].length === 7);
+  }
+}
+
+// ===========================================================================
+/**
+ * WATCHED RED BY MUTATION — all eighteen. Each mutation below was applied to a
+ * green tree, `node test.js wavstream` was run, the red was read, and the file
+ * was restored. AGENTS.md:118: "an assertion never observed failing is one whose
+ * ability to fail is an assumption."
+ *
+ * THE BATTERY IS `qa/mutations-u1-wavstream.mjs`, AND THIS TABLE IS ITS OUTPUT.
+ * Re-run it rather than believing this comment. A mutation anchors on a span of
+ * source, and a later slice that rewrites that span decays the anchor SILENTLY —
+ * a search that matches nothing reads exactly like one that matched and passed.
+ * Two other Phase 4 batteries decayed that way with neither author knowing; this
+ * one had no file at all until it was re-run and checked in, so its only record
+ * was this table, and a table cannot re-measure itself.
+ *
+ *     node qa/mutations-u1-wavstream.mjs               the fifteen, with a control
+ *     node qa/mutations-u1-wavstream.mjs --list        do the anchors still match?
+ *     node qa/mutations-u1-wavstream.mjs --self-check  can the battery say MUTE?
+ *
+ * PROVENANCE, because a mutation is only evidence about the source it was cut
+ * for. M1-M12 were cut against 1040de1 and M13-M15 against 0fb693a — both landed
+ * commits, so both stamps stay resolvable. RE-ESTABLISHED against main 5993d32:
+ * 15 of 15 anchors still matching, 15 of 15 reddening EXACTLY the assertions
+ * named here and nothing else, and all 18 assertions covered by at least one
+ * mutation. Nothing needed re-cutting because wav.js is untouched between
+ * 0fb693a and 5993d32. The `wav.js:NNN` coordinates below are as of 5993d32 and
+ * are the first thing that will go stale; the anchor TEXT in the battery is what
+ * is authoritative, and `--list` prints the current line for each.
+ *
+ * THE MUTATIONS TARGET THE COMPOSITION, NOT THE SAMPLE LOOP, and that is not an
+ * oversight. `writeFrames` is shared by all three writers, so breaking it moves
+ * both sides of a byte-identity assertion equally and the assertion stays green
+ * — which is the honest cost of the streaming path being the SAME encoder rather
+ * than a second one. What these assertions can see is everything built around
+ * that loop: the header, the chunk boundaries, the pad byte, the frame
+ * accounting and the two refusals. The existing group('window') covers the loop
+ * itself against the byte map, and M15 below is where that transitive coverage
+ * is observed rather than assumed.
+ *
+ *   M1  wav.js:279  chunk() interleaves the channels in reverse order
+ *                   -> 4 red: 32f identity, the streamed out-of-range read-back,
+ *                   16-bit identity, pipeTo identity
+ *                   (sizing the chunk buffer by bytesPerSample instead of
+ *                   blockAlign is also red, but as a DataView overflow that
+ *                   takes the whole suite down before the assertion reports —
+ *                   re-measured at 5993d32, it still ends the run in a stack
+ *                   trace with nothing named, which is why it is not the anchor)
+ *   M2  wav.js:260  header() declares `written` instead of `frames`
+ *                   -> 7 red: all three identities, the streamed out-of-range
+ *                   read-back, header-is-final, pipeTo identity, and the
+ *                   no-options default header
+ *   M3  wav.js:291  end() stops refusing a short write
+ *                   -> 2 red: the short-write refusal, and pipeTo's abort
+ *   M4  wav.js:268  chunk() stops refusing a long write
+ *                   -> 1 red: the long-write refusal
+ *   M5  wav.js:295  end() never emits the RIFF pad byte
+ *                   -> 1 red: 24-bit mono odd frame count
+ *   M6  wav.js:255  the constructor computes the length without riffSizeFor
+ *                   -> 1 red: the 4 GiB refusal at construction
+ *   M7  wav.js:383  WavSyncWriter.close does not patch the data-chunk size
+ *                   -> 3 red: the 32f sync identity, the 16-bit sync identity,
+ *                   and the odd-payload pad
+ *   M8  wav.js:355  WavSyncWriter.append checks the ceiling after it writes
+ *                   -> 1 red: the sync writer refuses before writing
+ *   M9  wav.js:58   the 16-bit dither default is dropped
+ *                   -> 1 red: the dither default
+ *   M10 wav.js:240  the constructor stops refusing planes as a channel count
+ *                   -> 1 red: the named refusal
+ *   M11 wav.js:255  byteLength forgets the header bytes
+ *                   -> 1 red: the length known before any audio is written
+ *   M12 wav.js:312  pipeTo closes the sink on a refusal instead of aborting it
+ *                   -> 1 red: pipeTo aborts rather than closes
+ *
+ * M13-M15 CLOSE A COVERAGE HOLE AN ADVERSARIAL REVIEW FOUND, and M13 is the
+ * review's own mutation, reproduced here because it is the one this suite used
+ * to pass. WavSyncWriter was asserted only at 32f — but it exists for the cache
+ * write, and the cache writes 16-bit (stemcache.js put()). `fact` is present only
+ * for float, so every patch offset past the fmt chunk differs between the two
+ * formats, and 32f stereo blockAlign 8 is always even so close()'s pad byte was
+ * unreachable as well.
+ *
+ *   M13 wav.js:78   dataSizeAt is wrong for PCM ONLY, float left untouched:
+ *                   `fmt.headerSize - 4 + (fmt.factSize ? 0 : 2)`
+ *                   -> 2 red: the 16-bit sync round trip, the odd-payload pad.
+ *                   BEFORE these two assertions existed this mutation left the
+ *                   whole group green while every 16-bit and 24-bit cache file
+ *                   carried a data-chunk size of zero.
+ *   M14 wav.js:379  close() never writes the pad byte for an odd payload
+ *                   -> 1 red: the odd-payload pad
+ *   M15 wav.js:134  the float path clamps to ±1.0 like the fixed-point paths
+ *                   -> 1 red here (the streamed out-of-range read-back), and 2
+ *                   more in group('window') — `32f round trip is bit exact` and
+ *                   `32f preserves out-of-range samples`, both re-measured at
+ *                   5993d32 with `node test.js window`. That is the transitive
+ *                   coverage the note above describes, observed rather than
+ *                   assumed, and it is the assertion that would go missing if a
+ *                   future writer were given its own conversion loop.
+ */
+if (group('wavstream')) {
+  head('wavstream — the streaming writers emit exactly the bytes encodeWav emits (U1)');
+
+  /** Drive WavStreamEncoder by hand and concatenate everything it emits. */
+  const streamBytes = (chs, opts, chunkLen) => {
+    const n = chs[0].length;
+    const enc = new WavStreamEncoder(chs.length, { ...opts, frames: n });
+    const parts = [enc.header()];
+    for (let o = 0; o < n; o += chunkLen) {
+      const len = Math.min(chunkLen, n - o);
+      parts.push(enc.chunk(chs.map((c) => c.subarray(o, o + len)), len));
+    }
+    parts.push(enc.end());
+    const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+    let p = 0;
+    for (const b of parts) { out.set(b, p); p += b.length; }
+    return out;
+  };
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  const firstDiff = (a, b) => {
+    if (a.length !== b.length) return `lengths differ: ${a.length} vs ${b.length}`;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return `first difference at byte ${i}`;
+    return 'identical';
+  };
+  const threw = (f) => { try { f(); return null; } catch (e) { return e.message; } };
+
+  /** An OPFS FileSystemSyncAccessHandle, duck-typed on the four members WavSyncWriter uses. */
+  class FakeSyncHandle {
+    constructor() { this.bytes = new Uint8Array(0); this.writes = 0; this.flushed = 0; this.closes = 0; }
+    write(buf, { at }) {
+      this.writes++;
+      if (at + buf.length > this.bytes.length) {
+        const grown = new Uint8Array(at + buf.length);
+        grown.set(this.bytes); this.bytes = grown;
+      }
+      this.bytes.set(buf, at);
+      return buf.length;
+    }
+    truncate(n) { this.bytes = this.bytes.slice(0, n); }
+    flush() { this.flushed++; }
+    close() { this.closes++; }
+  }
+
+  // 5000 frames chunked at 997 so no chunk boundary lands on a power of two and
+  // the last chunk is short — the arithmetic a whole-buffer encoder never does.
+  const N = 5000, CHUNK = 997;
+  const l = noise(N, 3), r = noise(N, 4);
+  // Out of range on purpose, and ASSERTED below rather than merely commented:
+  // 32f must not clip (AUDIO.md §5.3). Byte identity alone cannot carry that
+  // claim — both sides of the comparison get identical treatment — so the
+  // streamed bytes are decoded and the two samples are read back.
+  l[10] = 1.7; r[11] = -1.42;
+
+  // -- byte identity, the assertion the slice rests on -----------------------
+  {
+    const opts = { sampleRate: SR, bitDepth: 32, float: true };
+    const whole = new Uint8Array(encodeWav([l, r], opts));
+    const streamed = streamBytes([l, r], opts, CHUNK);
+    ok('32f: the streamed file is byte-identical to encodeWav  '
+      + '[entry point: WavStreamEncoder.header/chunk/end over 6 chunks]',
+      same(whole, streamed), `${whole.length} bytes, ${firstDiff(whole, streamed)}`);
+
+    // The float path writes setFloat32 RAW while every fixed-point path clamps
+    // (wav.js writeFrames). htdemucs outputs are not bounded to ±1.0 and 32f
+    // export is defined as the untouched model output, so a clamp appearing on
+    // the streaming path is a silent quality regression in the deliverable.
+    const back = decodeWav(streamed.buffer);
+    ok('32f: the STREAMED bytes preserve out-of-range samples — no clip, no rescale  '
+      + '[entry point: decodeWav over WavStreamEncoder output, not over encodeWav output]',
+      back.channels[0][10] === Math.fround(1.7) && back.channels[1][11] === Math.fround(-1.42)
+      && back.bitDepth === 32 && back.float === true,
+      `read back ${back.channels[0][10]} and ${back.channels[1][11]}`);
+  }
+
+  {
+    // dither:false BECAUSE encodeWav's dither is seeded from Math.random()
+    // (wav.js writeFrames): with it on, two runs of the SAME encoder differ, so
+    // byte-identity is undefined rather than false. The cache write already
+    // passes dither:false (stemcache.js put()), which is the path that matters.
+    const opts = { sampleRate: SR, bitDepth: 16, float: false, dither: false };
+    const src = [Float32Array.from(l, (v) => Math.max(-1, Math.min(0.999, v))),
+                 Float32Array.from(r, (v) => Math.max(-1, Math.min(0.999, v)))];
+    const whole = new Uint8Array(encodeWav(src, opts));
+    const streamed = streamBytes(src, opts, CHUNK);
+    ok('16-bit PCM: the streamed file is byte-identical to encodeWav  '
+      + '[entry point: WavStreamEncoder.chunk, dither off — see the comment]',
+      same(whole, streamed), `${whole.length} bytes, ${firstDiff(whole, streamed)}`);
+  }
+
+  {
+    // Mono 24-bit, 7 frames: blockAlign 3 makes dataSize ODD, which is the only
+    // shape in this codebase that produces a RIFF pad byte at all.
+    const opts = { sampleRate: SR, bitDepth: 24, float: false, dither: false };
+    const m = Float32Array.from(noise(7, 9), (v) => Math.max(-1, Math.min(0.999, v)));
+    const whole = new Uint8Array(encodeWav([m], opts));
+    const streamed = streamBytes([m], opts, 3);
+    ok('24-bit mono, odd frame count: byte-identical INCLUDING the RIFF pad byte  '
+      + '[entry point: WavStreamEncoder.end]',
+      same(whole, streamed) && whole.length % 2 === 0 && (7 * 3) % 2 === 1,
+      `${whole.length} bytes for a ${7 * 3}-byte odd payload, ${firstDiff(whole, streamed)}`);
+  }
+
+  // -- the header is final before any audio is written ------------------------
+  {
+    const opts = { sampleRate: SR, bitDepth: 32, float: true };
+    const enc = new WavStreamEncoder(2, { ...opts, frames: N });
+    const head0 = enc.header();                       // BEFORE a single chunk
+    const whole = new Uint8Array(encodeWav([l, r], opts));
+    const dv = new DataView(head0.buffer, head0.byteOffset, head0.byteLength);
+    ok('the header is complete and FINAL on the first chunk — no seek, no patch  '
+      + '[entry point: WavStreamEncoder.header() before any chunk() call]',
+      same(head0, whole.subarray(0, head0.length))
+      && dv.getUint32(4, true) === whole.byteLength - 8
+      && dv.getUint32(46, true) === N
+      && dv.getUint32(54, true) === N * 8,
+      `${head0.length}-byte header, riff=${dv.getUint32(4, true)} fact=${dv.getUint32(46, true)} data=${dv.getUint32(54, true)}`);
+    ok('the finished byte length is known before any audio is written  '
+      + '[entry point: WavStreamEncoder.byteLength, for a progress meter that cannot count what it has not encoded]',
+      enc.byteLength === whole.byteLength, `${enc.byteLength} bytes`);
+  }
+
+  // -- a wrong frame count throws, in both directions -------------------------
+  {
+    const enc = new WavStreamEncoder(2, { sampleRate: SR, bitDepth: 32, float: true, frames: 100 });
+    enc.header();
+    enc.chunk([l.subarray(0, 60), r.subarray(0, 60)], 60);
+    const msg = threw(() => enc.chunk([l.subarray(0, 60), r.subarray(0, 60)], 60));
+    ok('a LONG write is refused, naming both counts, and takes no frames with it  '
+      + '[entry point: WavStreamEncoder.chunk]',
+      msg !== null && /120/.test(msg) && /100/.test(msg) && enc.written === 60,
+      msg === null ? 'ACCEPTED 120 frames into a 100-frame file' : `${enc.written} frames still written; ${msg}`);
+  }
+
+  {
+    const enc = new WavStreamEncoder(2, { sampleRate: SR, bitDepth: 32, float: true, frames: 100 });
+    enc.header();
+    enc.chunk([l.subarray(0, 60), r.subarray(0, 60)], 60);
+    const msg = threw(() => enc.end());
+    ok('a SHORT write is refused at end(), naming both counts  '
+      + '[entry point: WavStreamEncoder.end]',
+      msg !== null && /60/.test(msg) && /100/.test(msg),
+      msg === null ? 'ACCEPTED a file whose header promises 100 frames and whose data stops at 60' : msg);
+  }
+
+  // -- the 4 GiB ceiling wav.js has always guarded ----------------------------
+  {
+    // 600e6 frames x 8 bytes = 4.8 GB of payload, refused without allocating any
+    // of it — the point of checking at construction rather than at the last chunk.
+    const msg = threw(() => new WavStreamEncoder(2, { sampleRate: SR, bitDepth: 32, float: true, frames: 600e6 }));
+    ok('the 4 GiB RIFF ceiling is refused at construction, before anything is streamed  '
+      + '[entry point: new WavStreamEncoder]',
+      msg !== null && /4 GiB/.test(msg),
+      msg === null ? 'ACCEPTED a 4.8 GB payload into a uint32 size field' : msg);
+  }
+
+  // -- into a real WritableStream --------------------------------------------
+  {
+    const sink = { chunks: [], closed: 0, aborted: null };
+    const ws = new WritableStream({
+      write(c) { sink.chunks.push(c); },
+      close() { sink.closed++; },
+      abort(reason) { sink.aborted = reason; },
+    });
+    const opts = { sampleRate: SR, bitDepth: 32, float: true };
+    const enc = new WavStreamEncoder(2, { ...opts, frames: N });
+    const source = (function* () {
+      for (let o = 0; o < N; o += CHUNK) {
+        const len = Math.min(CHUNK, N - o);
+        yield [[l.subarray(o, o + len), r.subarray(o, o + len)], len];
+      }
+    })();
+    await enc.pipeTo(ws, source);
+    const got = new Uint8Array(sink.chunks.reduce((a, c) => a + c.length, 0));
+    let p = 0;
+    for (const c of sink.chunks) { got.set(c, p); p += c.length; }
+    const whole = new Uint8Array(encodeWav([l, r], opts));
+    ok('pipeTo drives a real WritableStream to the same bytes, and closes it once  '
+      + '[entry point: WavStreamEncoder.pipeTo]',
+      same(whole, got) && sink.closed === 1 && sink.aborted === null,
+      `${sink.chunks.length} writes, ${got.length} bytes, ${firstDiff(whole, got)}`);
+  }
+
+  {
+    // A source that stops early must ABORT the sink, not close it: a Host that
+    // turns the writable into a file has to be told the file is not a file.
+    const sink = { closed: 0, aborted: null };
+    const ws = new WritableStream({ write() {}, close() { sink.closed++; }, abort(r) { sink.aborted = r; } });
+    const enc = new WavStreamEncoder(2, { sampleRate: SR, bitDepth: 32, float: true, frames: N });
+    const short = (function* () { yield [[l.subarray(0, 10), r.subarray(0, 10)], 10]; })();
+    let rejected = null;
+    try { await enc.pipeTo(ws, short); } catch (e) { rejected = e.message; }
+    ok('pipeTo ABORTS the sink on a short source rather than closing it  '
+      + '[entry point: WavStreamEncoder.pipeTo]',
+      rejected !== null && sink.closed === 0 && sink.aborted instanceof Error,
+      rejected === null ? 'RESOLVED on a truncated file' : `sink closed ${sink.closed} times, aborted with: ${rejected}`);
+  }
+
+  // -- the unknown-length OPFS variant ----------------------------------------
+  {
+    const opts = { sampleRate: SR, bitDepth: 32, float: true };
+    const h = new FakeSyncHandle();
+    const w = new WavSyncWriter(h, 2, opts);
+    for (let o = 0; o < N; o += CHUNK) {
+      const len = Math.min(CHUNK, N - o);
+      w.append([l.subarray(o, o + len), r.subarray(o, o + len)], len);
+    }
+    const res = w.close();
+    const whole = new Uint8Array(encodeWav([l, r], opts));
+    ok('WavSyncWriter patches the three lengths at close and lands encodeWav’s exact bytes  '
+      + '[entry point: WavSyncWriter.append/close over a FileSystemSyncAccessHandle]',
+      same(whole, h.bytes) && res.frames === N && h.flushed === 1 && h.closes === 1,
+      `${h.bytes.length} bytes, ${res.frames} frames, ${firstDiff(whole, h.bytes)}`);
+  }
+
+  {
+    // 16-BIT IS THE SHIPPED CACHE FORMAT (stemcache.js put()), and the 32f case
+    // above structurally cannot see a PCM-only header bug: `fact` is present only
+    // for float, so every patch offset past the fmt chunk differs between the two.
+    // A dataSizeAt() that is wrong for PCM alone leaves the data-chunk size at
+    // zero in every cache file and passes a float-only suite.
+    const opts = { sampleRate: SR, bitDepth: 16, float: false, dither: false };
+    const src = [Float32Array.from(l, (v) => Math.max(-1, Math.min(0.999, v))),
+                 Float32Array.from(r, (v) => Math.max(-1, Math.min(0.999, v)))];
+    const h = new FakeSyncHandle();
+    const w = new WavSyncWriter(h, 2, opts);
+    for (let o = 0; o < N; o += CHUNK) {
+      const len = Math.min(CHUNK, N - o);
+      w.append([src[0].subarray(o, o + len), src[1].subarray(o, o + len)], len);
+    }
+    const res = w.close();
+    const whole = new Uint8Array(encodeWav(src, opts));
+    ok('WavSyncWriter at 16-bit — THE FORMAT THE CACHE ACTUALLY WRITES — lands encodeWav’s exact bytes  '
+      + '[entry point: WavSyncWriter.close patching a PCM header, where there is no fact chunk]',
+      same(whole, h.bytes) && res.frames === N,
+      `${h.bytes.length} bytes, ${res.frames} frames, ${firstDiff(whole, h.bytes)}`);
+  }
+
+  {
+    // 24-bit mono, 7 frames: dataSize 21 is ODD. 32f stereo blockAlign is 8 and
+    // 16-bit stereo is 4, so neither case above can reach close()'s pad byte at all.
+    const opts = { sampleRate: SR, bitDepth: 24, float: false, dither: false };
+    const m = Float32Array.from(noise(7, 9), (v) => Math.max(-1, Math.min(0.999, v)));
+    const h = new FakeSyncHandle();
+    const w = new WavSyncWriter(h, 1, opts);
+    w.append([m.subarray(0, 3)], 3);
+    w.append([m.subarray(3, 7)], 4);
+    const res = w.close();
+    const whole = new Uint8Array(encodeWav([m], opts));
+    ok('WavSyncWriter pads an ODD payload at close and reports the padded length  '
+      + '[entry point: WavSyncWriter.close, the pad path no even blockAlign can reach]',
+      same(whole, h.bytes) && (7 * 3) % 2 === 1 && h.bytes.length % 2 === 0
+      && res.byteLength === whole.length && res.frames === 7,
+      `${h.bytes.length} bytes for a ${7 * 3}-byte odd payload, ${firstDiff(whole, h.bytes)}`);
+  }
+
+  {
+    // The ceiling is checked BEFORE the bytes are built, because a file that has
+    // already crossed 4 GiB cannot be repaired at close: the size field wraps and
+    // what is left on disk is a short file that parses.
+    const h = new FakeSyncHandle();
+    const w = new WavSyncWriter(h, 2, { sampleRate: SR, bitDepth: 32, float: true });
+    const writesAfterHeader = h.writes;
+    const msg = threw(() => w.append([new Float32Array(1), new Float32Array(1)], 600e6));
+    ok('WavSyncWriter refuses the 4 GiB ceiling BEFORE it writes a byte  '
+      + '[entry point: WavSyncWriter.append]',
+      msg !== null && /4 GiB/.test(msg) && h.writes === writesAfterHeader,
+      msg === null ? 'ACCEPTED a payload past the uint32 size field'
+        : `${h.writes - writesAfterHeader} writes past the header; ${msg}`);
+  }
+
+  // -- the defaults are the same defaults -------------------------------------
+  {
+    const enc = new WavStreamEncoder(2, { frames: N });
+    const whole = new Uint8Array(encodeWav([l, r]));
+    ok('with NO options both writers resolve the same format: 44.1 k, 32f, stereo  '
+      + '[entry point: wavFormat, via encodeWav and new WavStreamEncoder]',
+      same(enc.header(), whole.subarray(0, enc.headerSize)),
+      `${enc.headerSize}-byte header, ${firstDiff(enc.header(), whole.subarray(0, enc.headerSize))}`);
+    ok('the 16-bit dither default is resolved the same way and is still switchable  '
+      + '[entry point: the resolved format on WavStreamEncoder, the one option the header cannot show]',
+      new WavStreamEncoder(2, { bitDepth: 16, float: false, frames: 4 }).fmt.dither === true
+      && new WavStreamEncoder(2, { bitDepth: 16, float: false, dither: false, frames: 4 }).fmt.dither === false
+      && new WavStreamEncoder(2, { frames: 4 }).fmt.dither === false);
+  }
+
+  {
+    const msg = threw(() => new WavStreamEncoder([l, r], { frames: N }));
+    ok('passing the planes where the channel COUNT goes is a named refusal  '
+      + '[entry point: new WavStreamEncoder]',
+      msg !== null && /count/i.test(msg) && /2 planes/.test(msg),
+      msg === null ? 'ACCEPTED an array of planes as a channel count' : msg);
   }
 }
 
@@ -2502,47 +3045,51 @@ if (group('cache')) {
 
   head('cache — the writer accumulates hops and refuses to commit a broken prime');
   {
-    const w = new CacheWriter('k', { videoId: 'v' });
-    // TWELVE planes, one per stem channel. Each carries its own value so a
-    // plane-to-stem mapping error is a wrong number rather than a wrong length.
-    const planes = Array.from({ length: STEMS.length * 2 }, (_, q) => new Float32Array(100).fill((q + 1) / 10));
-    w.append(planes, 100);
-    w.append(planes, 60);                       // a short final hop
-    ok('frames accumulate across hops', w.frames === 160, `${w.frames}`);
-    const st = w.stems();
-    ok(`all ${STEMS.length} stems come back with both channels at the right length`,
-      Object.keys(st).length === STEMS.length &&
-      STEMS.every((s) => st[s].length === 2 && st[s][0].length === 160),
-      Object.keys(st).join(','));
-    /**
-     * WIDENED, NOT SPOT-CHECKED. The four-stem form asserted drums (planes 0/1)
-     * and vocals (6/7) and inferred the rest. At six stems the two planes that
-     * can be wrong without either of those noticing are precisely the new ones —
-     * guitar at 8/9 and piano at 10/11 — so the mapping is now asserted for
-     * EVERY stem, `planes[2k]` -> L and `planes[2k+1]` -> R.
-     * (Folded in from TRACK A's isolation suite.)
-     */
-    const wrong = STEMS.filter((s, k) =>
-      Math.abs(st[s][0][0] - (planeL(k) + 1) / 10) > 1e-6 ||
-      Math.abs(st[s][1][0] - (planeR(k) + 1) / 10) > 1e-6);
-    ok('every stem reads back plane pair 2k / 2k+1, L then R — guitar is 8/9, piano 10/11, no off-by-two',
-      wrong.length === 0,
-      STEMS.map((s, k) => `${s}=${st[s][0][0].toFixed(1)}/${st[s][1][0].toFixed(1)}`).join(' '));
-    ok('a short final hop is not padded out', st.bass[0][159] !== 0 && st.bass[0].length === 160);
-    /**
-     * THE REFUSAL, and it is the one that keeps the widening from arriving
-     * half-done. An 8-plane caller would cache four stems, COMMIT, and read back
-     * later as a track that is silently missing its guitar and piano — the
-     * silently-stale entry this whole file exists to prevent, with nothing in
-     * the UI able to tell you. (Folded in from TRACK A's isolation suite.)
-     */
-    let shortAppend = '';
-    try { new CacheWriter('k', {}).append(planes.slice(0, 8), 100); } catch (e) { shortAppend = e.message; }
-    ok('append() REFUSES an 8-plane call rather than caching four stems and committing',
-      new RegExp(`needs ${STEMS.length * 2} planes for ${STEMS.length} stems, got 8`).test(shortAppend),
-      shortAppend || '(did not throw)');
-    w.abort();
-    ok('an aborted prime holds nothing and cannot commit', w.frames === 0);
+    try {
+      const w = new CacheWriter('k', { videoId: 'v' });
+      // TWELVE planes, one per stem channel. Each carries its own value so a
+      // plane-to-stem mapping error is a wrong number rather than a wrong length.
+      const planes = Array.from({ length: STEMS.length * 2 }, (_, q) => new Float32Array(100).fill((q + 1) / 10));
+      w.append(planes, 100);
+      w.append(planes, 60);                       // a short final hop
+      ok('frames accumulate across hops', w.frames === 160, `${w.frames}`);
+      const st = w.stems();
+      ok(`all ${STEMS.length} stems come back with both channels at the right length`,
+        Object.keys(st).length === STEMS.length &&
+        STEMS.every((s) => st[s].length === 2 && st[s][0].length === 160),
+        Object.keys(st).join(','));
+      /**
+       * WIDENED, NOT SPOT-CHECKED. The four-stem form asserted drums (planes 0/1)
+       * and vocals (6/7) and inferred the rest. At six stems the two planes that
+       * can be wrong without either of those noticing are precisely the new ones —
+       * guitar at 8/9 and piano at 10/11 — so the mapping is now asserted for
+       * EVERY stem, `planes[2k]` -> L and `planes[2k+1]` -> R.
+       * (Folded in from TRACK A's isolation suite.)
+       */
+      const wrong = STEMS.filter((s, k) =>
+        Math.abs(st[s][0][0] - (planeL(k) + 1) / 10) > 1e-6 ||
+        Math.abs(st[s][1][0] - (planeR(k) + 1) / 10) > 1e-6);
+      ok('every stem reads back plane pair 2k / 2k+1, L then R — guitar is 8/9, piano 10/11, no off-by-two',
+        wrong.length === 0,
+        STEMS.map((s, k) => `${s}=${st[s][0][0].toFixed(1)}/${st[s][1][0].toFixed(1)}`).join(' '));
+      ok('a short final hop is not padded out', st.bass[0][159] !== 0 && st.bass[0].length === 160);
+      /**
+       * THE REFUSAL, and it is the one that keeps the widening from arriving
+       * half-done. An 8-plane caller would cache four stems, COMMIT, and read back
+       * later as a track that is silently missing its guitar and piano — the
+       * silently-stale entry this whole file exists to prevent, with nothing in
+       * the UI able to tell you. (Folded in from TRACK A's isolation suite.)
+       */
+      let shortAppend = '';
+      try { new CacheWriter('k', {}).append(planes.slice(0, 8), 100); } catch (e) { shortAppend = e.message; }
+      ok('append() REFUSES an 8-plane call rather than caching four stems and committing',
+        new RegExp(`needs ${STEMS.length * 2} planes for ${STEMS.length} stems, got 8`).test(shortAppend),
+        shortAppend || '(did not throw)');
+      w.abort();
+      ok('an aborted prime holds nothing and cannot commit', w.frames === 0);
+    } catch (e) {
+      blockThrew('cache — the writer accumulates hops and refuses to commit a broken prime', e);
+    }
   }
 
   head('cache — eviction is strict LRU, predictable, and never touches the playing track');
@@ -3557,6 +4104,256 @@ if (group('cache')) {
       commitRefusal(W(FULL), null) !== null);
   }
 
+  // ======================================== U3: the File source's identity
+  /**
+   * cache — A FILE SOURCE IS KEYED BY WHAT IT IS, NOT BY WHAT IT IS CALLED.
+   *
+   * REACHABLE: drives the real `fileIdFromBytes`, `fileIdentity`, `fileRefusal`
+   * and `fileCommitRefusal` in `shared/stemcache.js`. Pure functions over a
+   * platform digest — no OPFS, no clock, no model, no fixture longer than it
+   * needs to be.
+   *
+   * WHY IT EXISTS. `videoIdFromUrl` returns null for anything that is not a
+   * YouTube page, and `cacheKey(null, hop)` is the literal key
+   * `'null--<pipelineVersion>'` — ONE key shared by every file the user ever
+   * opens. The CONTROL assertion below produces that collision rather than
+   * describing it, so what the assertions around it protect is on the record.
+   *
+   * TODAY'S TREE DOES NOT REACH THAT KEY: `trackKey()` (`offscreen/engine.js:
+   * 547-551`) has `if (!videoId) return null` and caches nothing. That guard is
+   * right for a YouTube tab off a video page and wrong for a file, where the
+   * videoId is ALWAYS absent — reusing it means the ahead-of-time tier never
+   * fills. Collide-everything and cache-nothing are the two answers a shared
+   * identity gives a File source, and neither is a cache; hence a separate one.
+   *
+   * MUTATION LOG — every assertion in both blocks watched red, each mutation
+   * applied ALONE to a green tree, `node test.js cache` run and read before the
+   * file was restored. Line numbers are `extension/shared/stemcache.js` at this
+   * commit; `reds` counts FAIL lines. Every assertion this slice adds is covered
+   * by at least one row.
+   *
+   *   #    mutation                                                    where   reds
+   *   M1   fileIdentity: keys from videoIdFromUrl, as trackKey does   :401     5   <- shows the null-- collision
+   *   M2   fileIdFromBytes: hash only the first 4096 bytes             :372     2   <- the prefix-hash this slice ruled out
+   *   M3   fileIdFromBytes: digest SHA-1 rather than SHA-256           :372     3
+   *   M4   fileIdFromBytes: drop padStart(2, '0') from the hex         :374     3
+   *   M5   fileIdFromBytes: return null rather than throw on no bytes  :364     1
+   *   M6   fileRefusal: the isFileId branch removed                    :431     6
+   *   M7   fileRefusal: the "no bytes" branch removed                  :435     2
+   *   M8   fileRefusal: the empty-file branch removed                  :445     2
+   *   M9   fileRefusal: empty checked by length only, not the digest   :445     1
+   *   M10  fileCommitRefusal: equality relaxed to PRIME_TAIL_MAX_SEC   :482     3
+   *   M11  fileCommitRefusal: no decoded source returns null           :481     2
+   *   M12  fileCommitRefusal: the aborted branch removed               :473     1
+   *   M13  fileCommitRefusal: the empty-writer branch removed          :474     1
+   *   M14  fileCommitRefusal: short/past wording swapped               :485     3
+   *   M15  fileIdFromBytes: a random digest per call                   :372     3   <- the "same file" claim
+   *   M16  fileIdentity: the tier dropped from cacheKey                :402     2
+   *   M17  videoIdFromUrl: a non-YouTube host returns its pathname     :137     2   <- the CONTROL can fail
+   *   M18  fileRefusal: refuses unconditionally                        :446     3
+   *   M19  fileCommitRefusal: refuses unconditionally                  :487     2
+   *   M20  fileCommitRefusal: the no-writer branch returns null        :472     1
+   *   M21  primeRefusal: the !videoId branch returns null              :261     2
+   *   M22  commitRefusal: the !page branch returns null                :283     2
+   */
+  head('cache — a File source is identified by its CONTENT, and videoIdFromUrl is not on that path');
+  {
+    /** Deterministic file bytes; the same LCG `noise()` uses, one byte at a time. */
+    const fileBytes = (n, seed) => {
+      let s = seed >>> 0;
+      const b = new Uint8Array(n);
+      for (let i = 0; i < n; i++) { s = (s * 1664525 + 1013904223) >>> 0; b[i] = (s >>> 24) & 0xff; }
+      return b;
+    };
+    const ascii = (s) => new TextEncoder().encode(s);
+    const F32 = { depth: 32, geometry: 'offline' };
+
+    /**
+     * THE PAIR THAT PRICES THE RULED-OUT ALTERNATIVE. A first-N-MB-plus-length
+     * hash was rejected for this slice; these two files are exactly what it
+     * gets wrong — 64 KiB, the same 65 535-byte prefix, differing only in the
+     * LAST byte. That is a re-tagged duplicate, a second render out of one
+     * session, or a copy a file manager finished writing differently, and every
+     * one of those is a pair somebody really has on disk.
+     */
+    const A = fileBytes(1 << 16, 7);
+    const B = new Uint8Array(A); B[B.length - 1] ^= 0xff;
+
+    const a = await fileIdentity(A, 1.95, F32);
+    const b = await fileIdentity(B, 1.95, F32);
+
+    ok('two files that differ ONLY in their last byte never share a key  '
+      + '[entry point: fileIdentity(bytes, hop, tier)]',
+      a.key !== b.key && a.id !== b.id, `${String(a.id).slice(0, 16)}… vs ${String(b.id).slice(0, 16)}…`);
+
+    /**
+     * RE-IDENTIFICATION, over a buffer built from scratch rather than the same
+     * object handed back — "the same file" means the same BYTES on a later
+     * visit, from a different read, possibly in a different process.
+     */
+    const again = await fileIdentity(fileBytes(1 << 16, 7), 1.95, F32);
+    ok('...and the same bytes re-identify to the same key on a separate call, from a separate buffer',
+      again.key === a.key && again.id === a.id, String(again.id).slice(0, 16) + '…');
+
+    ok('the identity is the file’s real SHA-256 — the published vectors, so the key is one '
+      + '`shasum -a 256` reproduces  [entry point: fileIdFromBytes(bytes)]',
+      (await fileIdFromBytes(ascii('abc')))
+        === 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+      && (await fileIdFromBytes(new Uint8Array(0)))
+        === 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      await fileIdFromBytes(ascii('abc')));
+
+    ok('how the Host hands the bytes over cannot change the key: a view, an offset view and the '
+      + 'whole buffer identify the same 64 KiB the same way',
+      (await fileIdFromBytes(A.buffer)) === a.id
+      && (await fileIdFromBytes(new Uint8Array(A.buffer, 0, A.length))) === a.id
+      && (await fileIdFromBytes(A.subarray(1))) !== a.id);
+
+    /**
+     * THE 64-CHARACTER FIT IS ASSERTED, NOT ASSUMED. `cacheKey` slices a
+     * caller-supplied name at 64 to bound it, and a digest is exactly 64, so
+     * nothing is cut today. A later prefix on the id would be — silently, into a
+     * key nobody could reproduce with a checksum tool. This is where that goes
+     * red.
+     */
+    ok('the WHOLE digest reaches the key — cacheKey’s 64-character cap does not truncate it',
+      String(a.id).length === 64 && a.key === `${a.id}--${pipelineVersion(1.95, F32)}`
+      && a.key.startsWith(`${a.id}--`), `${a.key.length} chars`);
+
+    ok('the tier reaches a File key too, so a 32f offline entry cannot be read back as a live one',
+      /-d32f-go$/.test(a.key) && a.key !== (await fileIdentity(A, 1.95)).key,
+      a.key.slice(-24));
+
+    /**
+     * WHY THE TWO IDENTITY SPACES CANNOT COLLIDE, structurally rather than by
+     * luck: a videoId is 11 characters of the URL alphabet and a file identity
+     * is 64 of hex. No string is both, so a File entry and a YouTube entry never
+     * name each other however the two tiers are mixed.
+     */
+    ok('a file identity can never be mistaken for a videoId — 64 hex against 11 URL characters',
+      /^[0-9a-f]{64}$/.test(a.id) && !/^[A-Za-z0-9_-]{11}$/.test(a.id));
+
+    ok('no bytes is a THROW, not a null that would flow into cacheKey and become the key below  '
+      + '[entry point: fileIdFromBytes(null)]',
+      await (async () => {
+        for (const bad of [null, undefined, 'a file', 42, { byteLength: 8 }]) {
+          try { await fileIdFromBytes(bad); return false; } catch { /* named error, wanted */ }
+        }
+        return true;
+      })());
+
+    /**
+     * THE CONTROL, and it asserts that the BUG is real. Route the File path back
+     * through `videoIdFromUrl` — which is what `offscreen/engine.js:548` does
+     * today for a Source with no YouTube URL — and the two files above do not
+     * merely get different-looking keys, they get the SAME key. A `null--…`
+     * shared by every file is the stale-but-plausible entry `stemcache.js`'s own
+     * header calls the worst failure it has.
+     */
+    const viaUrlA = cacheKey(videoIdFromUrl('file:///music/one.flac'), 1.95, F32);
+    const viaUrlB = cacheKey(videoIdFromUrl('file:///music/two.flac'), 1.95, F32);
+    ok('CONTROL — deriving a File key from a URL collides EVERY file onto one key',
+      viaUrlA === viaUrlB && viaUrlA.startsWith('null--'), viaUrlA);
+    ok('...and neither real file key is that key, nor each other’s',
+      a.key !== viaUrlA && b.key !== viaUrlA && a.key !== b.key,
+      `${a.key.slice(0, 12)}… ${b.key.slice(0, 12)}… vs ${viaUrlA.slice(0, 12)}…`);
+  }
+
+  head('cache — the File refusal pair: neither prime-policy function can be used here');
+  /**
+   * ENTRY POINTS: `fileRefusal` answers when the Host's `sourceBytes` has
+   * returned and before the model runs; `fileCommitRefusal` answers when the
+   * runner has finished, before `CacheWriter.commit()`. Both are pure and both
+   * are driven here over a table — no OPFS, no clock, and the only numbers are
+   * frame counts.
+   *
+   * They exist because NEITHER live function can be used for a File source, and
+   * the two assertions that close this block say so by calling them:
+   * `primeRefusal` refuses on `!videoId`, and `commitRefusal` requires
+   * `page.ended` from a page transport a file does not have.
+   */
+  {
+    const ID_A = 'a'.repeat(64);
+    const EMPTY_ID = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const some = new Uint8Array(1024);
+
+    /** [what, fileId, bytes, expected — null for go-ahead, else a pattern] */
+    const REFUSALS = [
+      ['a real identity and real bytes goes ahead', ID_A, some, null],
+      ['...however the bytes arrived — an ArrayBuffer is the same answer', ID_A, some.buffer, null],
+      ['a NULL identity is refused — the value videoIdFromUrl hands back for any file',
+        null, some, /no content identity/],
+      ['the STRING "null" is refused too, which is what reaches cacheKey unguarded',
+        'null', some, /no content identity/],
+      ['a videoId is not a file identity, however valid it is as a videoId',
+        'dQw4w9WgXcQ', some, /no content identity/],
+      ['63 hex characters is not a digest', 'a'.repeat(63), some, /no content identity/],
+      ['65 hex characters is not a digest either', 'a'.repeat(65), some, /no content identity/],
+      ['64 characters that are not hex is not a digest', 'z'.repeat(64), some, /no content identity/],
+      ['no bytes at all is a refusal, not an assumption about the file',
+        ID_A, null, /no bytes came back/],
+      ['something that is not a buffer is a refusal — a length is not evidence of bytes',
+        ID_A, { byteLength: 1024 }, /no bytes came back/],
+      ['a zero-length file is a refusal — it decodes to a track that is silently not the track',
+        ID_A, new Uint8Array(0), /the file is empty/],
+      ['...and so is the identity every empty file shares, even with bytes in hand',
+        EMPTY_ID, some, /the file is empty/],
+    ];
+    for (const [what, id, bytes, want] of REFUSALS) {
+      const got = fileRefusal(id, bytes);
+      ok(`fileRefusal: ${what}`,
+        want === null ? got === null : typeof got === 'string' && want.test(got),
+        got === null ? 'go ahead' : String(got));
+    }
+
+    /**
+     * THE COMPLETENESS TEST IS EQUALITY, and the fixture is deliberately a frame
+     * count rather than a duration: the runner knows how many frames the decode
+     * produced before it starts, so anything but that exact number is a bug in
+     * the runner and not a track that ended early.
+     */
+    const N = 240 * SR;
+    const W = (frames, aborted = false) => ({ frames, aborted });
+    const SRC = (frames = N) => ({ frames });
+
+    const COMMITS = [
+      ['a run that produced exactly the decoded length commits', W(N), SRC(), null],
+      ['nothing running commits nothing', null, SRC(), /nothing was being separated/],
+      ['a cancelled run never commits', W(N, true), SRC(), /cancelled/],
+      ['an empty writer never commits', W(0), SRC(), /nothing was separated/],
+      ['no decoded source to check against is a REFUSAL, not a commit on the writer’s own count',
+        W(N), null, /no decoded source/],
+      ['...and a source that reports no length is the same refusal',
+        W(N), SRC(0), /no decoded source/],
+      ['ONE frame short is refused — there is no causal tail to forgive offline',
+        W(N - 1), SRC(), /^1 frame short of/],
+      ['one frame PAST is refused too, and says which way it went',
+        W(N + 1), SRC(), /^1 frame past/],
+      ['the live tail tolerance does not apply: 4 s short is a refusal here',
+        W(N - 4 * SR), SRC(), /^176400 frames short of/],
+    ];
+    for (const [what, w, src, want] of COMMITS) {
+      const got = fileCommitRefusal(w, src);
+      ok(`fileCommitRefusal: ${what}`,
+        want === null ? got === null : typeof got === 'string' && want.test(got),
+        got === null ? 'commit' : String(got));
+    }
+
+    /**
+     * AND THE TWO REASONS THE PAIR HAD TO BE WRITTEN AT ALL, called rather than
+     * asserted about in prose. If either of these ever returns null for a File
+     * source, this slice is dead code and the collision is back.
+     */
+    ok('primeRefusal CANNOT stand in: it refuses a File source on the videoId it correctly lacks',
+      primeRefusal(null, { currentTime: 0, duration: 240, ended: false })
+        === 'not a recognisable video page');
+    ok('commitRefusal CANNOT stand in either: it demands a page transport a file does not have',
+      commitRefusal(W(N), null) === 'no page transport to check completeness against'
+      && /did not play to the end/.test(commitRefusal(W(N), { duration: 240, ended: false }) || ''));
+    ok('...while the File pair answers both of those on the evidence a file actually has',
+      fileRefusal(ID_A, some) === null && fileCommitRefusal(W(N), SRC()) === null);
+  }
+
   head('cache — 16-bit round trip is good enough for playback, and is NOT dithered');
   {
     // Four dithered stems summed would stack four independent TPDF noise floors
@@ -3572,6 +4369,596 @@ if (group('cache')) {
     ok('and a second round trip is BIT IDENTICAL — undithered means idempotent, ' +
        'so re-caching cannot accumulate noise',
       again.every((v, i) => v === back[i]));
+  }
+
+  head('cache — one cache owns one directory (a second tier cannot reach the first)');
+  /**
+   * REACHABLE: drives the real `StemCache` over a real OPFS surface, not a
+   * reimplementation of it. Every method below is the shipped one.
+   *
+   * WHY THIS EXISTS. The directory used to be a module constant that every
+   * instance shared — `dir()` read `CACHE_DIR` and ignored `this` — so a second
+   * cache constructed for a second tier silently operated on the FIRST tier's
+   * directory. `clear()` is the worst of it, because it removes the directory
+   * whole and its `.catch(() => {})` swallows the evidence: a 32f clear would
+   * delete the live 16-bit cache and report success. `list()`, `put()`,
+   * `delete()` and `evict()` had the same blindness one step less loudly.
+   *
+   * The two mutations that were watched red are named in the assertions.
+   */
+  {
+    /**
+     * A minimal in-memory OPFS. Only the six calls `shared/stemcache.js` makes
+     * are implemented, and the two that must REJECT do reject — `getFileHandle`
+     * on a missing file is what `readJson()` and `get()` catch, and
+     * `removeEntry` on a missing entry is what `clear()` and `delete()` catch.
+     * A shim that resolved those instead would make this whole block pass
+     * against a cache that never stored anything.
+     *
+     * `navigator` IS A CONFIGURABLE GETTER WITH NO SETTER in Node 22, so a plain
+     * `globalThis.navigator = {...}` silently does nothing and leaves
+     * `navigator.storage` undefined. Measured, not assumed. defineProperty is
+     * the only thing that takes.
+     */
+    const o0 = installOpfs();
+    const dirs = o0.dirs;
+
+    try {
+      // Eight frames per plane: this block is about WHICH DIRECTORY the bytes
+      // land in, and a longer fixture would only make it slower to be wrong.
+      const stems = {};
+      for (const s2 of STEMS) stems[s2] = [0, 1].map(() => new Float32Array(8).fill(0.25));
+
+      const live = new StemCache(1 << 30);                       // the shipping default
+      const f32 = new StemCache(1 << 30, 'stemcache-f32');       // the desktop tier
+
+      ok('a cache constructed with no directory still owns the shipping one  '
+         + '[entry point: new StemCache(maxBytes)]',
+        live.dirName === CACHE_DIR, `${live.dirName} vs ${CACHE_DIR}`);
+
+      await live.put('k-live', { title: 'live' }, stems);
+      await f32.put('k-32f', { title: 'f32' }, stems);
+
+      // MUTATION 1 (watched red): revert `dir(name)` to `getDirectoryHandle(CACHE_DIR)`.
+      // Both caches then write into 'stemcache', and each list() returns 2.
+      const liveKeys = (await live.list()).map((e) => e.key);
+      const f32Keys = (await f32.list()).map((e) => e.key);
+      ok('each cache lists ONLY its own entries  '
+         + '[entry point: StemCache.list() over two instances on different directories]',
+        liveKeys.length === 1 && liveKeys[0] === 'k-live'
+        && f32Keys.length === 1 && f32Keys[0] === 'k-32f',
+        `live=[${liveKeys}] f32=[${f32Keys}]`);
+
+      ok('...and the bytes really are in two directories on disk, not one manifest '
+         + 'filtered two ways',
+        dirs.has(CACHE_DIR) && dirs.has('stemcache-f32')
+        && [...dirs.get(CACHE_DIR).files.keys()].some((f) => f.startsWith('k-live.'))
+        && [...dirs.get('stemcache-f32').files.keys()].some((f) => f.startsWith('k-32f.')),
+        `${[...dirs.keys()]}`);
+
+      // MUTATION 2 (watched red): revert `clear()` to
+      // `root.removeEntry(CACHE_DIR, ...)`. The 32f clear then deletes the LIVE
+      // directory, live.list() returns 0, and this goes red — which is the
+      // failure in its real shape, a destroyed live tier, not a name mismatch.
+      await f32.clear();
+      const survived = (await live.list()).map((e) => e.key);
+      ok('clearing the 32f tier LEAVES THE LIVE TIER INTACT  '
+         + '[entry point: StemCache.clear() on the non-default directory]',
+        survived.length === 1 && survived[0] === 'k-live',
+        survived.length ? `live still holds [${survived}]` : 'THE LIVE CACHE WAS DESTROYED BY A 32f CLEAR');
+
+      ok('...and the tier that was cleared really is empty, so the clear was not a no-op '
+         + '(which would pass the assertion above for the wrong reason)',
+        (await f32.list()).length === 0);
+    } catch (e) {
+      blockThrew('cache — one cache owns one directory (a second tier cannot reach the first)', e);
+    } finally {
+      o0.restore();
+    }
+  }
+}
+
+// ===========================================================================
+/**
+ * cache — THE OPFS HALF: every `StemCache` method that touches storage, and
+ * `CacheWriter.commit()`. Before this block they had no coverage at all: the
+ * imports above reached only the pure functions, so `get`/`put`/`delete`/
+ * `evict`/`report`/`commit` could be changed freely and nothing went red.
+ *
+ * REACHABLE: drives the real `StemCache` and `CacheWriter`. Everything below
+ * `dir()` — `readJson`, `writeFile`, `loadManifest`, the manifest write
+ * ordering — is the shipped code, unmodified.
+ *
+ * The OPFS underneath is `installOpfs()`, at the top of this file — ONE shim,
+ * shared with U0's isolation block. Why it is a shim at `navigator.storage`
+ * rather than a `dir()` seam is argued there, next to the code it justifies.
+ */
+if (group('cache')) {
+  /** Six stems of deterministic noise, [L,R] each. */
+  const makeStems = (frames, seed = 1) => {
+    const out = {};
+    STEMS.forEach((s, k) => { out[s] = [noise(frames, seed + k * 2), noise(frames, seed + k * 2 + 1)]; });
+    return out;
+  };
+  /** STEMS.length*2 planes, stem-major [L,R], as the live pipeline emits them. */
+  const makePlanes = (frames, seed = 1) => {
+    const p = [];
+    for (let k = 0; k < STEMS.length; k++) { p.push(noise(frames, seed + k * 2), noise(frames, seed + k * 2 + 1)); }
+    return p;
+  };
+
+  head('cache — put/get round trip through OPFS');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      const key = cacheKey('vid1', 1.95);
+      const stems = makeStems(512, 7);
+      await c.put(key, { videoId: 'vid1', title: 'T', hopSeconds: 1.95 }, stems);
+
+      ok('put then has() finds the key', await c.has(key));
+      const got = await c.get(key);
+      ok('get() returns an entry rather than null', got !== null);
+      ok(`get() returns all ${STEMS.length} stems`,
+        got !== null && STEMS.every((s) => Array.isArray(got.stems[s]) && got.stems[s].length === 2),
+        got ? Object.keys(got.stems).join(',') : 'null');
+      ok('every stem comes back at the frame count that went in',
+        got !== null && STEMS.every((s) => got.stems[s][0].length === 512 && got.stems[s][1].length === 512));
+      // 16-bit undithered: the floor is quantisation, and `cache` already pins it at < -85 dB.
+      const db = got === null ? Infinity
+        : Math.max(...STEMS.map((s) => Math.max(residualDb(got.stems[s][0], stems[s][0]),
+                                                residualDb(got.stems[s][1], stems[s][1]))));
+      ok(`samples survive the round trip at the 16-bit floor (worst ${db.toFixed(1)} dB, gate < -85)`, db < -85);
+      ok('L and R are not swapped or shared on the way back',
+        got !== null && residualDb(got.stems[STEMS[0]][1], stems[STEMS[0]][0]) > -85,
+        'R must NOT match the L that went in');
+      ok('the meta the caller passed comes back on the entry',
+        got !== null && got.meta.videoId === 'vid1' && got.meta.title === 'T');
+      ok('frames is recorded on the entry, derived not passed', got !== null && got.meta.frames === 512);
+      ok('size() is the sum of the manifest bytes and is non-zero',
+        (await c.size()) === (await c.list()).reduce((a, e) => a + e.bytes, 0) && (await c.size()) > 0,
+        String(await c.size()));
+
+      const rep = await c.report();
+      ok('report() carries cap, use and track count', rep.tracks === 1 && rep.maxBytes === 50 * 1024 * 1024 && rep.bytes > 0);
+      ok('report() pct is bytes over cap', rep.pct === +(rep.bytes / rep.maxBytes).toFixed(4), String(rep.pct));
+
+      await c.delete(key);
+      ok('delete() drops the manifest entry', !(await c.has(key)));
+      const left = o.names().filter((n) => n.startsWith(key));
+      ok('delete() removes the stem files too, not just the entry', left.length === 0, left.join(',') || 'none');
+    } catch (e) {
+      blockThrew('cache — put/get round trip through OPFS', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — the manifest is written LAST, so a crash leaves an INVISIBLE entry, not a half-readable one');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      const key = cacheKey('vid2', 1.95);
+      await c.put(key, { videoId: 'vid2' }, makeStems(256, 3));
+      const order = o.written;
+      const mi = order.indexOf('manifest.json');
+      ok('the manifest is the LAST thing a put writes', mi === order.length - 1, order.join(' -> '));
+      ok(`all ${STEMS.length} stem files land BEFORE the manifest`,
+        STEMS.every((s) => { const i = order.indexOf(`${key}.${s}.wav`); return i >= 0 && i < mi; }),
+        `${mi} writes before the manifest`);
+    } catch (e) {
+      blockThrew('cache — the manifest is written LAST, so a crash leaves an INVISIBLE entry, not a half-readable one', e);
+    } finally { o.restore(); }
+  }
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      const key = cacheKey('vid3', 1.95);
+      // Crash the write of the FOURTH stem: past the first file, short of the manifest.
+      o.failOn.add(`${key}.${STEMS[3]}.wav`);
+      let threw = false;
+      try { await c.put(key, { videoId: 'vid3' }, makeStems(256, 5)); } catch { threw = true; }
+      ok('a stem write that fails makes put() throw rather than return quietly', threw);
+      // The instrument must be looking at a real half-write, or the rest is vacuous.
+      const cd = await o.cacheDir();
+      const partial = o.names().filter((n) => n.startsWith(key)).length;
+      const complete = o.names().filter((n) => n.startsWith(key) && cd.files.get(n).byteLength > 0).length;
+      // SOME BUT NOT ALL, rather than a pinned count: `getFileHandle(create)`
+      // makes the file before anything is written to it — real OPFS does that
+      // too — so the interrupted stem leaves an EMPTY file behind, and the
+      // number of those is the shim's business, not stemcache.js's. What this
+      // has to establish is only that a genuine half-written state exists for
+      // the assertions below to be about.
+      ok('the crash really did leave stem files behind — the precondition this asserts on',
+        partial > 0 && partial < STEMS.length && complete > 0 && complete < partial,
+        `${partial} of ${STEMS.length} stem files on disk, ${complete} of them with bytes in them`);
+      ok('...and the manifest never got the entry, so the track is INVISIBLE',
+        !(await c.has(key)));
+      ok('...so get() reports a miss rather than a track with holes in it',
+        (await c.get(key)) === null);
+    } catch (e) {
+      blockThrew('cache — the manifest is written LAST, so a crash leaves an INVISIBLE entry, not a half-readable one', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — get() self-heals an entry that lies about its files');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      const key = cacheKey('vid4', 1.95);
+      await c.put(key, { videoId: 'vid4' }, makeStems(256, 11));
+      ok('the entry is readable before the file is taken away', (await c.get(key)) !== null);
+      // Take ONE stem file out from under it: the shape of an interrupted evict
+      // or a storage eviction by the browser. The precondition is asserted and
+      // the removal is tolerant, so a put() that never wrote the file reports a
+      // RED here rather than throwing and taking this file's verdict with it.
+      const d0 = await o.cacheDir();
+      const victim = `${key}.${STEMS[2]}.wav`;
+      ok('the stem file about to be removed is really there — the precondition',
+        o.names().includes(victim), victim);
+      await d0.removeEntry(victim).catch(() => {});
+      ok('get() returns null rather than a track missing one stem', (await c.get(key)) === null);
+      ok('...and the lying entry is dropped from the manifest, not left to fail again',
+        !(await c.has(key)));
+      const left = o.names().filter((n) => n.startsWith(key));
+      ok('...and the surviving stem files are swept with it', left.length === 0, left.join(',') || 'none');
+    } catch (e) {
+      blockThrew('cache — get() self-heals an entry that lies about its files', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — evict() is LRU and the pin is never a candidate');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);           // room for all three first
+      const keys = ['a1', 'b2', 'c3'].map((v) => cacheKey(v, 1.95));
+      for (let i = 0; i < keys.length; i++) await c.put(keys[i], { videoId: keys[i] }, makeStems(256, 20 + i * 20));
+      ok('three entries are in the cache before any eviction', (await c.list()).length === 3);
+
+      // Explicit usedAt, so the order under test is stated rather than raced:
+      // keys[0] is the OLDEST and is also the one we pin.
+      const d = await o.cacheDir();
+      const m = JSON.parse(await (await (await d.getFileHandle('manifest.json')).getFile()).text());
+      m.entries.forEach((e) => { e.usedAt = 1000 + keys.indexOf(e.key); });
+      const w = await (await d.getFileHandle('manifest.json', { create: true })).createWritable();
+      await w.write(new TextEncoder().encode(JSON.stringify(m))); await w.close();
+
+      // Read the size off the manifest rather than assuming one — and say so, so
+      // a StemCache that records nothing produces a RED here instead of a
+      // TypeError that takes this whole file's verdict down with it.
+      const rows = await c.list();
+      ok('the entries carry the byte counts eviction works from',
+        rows.length === 3 && rows.every((e) => e.bytes > 0), rows.map((e) => e.bytes).join(',') || 'no rows');
+      const one = rows.length ? rows[0].bytes : 1;
+      c.maxBytes = one;                       // room for exactly one entry
+      const plan = await c.evict(keys[0]);    // pin the OLDEST — LRU would take it first
+
+      ok('evict() removed something, so the pin below is not vacuous', plan.removed.length > 0, `${plan.removed.length} removed`);
+      ok('the PINNED entry survives even though it is the oldest',
+        (await c.has(keys[0])), 'pin = the LRU victim');
+      ok('the two unpinned entries are the ones that went',
+        !(await c.has(keys[1])) && !(await c.has(keys[2])),
+        plan.removed.map((e) => e.key).join(','));
+      const names = o.names();
+      ok('eviction deletes the stem FILES, not just the manifest rows',
+        STEMS.every((s) => !names.includes(`${keys[1]}.${s}.wav`) && !names.includes(`${keys[2]}.${s}.wav`)));
+      ok('...and leaves the pinned track\'s files alone',
+        STEMS.every((s) => names.includes(`${keys[0]}.${s}.wav`)));
+      ok('the report says what it removed, so a UI can tell the user',
+        plan.removed.length === 2 && plan.removed.every((e) => typeof e.bytes === 'number'));
+      ok('wouldExceed is true when the pin alone is over the cap — the cache says so rather than deleting it',
+        (await (async () => { c.maxBytes = 1; return (await c.evict(keys[0])).wouldExceed; })()) === true);
+    } catch (e) {
+      blockThrew('cache — evict() is LRU and the pin is never a candidate', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — CacheWriter.commit(): an interrupted prime never becomes an entry');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      // The positive control FIRST: commit() must be able to return an entry,
+      // or the null below proves nothing.
+      const good = new CacheWriter(cacheKey('ok1', 1.95), { videoId: 'ok1' });
+      good.append(makePlanes(128, 2), 128);
+      good.append(makePlanes(128, 40), 128);
+      const r = await good.commit(c);
+      ok('a writer that ran to the end commits an entry', r !== null && r.frames === 256, r ? String(r.frames) : 'null');
+      const back = await c.get(good.key);
+      ok('...and that entry is readable back', back !== null);
+      ok('...and commit() reports the seconds it derived from the frames',
+        back !== null && back.meta.seconds === +(256 / SR).toFixed(2),
+        back ? String(back.meta.seconds) : 'no entry');
+
+      const w = new CacheWriter(cacheKey('bad1', 1.95), { videoId: 'bad1' });
+      w.append(makePlanes(128, 60), 128);
+      ok('the aborted writer really had frames to lose — the precondition', w.frames === 128);
+      w.abort();
+      ok('abort() drops the frames it was holding', w.frames === 0);
+      ok('commit() after abort() returns null', (await w.commit(c)) === null);
+      ok('...and writes NOTHING to the cache', !(await c.has(w.key)));
+
+      const empty = new CacheWriter(cacheKey('bad2', 1.95), { videoId: 'bad2' });
+      ok('commit() with nothing appended also returns null', (await empty.commit(c)) === null);
+      ok('...and leaves no entry behind', !(await c.has(empty.key)));
+
+      const late = new CacheWriter(cacheKey('bad3', 1.95), { videoId: 'bad3' });
+      late.abort();
+      late.append(makePlanes(128, 80), 128);
+      ok('append() after abort() is ignored, so a late hop cannot revive a dead prime', late.frames === 0);
+      ok('...and it still commits to null', (await late.commit(c)) === null);
+    } catch (e) {
+      blockThrew('cache — CacheWriter.commit(): an interrupted prime never becomes an entry', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — the tier boundary holds through get, put, delete and evict too');
+  /**
+   * U0 (#33) proved the boundary for `list()` and `clear()`. It was never only
+   * those two: `dir()` was module-level and ignored `this`, so ALL SIX methods
+   * read and wrote the first tier's directory — a second cache would have
+   * RETURNED another tier's tracks and WRITTEN its stems where that tier would
+   * find them, not merely cleared it. These are the other four, so the fix is
+   * pinned everywhere it was broken rather than everywhere it was loudest.
+   *
+   * Watched red by U0's mutation 1: revert `dir(name)` to
+   * `getDirectoryHandle(CACHE_DIR)` and every assertion here goes red.
+   */
+  {
+    const o = installOpfs();
+    try {
+      const live = new StemCache(1 << 30);
+      const f32 = new StemCache(1 << 30, 'stemcache-f32');
+      const stems = makeStems(64, 5);
+      await live.put('k-live', { title: 'live' }, stems);
+      await f32.put('k-32f', { title: 'f32' }, stems);
+
+      const inLive = (p) => o.names(CACHE_DIR).some((n) => n.startsWith(p));
+      const in32 = (p) => o.names('stemcache-f32').some((n) => n.startsWith(p));
+      ok('put() writes into the caller\'s own directory and only there',
+        inLive('k-live.') && !inLive('k-32f.') && in32('k-32f.') && !in32('k-live.'),
+        `${CACHE_DIR}=[${o.names(CACHE_DIR).length} files] stemcache-f32=[${o.names('stemcache-f32').length} files]`);
+
+      ok('get() cannot reach across the boundary — each tier misses the other\'s key',
+        (await f32.get('k-live')) === null && (await live.get('k-32f')) === null);
+      ok('...and this is not a cache that simply reads nothing: each tier still gets its own back',
+        (await live.get('k-live')) !== null && (await f32.get('k-32f')) !== null);
+
+      // EVICT BEFORE DELETE, AND THE ORDER IS LOAD-BEARING. When the delete ran
+      // first, a shared-directory regression had already removed `k-live`
+      // through f32 by the time evict was reached, so `evict()` saw one entry
+      // and the assertion below passed for the wrong reason — it was masked by
+      // an earlier statement in its own block. Evicting first leaves both
+      // entries present, so the shared-directory case really is what this
+      // measures. Do not reorder these two.
+      f32.maxBytes = 1;                    // force it to evict everything it owns
+      const plan = await f32.evict();
+      ok('evict() only ever considers its own tier\'s entries',
+        plan.removed.length === 1 && plan.removed[0].key === 'k-32f',
+        plan.removed.map((e) => e.key).join(',') || 'nothing removed');
+      ok('...so a cap of 1 byte on one tier does not empty the other',
+        (await live.has('k-live')) && STEMS.every((s2) => o.names(CACHE_DIR).includes(`k-live.${s2}.wav`)));
+
+      await f32.delete('k-live');          // a key that is not f32's to delete
+      ok('delete() on one tier cannot remove the other tier\'s entry', await live.has('k-live'));
+      ok('...nor the other tier\'s files', STEMS.every((s2) => o.names(CACHE_DIR).includes(`k-live.${s2}.wav`)));
+    } catch (e) {
+      blockThrew('cache — the tier boundary holds through get, put, delete and evict too', e);
+    } finally { o.restore(); }
+  }
+  // ======================================================== U2: the 32f tier
+  head('cache — the 32f tier keys apart from the live one, and the LIVE KEY DOES NOT MOVE');
+  {
+    /**
+     * THE FIRST ASSERTION IS THE ONE THAT PROTECTS EVERY EXISTING USER, and it is
+     * written as a SHAPE rather than as a comparison against a stored string,
+     * because there is nothing to compare against: the old function is gone. A
+     * shape anchored at both ends goes red the moment anything is appended,
+     * which is the only way the tier component could have moved a legacy key.
+     */
+    const legacy = pipelineVersion(1.95);
+    ok('a legacy call carries NO tier component — the live cache\u2019s keys are byte-identical  '
+      + '[entry point: pipelineVersion(hop) with no tier, the call offscreen/engine.js makes]',
+      /^f1-[0-9a-f]{12}-sr44100-seg343980-hop1950-x50[LP]$/.test(legacy), legacy);
+    ok('...and spelling the legacy tier out loud is the same string, so the default is not a second format  '
+      + '[entry point: pipelineVersion(hop, {depth:16, geometry:\u2019causal\u2019})]',
+      pipelineVersion(1.95, { depth: 16, geometry: 'causal' }) === legacy, legacy);
+
+    const f32 = pipelineVersion(1.95, { depth: 32 });
+    ok('a 32f entry keys DIFFERENTLY from a 16-bit one for the same track and hop',
+      f32 !== legacy && /-d32f-gc$/.test(f32), f32);
+    const off = pipelineVersion(1.95, { depth: 32, geometry: 'offline' });
+    ok('...and a symmetric-window entry keys differently again — geometry changes the samples',
+      off !== f32 && /-d32f-go$/.test(off), off);
+    ok('the tier reaches the KEY, not just the version  '
+      + '[entry point: cacheKey(id, hop, tier)]',
+      cacheKey('abc', 1.95, { depth: 32 }) !== cacheKey('abc', 1.95)
+      && cacheKey('abc', 1.95, { depth: 32 }).startsWith('abc--'),
+      cacheKey('abc', 1.95, { depth: 32 }));
+  }
+
+  head('cache — storage arithmetic at both depths');
+  {
+    // 240 s x 44 100 = 10 584 000 frames. 16-bit stereo is 4 B/frame/stem,
+    // 32f is 8; six stems either way, plus one 44-byte header per stem file.
+    ok('bytesForSeconds is UNCHANGED at the live depth — 254.0 MB for four minutes',
+      bytesForSeconds(240) === 254016264 && bytesForSeconds(240, 16) === 254016264,
+      String(bytesForSeconds(240)));
+    ok('...and exactly doubles at 32f — 508.0 MB, the number the cap is sized from',
+      bytesForSeconds(240, 32) === 508032264
+      && bytesForSeconds(240, 32) - STEMS.length * 44 === 2 * (bytesForSeconds(240) - STEMS.length * 44),
+      String(bytesForSeconds(240, 32)));
+    ok('the 32f cap clears the pinned floor its own comment claims: two 10-minute entries',
+      STEM_CACHE_32F_MAX_BYTES > 2 * bytesForSeconds(600, 32),
+      `${(STEM_CACHE_32F_MAX_BYTES / 1024 ** 3).toFixed(2)} GiB cap vs `
+      + `${(2 * bytesForSeconds(600, 32) / 1024 ** 3).toFixed(2)} GiB pinned floor`);
+  }
+
+  head('cache — a 32f tier writes 32-bit float, into its own directory, and leaves the live tier alone');
+  {
+    const o = installOpfs();
+    try {
+      const live = new StemCache(50 * 1024 * 1024);
+      const f32 = new StemCache(50 * 1024 * 1024, CACHE_DIR_32F, { depth: 32, geometry: 'offline' });
+      const stems = makeStems(256, 5);
+      // Out of range on purpose: 32f is the export source and must not clip.
+      stems[STEMS[0]][0][7] = 1.7;
+
+      await live.put(live.keyFor('t', 1.95), { videoId: 't' }, makeStems(256, 9));
+      const k32 = f32.keyFor('t', 1.95);
+      await f32.put(k32, { videoId: 't' }, stems);
+
+      ok('keyFor() stamps the instance\u2019s own tier, so a key cannot disagree with its bytes  '
+        + '[entry point: StemCache.keyFor()]',
+        k32 === cacheKey('t', 1.95, { depth: 32, geometry: 'offline' }) && /-d32f-go$/.test(k32), k32);
+
+      const back = await f32.get(k32);
+      ok('the 32f entry records what it IS, not just what it is called',
+        back !== null && back.meta.depth === 32 && back.meta.geometry === 'offline',
+        back ? `depth ${back.meta.depth}, geometry ${back.meta.geometry}` : 'no entry');
+      ok('...and the file on disk really is IEEE float, not 32-bit fixed point',
+        (await (async () => {
+          const d = await o.root.getDirectoryHandle(CACHE_DIR_32F, { create: true });
+          const f = await (await d.getFileHandle(`${k32}.${STEMS[0]}.wav`)).getFile();
+          const w = decodeWav(await f.arrayBuffer());
+          return w.float === true && w.bitDepth === 32;
+        })()));
+      ok('...and it did not clip the out-of-range sample the export depends on',
+        back !== null && back.stems[STEMS[0]][0][7] === Math.fround(1.7),
+        back ? String(back.stems[STEMS[0]][0][7]) : 'no entry');
+      ok('a 32f entry is bigger than a 16-bit one of the same length, which is what the cap pays for',
+        back !== null && (await live.size()) > 0 && (await f32.size()) > (await live.size()),
+        `${await f32.size()} vs ${await live.size()}`);
+
+      ok('the live tier still holds exactly its own one track  '
+        + '[entry point: two StemCache instances, different directories]',
+        (await live.list()).length === 1 && (await f32.list()).length === 1);
+      const names32 = o.names(CACHE_DIR_32F);
+      const namesLive = o.names(CACHE_DIR);
+      ok('...and the stem files are in two directories on disk',
+        names32.some((n) => n.startsWith(k32)) && !namesLive.some((n) => n.startsWith(k32)),
+        `${CACHE_DIR_32F}: ${names32.length} files, ${CACHE_DIR}: ${namesLive.length}`);
+    } catch (e) {
+      blockThrew('cache — a 32f tier writes 32-bit float, into its own directory, and leaves the live tier alone', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — eviction takes a SET of pins, and refuses before the model rather than after');
+  {
+    const e = (key, bytes, usedAt) => ({ key, bytes, usedAt });
+    /**
+     * MULTI-CHARACTER KEYS ON PURPOSE. `new Set('a')` and `new Set(['a'])` are the
+     * same set, so single-character keys would make the string branch of the pin
+     * normaliser indistinguishable from the iterable one — the single-pin
+     * assertion below would pass whether or not that branch existed.
+     */
+    const entries = [e('aa', 100, 1), e('bb', 100, 2), e('cc', 100, 3)];
+    // 300 B held against a 150 B cap: two entries have to go, and the pinned one
+    // is never a candidate however old it is.
+    const one = planEviction(entries, 150, 'aa');
+    ok('a single pin still works, so the live path\u2019s one call site is unchanged  '
+      + '[entry point: planEviction(entries, cap, "a")]',
+      one.removed.map((x) => x.key).join() === 'bb,cc' && one.bytes === 100 && one.wouldExceed === false,
+      one.removed.map((x) => x.key).join());
+    const many = planEviction(entries, 150, ['aa', 'bb']);
+    ok('...and a SET of pins keeps every one of them — two decks and an export can be open at once',
+      many.removed.map((x) => x.key).join() === 'cc',
+      many.removed.map((x) => x.key).join() || 'nothing removed');
+    const all = planEviction(entries, 150, ['aa', 'bb', 'cc']);
+    ok('with everything pinned it removes NOTHING and says wouldExceed rather than deleting a track in use',
+      all.removed.length === 0 && all.wouldExceed === true && all.bytes === 300,
+      `${all.removed.length} removed, wouldExceed ${all.wouldExceed}`);
+
+    /**
+     * `separationRefusal` is the thing that makes the cap honest. Pure, and it
+     * takes the manifest rather than the cache, so it can answer before the
+     * decode and before the model — the same shape `primeRefusal` has.
+     */
+    const big = [e('open', bytesForSeconds(600, 32), 1)];
+    ok('a separation that fits is allowed, so the refusals below are not vacuous  '
+      + '[entry point: separationRefusal(seconds, entries, cap, pins)]',
+      separationRefusal(240, [], STEM_CACHE_32F_MAX_BYTES, null, 32) === null);
+    const tooBig = separationRefusal(60 * 60 * 4, [], STEM_CACHE_32F_MAX_BYTES, null, 32);
+    ok('a track too big for the WHOLE cache is refused naming both sizes',
+      typeof tooBig === 'string' && /GiB/.test(tooBig), tooBig || 'ALLOWED');
+    const pinnedOut = separationRefusal(600, big, bytesForSeconds(600, 32) + 1000, ['open'], 32);
+    ok('...and so is one that cannot fit BESIDE the tracks that are open — the slow leak, refused early',
+      typeof pinnedOut === 'string' && /pinned/.test(pinnedOut), pinnedOut || 'ALLOWED');
+    ok('...while the same track fits once that pin is released, so the refusal is about the pin and not the size',
+      separationRefusal(600, big, bytesForSeconds(600, 32) + 1000, null, 32) === null);
+    ok('a source that decoded to nothing is refused rather than cached as an empty track',
+      typeof separationRefusal(0, [], STEM_CACHE_32F_MAX_BYTES, null, 32) === 'string');
+  }
+
+  head('cache — a cached entry records the chunks that went out UNSEPARATED');
+  {
+    const o = installOpfs();
+    try {
+      const c = new StemCache(50 * 1024 * 1024);
+      const w = new CacheWriter(cacheKey('dr', 1.95), { videoId: 'dr' });
+      w.append(makePlanes(128, 11), 128);
+      w.noteDrop();
+      w.append(makePlanes(128, 13), 128);
+      w.noteDrop(2);
+      await w.commit(c);
+      const back = await c.get(w.key);
+      ok('drops survive the commit, so a surface can warn that part of a track is not separated  '
+        + '[entry point: CacheWriter.noteDrop() -> commit() -> the manifest]',
+        back !== null && back.meta.drops === 3, back ? String(back.meta.drops) : 'no entry');
+
+      const clean = new StemCache(50 * 1024 * 1024);
+      await clean.put('k-clean', { videoId: 'x' }, makeStems(64, 3));
+      const cb = await clean.get('k-clean');
+      ok('...and an entry nobody dropped a chunk into records 0 by construction, not by absence',
+        cb !== null && cb.meta.drops === 0, cb ? String(cb.meta.drops) : 'no entry');
+
+      const ab = new CacheWriter(cacheKey('dr2', 1.95), { videoId: 'dr2' });
+      ab.append(makePlanes(64, 15), 64);
+      ab.noteDrop();
+      ab.abort();
+      ok('abort() drops the drop count with the audio — a dead prime carries nothing forward',
+        ab.drops === 0);
+    } catch (e) {
+      blockThrew('cache — a cached entry records the chunks that went out UNSEPARATED', e);
+    } finally { o.restore(); }
+  }
+
+  head('cache — the writer REPORTS a length it cannot honour instead of crashing three layers away');
+  {
+    const threw = (f) => { try { f(); return null; } catch (e) { return e.message; } };
+    const w = new CacheWriter('k', {});
+    const short = threw(() => w.append(makePlanes(64, 21), 128));
+    ok('a length longer than the planes is refused, naming both counts  '
+      + '[entry point: CacheWriter.append()] — slice() would shorten it silently while '
+      + 'frames took the full length, and the entry would commit with silence in the tail',
+      short !== null && /128/.test(short) && /64/.test(short), short || 'ACCEPTED 128 frames from a 64-frame plane');
+    ok('...and it took no frames with it, so a refused append cannot half-land', w.frames === 0);
+    const bad = threw(() => w.append(makePlanes(64, 23), undefined));
+    ok('a non-integer length is refused too — `frames += undefined` is NaN, and a NaN-sized '
+      + 'Float32Array is what turned the next stems() into a RangeError from inside set()',
+      bad !== null && /integer/.test(bad), bad || 'ACCEPTED undefined as a frame count');
+
+    /**
+     * The SECOND line of defence, reached by corrupting the counter directly.
+     * `append()` above now refuses every input that produces this state, so the
+     * only way to it is by hand — which is the point: `stems()` is what the
+     * entry's correctness rests on, and it used to answer a disagreement with
+     * `RangeError: offset is out of bounds` thrown from inside `Float32Array.set`,
+     * a stack trace with no caller in it that takes a whole suite down with it.
+     */
+    const w2 = new CacheWriter('k2', {});
+    w2.append(makePlanes(64, 25), 64);
+    w2.frames = 999;                       // the disagreement, forced
+    const msg = threw(() => w2.stems());
+    ok('a frame counter that disagrees with the audio is NAMED, not thrown from inside Float32Array.set  '
+      + '[entry point: CacheWriter.stems()]',
+      msg !== null && /999/.test(msg) && /64/.test(msg) && !/offset is out of bounds/.test(msg),
+      msg || 'RETURNED A SILENTLY PADDED TRACK');
+    ok('...and it says which way the entry would have been wrong',
+      msg !== null && /padded with silence/.test(msg), msg);
   }
 }
 
@@ -4568,6 +5955,110 @@ if (group('dual')) {
 
 // ===========================================================================
 if (group('host')) {
+  /**
+   * THIS GROUP IS A CONFORMANCE REPORT, AND A REPORT THAT CRASHES IS NOT ONE (#30).
+   *
+   * `docs/VENDORING.md` sends a second Host here: swap the two holes for your
+   * own files, run `node tools/verify.mjs --unit`, and read the reds. That only
+   * works if the group can RUN to its end. A hole module that throws at MODULE
+   * EVALUATION — the natural shape for a Host whose platform bridge lives on
+   * `window` or in a preload — used to take the whole process out at the import
+   * line: the first real second Host died here after 482 assertions and got a
+   * stack trace where the report should have been. A crash is strictly worse
+   * than a red. A red says "your `storageGet` is wrong"; a crash says nothing at
+   * all and reads as a broken vendored copy.
+   *
+   * So the body below is wrapped, and it is wrapped in TWO places for two
+   * different failures:
+   *
+   *   1. `importHole()` — an evaluation-time throw becomes ONE named red that
+   *      names the hole's path and what it threw. That is the failure the rule
+   *      "a hole must import inertly" exists to catch, and naming the file is
+   *      the whole repair instruction.
+   *   2. this `try` — a hole that imports fine and then throws on its FIRST DUTY
+   *      CALL, or any other throw between here and the last assertion, becomes
+   *      the named red at the foot of the group instead of ending the run. The
+   *      three groups after this one, and the two checks at the foot of the
+   *      file, still report.
+   *
+   * THIS IS A REPORTING IMPROVEMENT AND NOT A COMPLETENESS GUARANTEE. Anyone
+   * adopting this shape elsewhere needs that distinction, because the failure it
+   * invites is subtler than the one it fixes: the guard buys a named cause and a
+   * summary, and it does NOT recover the assertions after the throw. Measured on
+   * the mutation it was watched red against — a `ui/host.js` that reads its
+   * preload bridge at module scope — `node test.js` goes from 766 passed to
+   * 680 passed / 2 failed. EIGHTY-FOUR ASSERTIONS DID NOT RUN. A guarded suite
+   * that went red must not be read as fully covered. (Re-measured at v0.3.0,
+   * `b9dc537`; it was 622 -> 529 with ninety-one not run when first written,
+   * and the truncation moved by a different amount than the totals did.)
+   *
+   * WHAT MAKES THAT TRUNCATION VISIBLE, rather than merely absent, is a gate
+   * that already existed: `tools/verify.mjs`'s coverage diff prints
+   * `no longer runs: <assertion name>` for every assertion that stopped
+   * executing, under the warning "An ABSENT assertion reads as green. N/N is
+   * only comparable between runs when N is." The guard's job is to make sure
+   * there is a completed run for that diff to compare against at all — before
+   * it, the process died and the runner reported `RED — 0 failing assertions`,
+   * which names nothing and reads like a broken vendored copy. The count in this
+   * group's own detail line is the other half: it says how much did not run.
+   *
+   * THE BODY IS DELIBERATELY NOT RE-INDENTED under this `try`. It is ~2800 lines
+   * and 122 assertions; re-indenting them would bury a four-line change in a
+   * whole-file diff and take the blame history with it.
+   *
+   * The two globals restored in the `finally` are the deck half's: `window` is
+   * installed BEFORE `ui/host.js` is imported (that is the point of it) and
+   * `chrome` is re-stubbed per block. The engine half restores its own three in
+   * its own `finally`, further down, which a throw here cannot skip.
+   */
+  let hostGroupThrew = null;
+  let realWindowDesc = null;
+  let windowStubbed = false;
+  const hostGroupAt = pass + fail;
+  /**
+   * Import one hole and ASSERT THAT IT IMPORTED, rather than letting the throw
+   * out. Returns `null` on a throw, which every assertion downstream then reads
+   * as a Host that owes nothing — a run of reds naming duties, which is the
+   * report, instead of nothing at all.
+   *
+   * THE `import()` STAYS AT THE CALL SITE, as a literal, and is handed over as a
+   * thunk rather than as a path this function imports. `tools/unit-check.mjs`
+   * scans each suite for a seam path in READ POSITION — `import(`, `from`,
+   * `new URL(`, `readFileSync(` next to a string literal — and holds the result
+   * against the `reads` this suite declares in `extension/unit.json`, both ways.
+   * A path passed in as a variable is invisible to that scan, and the first
+   * symptom is `unit` losing its declared read of `offscreen/host.js` with
+   * nothing saying why. Watched: it went red exactly that way, and the watch is
+   * runnable rather than remembered --
+   *
+   *     node tools/mutations/u8-seam-fixes.mjs M20
+   *
+   * anchored on the `import()` literal below and reported by
+   * `node tools/unit-check.mjs`, NOT by this file: "...and every one of them is
+   * really read by the suite that declares it -- NOT IN A READ POSITION, the
+   * declaration outlived the code: test.js -> offscreen/host.js", 90/1. The
+   * control is the assertion beside it, "...and no suite reads across the seam
+   * without declaring it", which stays green -- a needle that had simply
+   * stopped matching would take BOTH red.
+   *
+   * @param {string} where  the hole's path, extension-relative. It is in the
+   *   assertion name, because "something threw" is not a repair instruction and
+   *   "extension/ui/host.js threw while being imported" is.
+   * @param {() => Promise<object>} load  `() => import('./extension/…/host.js')`
+   */
+  const importHole = async (where, load) => {
+    let mod = null, threw = null;
+    try { mod = await load(); } catch (e) { threw = e; }
+    ok(`THE HOLE AT ${where} IMPORTS INERTLY — it touches its platform on the first DUTY CALL, not at module scope  `
+      + '[entry point: the import of this hole by the unit — offscreen/engine.js for the EngineHost, ui/embed.js for the DeckHost]',
+      threw === null,
+      threw === null
+        ? 'imported without reaching for a platform that is not here'
+        : `IT THREW WHILE BEING IMPORTED: ${String((threw && threw.message) || threw)} — nothing below this line could drive it, `
+          + 'so the rest of this report is about a module that does not exist. Move the platform touch into the duties.');
+    return mod;
+  };
+  try {
   head('host — the ENGINE half of the Host seam: a Host that cannot do the job is refused at boot');
   /**
    * WHAT THIS COVERS AND WHY IT IS WORTH A GATE.
@@ -4598,12 +6089,70 @@ if (group('host')) {
    *      point.
    *   3. The stubs exist only to break ONE declared duty at a time, which is the
    *      one thing a real Host cannot be asked to do on demand.
+   *
+   * ---- U4, HOST INTERFACE v1.1: EVERY ASSERTION ADDED HERE, WATCHED RED -----
+   * AGENTS.md: "An assertion never observed failing is one whose ability to fail
+   * is an assumption." Each row was applied, run, and reverted; the tree is
+   * green with all of them undone. `file:line` is where the mutation was made,
+   * NOT where the red appeared — for the first two rows those are different
+   * files, which is the whole reason C3 is a trap.
+   *
+   *   mutation                                          | made at                  | gate         | red
+   *   --------------------------------------------------+--------------------------+--------------+----
+   *   delete the `sourceBytes` @property                 | shared/host.js:392       | unit-check   | "EngineHost is one interface, not two … CHECKED BUT UNDOCUMENTED: sourceBytes (in ENGINE_HOST_DUTIES, in no @property)"  90/1
+   *   delete the `sourceBytes` key from the duty table   | shared/host.js:504       | unit-check   | "…DOCUMENTED BUT UNCHECKED: sourceBytes (in the typedef, in no duty table, and not a declared namespace)"  90/1
+   *   `missing` filter skips `sourceBytes`               | shared/host.js:671       | test.js host | "A HOST THAT IS SHORT `sourceBytes` IS REFUSED… — a Host with no sourceBytes was ACCEPTED"  127/1
+   *   `missing` filter skips `exportSink`                | shared/host.js:671       | test.js host | "A HOST THAT IS SHORT `exportSink` IS REFUSED… — a Host with no exportSink was ACCEPTED"  127/1
+   *   the refusal drops each duty's SENTENCE             | shared/host.js:674       | test.js host | both new rows plus captureStream's and the transport's: "…missing 1 of its 11 duties: sourceBytes()"  123/5
+   *   engine.js acquires a `host.sourceBytes(` caller    | offscreen/engine.js:96   | test.js host | "…no duty is exempted for longer than its reason lasts — sourceBytes HAS a caller now"  127/1
+   *   the shipping `sourceBytes` resolves `ArrayBuffer(0)`| offscreen/host.js:147   | test.js host | "sourceBytes() REFUSES BY REJECTING… — RESOLVED with {}"  127/1
+   *   the shipping `exportSink` resolves `{}`            | offscreen/host.js:160    | test.js host | "exportSink() REFUSES BY REJECTING… — RESOLVED with {}"  127/1
+   *   the shipping `sourceBytes` loses its `async`       | offscreen/host.js:147    | test.js host | "sourceBytes() threw SYNCHRONOUSLY … a caller that attaches .catch() without awaiting first never sees it"  127/1
+   *   the shipping Host loses `sourceBytes` entirely     | offscreen/host.js:147    | test.js host | "THE SHIPPING EngineHost SATISFIES EVERY DECLARED DUTY — missing 1 of its 11 duties: sourceBytes()"  126/2
+   *   the exemption row for `sourceBytes` is deleted     | test.js:4884             | test.js host | "…every declared duty is actually reached for — declared but never called: sourceBytes"  127/1
+   *
+   * The last row is the one that says the exemption below is not a free pass: it
+   * still reds for a duty that is unreached and unnamed, exactly as it did
+   * before v1.1 added two duties one tag ahead of their callers.
+   *
+   * ------ U8, #30 AND #28: THE FOUR MUTATIONS THIS GROUP REPORTS, AND WHERE ---
+   * THEY ARE RUN FROM. Unlike the table above, these are not a record of watches
+   * made once at branch time — they are a RUNNABLE battery, because a watch made
+   * at branch time expires the moment another slice edits the file it patched
+   * and nothing announces that (`INTEGRATION.md` §18). Re-run them:
+   *
+   *     node tools/mutations/u8-seam-fixes.mjs M1 M2 M3 M4
+   *
+   * ANCHORS CUT AGAINST `5993d32`. That file reports two answers per case and
+   * not one — whether the ANCHOR still matches, and whether the mutation still
+   * REDS — because a battery that reports a single pass count is how ten dead
+   * anchors once read as 44 of 51 rather than as ten instruments pointing at
+   * nothing.
+   *
+   * THE `made at` COLUMN NAMES THE ANCHOR TEXT, NOT A LINE NUMBER, on purpose:
+   * a line number is the first thing to decay and the battery patches text.
+   *
+   *   #    mutation                                          | made at                       | red here, and the control
+   *   -----+----------------------------------------------------+-------------------------------+-------------------------
+   *   M1   ui/host.js reads a bridge at module scope         | ui/host.js `const ME`         | "THE HOLE AT extension/ui/host.js IMPORTS INERTLY" + the foot. Control: the ENGINE hole's assertion still PASSES.   46/2, 84 did not run
+   *   M2   offscreen/host.js reads a bridge at module scope  | offscreen/host.js `const ME`  | "THE HOLE AT extension/offscreen/host.js IMPORTS INERTLY" + "THE SHIPPING EngineHost…" + the foot. Control: the capture refusal still PASSES — the report survived.   17/3, 112 did not run
+   *   M3   ui/host.js imports fine, send() throws on duty 1  | ui/host.js `send(msg) {`      | the foot ONLY. Controls: BOTH hole assertions still PASS. The case only the group guard can catch.   53/1, 78 did not run
+   *   M4   engine.js words the line off `fromCache` again    | engine.js `log(\`weights `      | "THE `weights …` LOG LINE IS WORDED FROM THE ANNOUNCED SOURCE". Control: the foot still PASSES.   131/1
+   *
+   * THE `did not run` COLUMN IS THE POINT OF THE GUARD AND ITS BOUND IN ONE
+   * NUMBER. M2 costs 112 of this group's 132 assertions: the report survives and
+   * names its cause, and it is NOT a covered run. An assertion that did not run
+   * reads exactly like one that passed if you only look at the red lines, which
+   * is why the battery checks every control as a PASS rather than as "absent
+   * from the reds", and why `tools/verify.mjs`'s coverage diff prints
+   * `no longer runs:` for each one.
    */
   const {
     assertHost, assertHostOption,
     ENGINE_HOST_DUTIES, BACKEND_DUTIES, DECK_HOST_DUTIES, DECK_PAGE_DUTIES, DECK_TRANSPORT_DUTIES,
   } = await import('./extension/shared/host.js');
-  const engineHost = await import('./extension/offscreen/host.js');
+  const engineHost = await importHole('extension/offscreen/host.js',
+    () => import('./extension/offscreen/host.js'));
   const duties = Object.keys(ENGINE_HOST_DUTIES);
   const threw = (fn) => { try { fn(); return null; } catch (e) { return String((e && e.message) || e); } };
   /** A Host that owes exactly what is declared, so each case below breaks ONE thing. */
@@ -4640,6 +6189,44 @@ if (group('host')) {
   ok('...and it names ONLY the duty that is missing, so the message is a repair instruction',
     listed('captureStream') && duties.filter((k) => k !== 'captureStream').every((k) => !listed(k)),
     why == null ? 'nothing was thrown' : why);
+
+  /**
+   * HOST INTERFACE v1.1 — A HOST SHORT ONE OF THE TWO NEW DUTIES IS REFUSED BY
+   * NAME, which is the whole mechanism by which ADDING a duty is a MINOR change
+   * rather than a silent one.
+   *
+   * `shared/host.js`'s freeze block: "Adding a duty is a MINOR change that every
+   * existing Host fails at boot, loudly, by `assertHost`." That sentence is only
+   * true if the failure NAMES the duty and says what it is for — otherwise the
+   * author of a Host vendored against the previous tag is handed a count and
+   * left to diff two interfaces. `captureStream`'s refusal above proves the
+   * mechanism for a v1 duty; these prove it for the two duties v1.1 adds, which
+   * are the ones an existing Host is actually short.
+   *
+   * Matched as `name() — `, the exact form `assertHost` lists a MISSING duty in,
+   * for the reason the block above records: a bare identifier match goes red on
+   * a rewording that has nothing to do with the claim.
+   *
+   * FAILS WHEN IT CANNOT LOOK: a duty that is not in `ENGINE_HOST_DUTIES` at all
+   * cannot be deleted from a stub built out of it, and a green here would then
+   * mean only that nothing was checked.
+   */
+  for (const k of ['sourceBytes', 'exportSink']) {
+    const short = stub();
+    delete short[k];
+    const msg = threw(() => assertHost(short, ENGINE_HOST_DUTIES, 'EngineHost'));
+    ok(`A HOST THAT IS SHORT \`${k}\` IS REFUSED, AND THE ERROR NAMES THAT DUTY AND WHAT IT IS FOR  `
+      + '[entry point: assertHost(), called at extension/offscreen/engine.js module scope]',
+      duties.includes(k) && msg != null && msg.includes(`${k}() — `)
+      && msg.includes(ENGINE_HOST_DUTIES[k])
+      && duties.filter((d) => d !== k).every((d) => !msg.includes(`${d}() — `)),
+      !duties.includes(k)
+        ? `${k} is in no duty table, so this assertion deleted nothing and checked nothing`
+        : msg == null
+          ? `a Host with no ${k} was ACCEPTED — the duty would be added and no existing Host ever told, `
+            + 'which is the silent break the freeze exists to make loud'
+          : msg);
+  }
 
   const absent = threw(() => assertHost(undefined, ENGINE_HOST_DUTIES, 'EngineHost'));
   ok('AN ABSENT HOST IS THE LOUDEST FAILURE HERE, NOT THE QUIETEST  '
@@ -4794,10 +6381,51 @@ if (group('host')) {
           ? `undeclared: ${undeclared.map((k) => `host.${k}()`).join(', ')} — declare it in ENGINE_HOST_DUTIES or a Host will pass assertHost and still throw`
           : `${reached.length} reached across ${unitFiles.length} unit files: ${reached.join(', ')}`);
 
-  const unreached = duties.filter((k) => !reached.includes(k));
-  ok('...and every declared duty is actually reached for, so a second Host implements nothing dead',
+  /**
+   * THE ONE LEGITIMATE REASON A DECLARED DUTY IS NOT REACHED FOR YET — and it is
+   * a WINDOW, not a carve-out.
+   *
+   * `shared/host.js`'s freeze block makes adding a duty a MINOR change that every
+   * existing Host fails at boot. That is precisely what lets a duty be DECLARED
+   * in one tag and CONSUMED in the next: a second product implements it against
+   * a tag it can already vendor, instead of against one that does not exist yet.
+   * Host interface v1.1 does exactly that — `sourceBytes` and `exportSink` are
+   * declared here for the ahead-of-time separation runner and the export path,
+   * neither of which is in this tree. Without this window the seam could only
+   * ever grow in the same tag as its caller, which is the serialisation the
+   * split into two tags exists to avoid.
+   *
+   * SO THE EXEMPTION IS EXACT IN BOTH DIRECTIONS, and that is what keeps it from
+   * becoming the "expected red" list AGENTS.md forbids:
+   *   - a duty that is unreached and NOT named below is a red, unchanged;
+   *   - a duty named below that IS reached is ALSO a red, so the slice that
+   *     writes the caller has to delete its line in the same commit. An
+   *     exemption that outlives its reason is the thing that rots;
+   *   - a name below that is in no duty table is a red too, so a duty that gets
+   *     renamed or removed cannot leave a permanent hole behind it.
+   */
+  const DECLARED_AHEAD_OF_ITS_CONSUMER = Object.freeze({
+    sourceBytes: 'the ahead-of-time separation runner, which reads a Source that is a file',
+    exportSink: 'the export path, which opens one writable per stem of a deliverable',
+  });
+  const ahead = Object.keys(DECLARED_AHEAD_OF_ITS_CONSUMER);
+  const unreached = duties.filter((k) => !reached.includes(k) && !ahead.includes(k));
+  ok('...and every declared duty is actually reached for, so a second Host implements nothing dead  '
+    + `[less ${ahead.length} declared ahead of its consumer: ${ahead.join(', ')}]`,
     reached.length > 0 && unreached.length === 0,
     unreached.length ? `declared but never called: ${unreached.join(', ')}` : `all ${duties.length}`);
+
+  const consumed = ahead.filter((k) => reached.includes(k));
+  const phantom = ahead.filter((k) => !duties.includes(k));
+  ok('...and no duty is exempted for longer than its reason lasts: each one named above is still declared, and still has no caller  '
+    + '[entry point: the same scan, read against DECLARED_AHEAD_OF_ITS_CONSUMER]',
+    consumed.length === 0 && phantom.length === 0,
+    consumed.length
+      ? `${consumed.join(', ')} HAS a caller now — delete its line from DECLARED_AHEAD_OF_ITS_CONSUMER in the `
+        + 'same commit as the caller, or the exemption goes on covering a duty nothing is checking'
+      : phantom.length
+        ? `${phantom.join(', ')} is exempted from a check it is not subject to — it is in no duty table at all`
+        : `${ahead.length} exempted, ${ahead.map((k) => `${k} (${DECLARED_AHEAD_OF_ITS_CONSUMER[k]})`).join('; ')}`);
 
   /**
    * R5 — TRACK-STOP DISCIPLINE, ASSERTED FOR THE FIRST TIME.
@@ -4898,6 +6526,36 @@ if (group('host')) {
       : /\.getTracks\(\)\.forEach\(\(t\) => t\.stop\(\)\)/.test(tdBody)
         ? 'the teardown callback stops every track on every live deck'
         : `the teardown callback does not stop the tracks: ${JSON.stringify(tdBody.trim().slice(0, 90))}`);
+
+  /**
+   * #28 — THE PROVENANCE REACHES THE ONE LINE A USER WOULD CHECK, AND IT IS NOT
+   * A BOOLEAN.
+   *
+   * `engine.js` used to word this line `fromCache ? 'from cache' : 'downloaded'`.
+   * That is a two-valued answer to a three-valued question: a Host that ships
+   * the weights in its installer honestly reports `fromCache: false`, and the
+   * engine then told the user 109 MB had been downloaded about a file no request
+   * ever touched — contradicting P1 in the one place someone would go to check
+   * it. READ AS TEXT for the reason everything in this block is: `engine.js`
+   * builds an AudioContext at module scope and cannot be evaluated from Node.
+   *
+   * BOTH DIRECTIONS ARE ASSERTED. That the line quotes `modelSourceWord` is what
+   * makes the three values reach it; that it no longer mentions `fromCache` is
+   * what stops the old inference being restored beside the new one, where it
+   * would go on being wrong for the third case only — the case with no test
+   * before this one.
+   */
+  const weightsLog = (engineSrc.match(/log\(`weights[^`]*`\)/) || [null])[0];
+  ok('THE `weights …` LOG LINE IS WORDED FROM THE ANNOUNCED SOURCE AND NOT FROM THE RETRY BOOLEAN — a Host that SHIPS the weights must not be told it downloaded them  '
+    + '[entry point: extension/offscreen/engine.js loadOnce(), the line P1 is checked against]',
+    weightsLog != null && weightsLog.includes('modelSourceWord(source)') && !/fromCache/.test(weightsLog),
+    weightsLog == null
+      ? 'there is no log(`weights …`) call in extension/offscreen/engine.js at all — the line this asserts about is gone'
+      : /fromCache/.test(weightsLog)
+        ? `it is still worded off the retry boolean: ${weightsLog}`
+        : !weightsLog.includes('modelSourceWord(source)')
+          ? `it does not quote the seam\u2019s vocabulary: ${weightsLog}`
+          : weightsLog);
 
   /**
    * THE DUTIES SPELLED `MUST`, HELD AGAINST THE ONE IMPLEMENTATION THAT HAS
@@ -5518,6 +7176,47 @@ if (group('host')) {
           ? `the caller\u2019s assetUrl won: INIT wasmDirUrl ${initSecond.wasmDirUrl} — the unit now decides where the Host `
             + 'keeps the ORT runtime'
           : `INIT wasmDirUrl ${initSecond.wasmDirUrl}`);
+
+    /**
+     * THE TWO DUTIES THIS HOST REFUSES ARE STILL DRIVEN, because a refusal is an
+     * implementation and an undriven implementation is a claim.
+     *
+     * `offscreen/host.js` answers `sourceBytes` and `exportSink` by rejecting:
+     * its Sources are tabs, which have no encoded bytes behind them, and
+     * `tools/tree-check.mjs` asserts this build requests no `downloads`
+     * permission. Both refusals are legitimate — `sourceBytes`'s own
+     * declaration says a Host whose Sources are all streams may reject every
+     * token here — and both are exactly the shape that decays into a stub that
+     * RESOLVES with an empty answer, which is strictly worse: a zero-length
+     * buffer decodes to a track that is silently not the track, and a sink map
+     * missing a stem exports five of six files and calls it done.
+     *
+     * REJECTS RATHER THAN THROWS. Each is declared `=> Promise<…>`, and a
+     * synchronous throw escapes a `.catch()` that is not preceded by an `await`
+     * — landing as an unhandled error one frame out from the call, which is the
+     * late failure this seam moves earlier everywhere else. So `probe` is asked
+     * whether the call RETURNED at all, and the settlement is asked separately.
+     *
+     * Called UNBOUND through `probe`, like every duty in this block.
+     */
+    for (const [duty, arg] of [['sourceBytes', 'token-A'],
+      ['exportSink', { title: 'a track', files: ['vocals.wav'] }]]) {
+      const call = probe(engineHost[duty], arg);
+      const settled = call.ok
+        ? await Promise.resolve(call.v).then((v) => ({ resolved: true, v }), (e) => ({ resolved: false, e }))
+        : { threwSync: call.e };
+      const msg = String((settled.e && settled.e.message) || settled.e || '');
+      ok(`${duty}() REFUSES BY REJECTING, AND THE REFUSAL NAMES ITSELF — this Host has no file Sources and no `
+        + 'export path, and an empty answer would travel on as a real one  '
+        + `[entry point: extension/offscreen/host.js ${duty}(), called unbound as engine.js passes its duties]`,
+        settled.resolved === false && msg.includes(duty),
+        settled.threwSync
+          ? `${duty}() threw SYNCHRONOUSLY (${settled.threwSync}) — it is declared => Promise, so a caller that `
+            + 'attaches .catch() without awaiting first never sees it'
+          : settled.resolved
+            ? `${duty}() RESOLVED with ${JSON.stringify(settled.v)} — the unit would carry that forward as an answer`
+            : msg || `${duty}() rejected with something carrying no message`);
+    }
   } finally {
     delete globalThis.chrome;
     delete globalThis.addEventListener;
@@ -5571,10 +7270,12 @@ if (group('host')) {
   const deliver = (w, source, data) => {
     for (const [type, fn] of w.listeners) if (type === 'message') fn({ source, data });
   };
-  const realWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  realWindowDesc = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  windowStubbed = true;
   const framedWin = makeWindow(true);
   globalThis.window = framedWin;
-  const deckHost = (await import('./extension/ui/host.js')).host;
+  const deckHost = ((await importHole('extension/ui/host.js',
+    () => import('./extension/ui/host.js'))) || {}).host;
   const deckDuties = Object.keys(DECK_HOST_DUTIES);
   /**
    * RENDERING vs REACHABILITY: reachable by construction. Every assertion below
@@ -7390,8 +9091,35 @@ if (group('host')) {
         ? '4 refused: wrong source, wrong namespace, unrouted type, null'
         : `${heard.length} got through: ${heard.map(([k]) => k).join(',')}`);
   }
-  delete globalThis.chrome;
-  if (realWindow) Object.defineProperty(globalThis, 'window', realWindow); else delete globalThis.window;
+  } catch (e) {
+    hostGroupThrew = e;
+  } finally {
+    // The deck half's two globals. Unconditional `delete` on `chrome` is what
+    // the group did at this point before the guard; `window` is only restored if
+    // it was ever replaced, so a throw in the ENGINE half leaves the real one
+    // exactly as it found it.
+    delete globalThis.chrome;
+    if (windowStubbed) {
+      if (realWindowDesc) Object.defineProperty(globalThis, 'window', realWindowDesc);
+      else delete globalThis.window;
+    }
+  }
+  /**
+   * THE GROUP RAN TO ITS END. This is the assertion that turns "the conformance
+   * report was replaced by a stack trace" into a line someone can read, and it
+   * is the one that keeps the three groups after this one running.
+   *
+   * It counts what got through, because "it threw" and "it threw before it had
+   * asserted anything" are different findings and the count is the only thing
+   * that separates them.
+   */
+  ok('group(host) REACHED ITS LAST ASSERTION — a Host that throws anywhere in this report turns THIS red, and the report still prints  '
+    + '[entry point: test.js group(\'host\'), the conformance suite docs/VENDORING.md option 3 points a second Host at]',
+    hostGroupThrew === null,
+    hostGroupThrew === null
+      ? `${pass + fail - hostGroupAt} assertions, none of them a crash`
+      : `IT THREW after ${pass + fail - hostGroupAt} assertions, so the rest of the report never ran: `
+        + String((hostGroupThrew && hostGroupThrew.stack) || hostGroupThrew));
 }
 
 // ===========================================================================
@@ -7430,6 +9158,7 @@ if (group('verifyModel')) {
    * alone says the split holds; together they do.
    */
   const { verifyModel, loadModel } = await import('./extension/shared/modelcache.js');
+  const { MODEL_SOURCES, modelSourceWord } = await import('./extension/shared/host.js');
   const sha256 = async (b) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))]
     .map((v) => v.toString(16).padStart(2, '0')).join('');
   const threwAsync = (p) => p.then(() => null, (e) => String((e && e.message) || e));
@@ -7491,15 +9220,25 @@ if (group('verifyModel')) {
         // A Host announces its own phase before the bytes move — see the
         // `EngineHost.modelBytes` typedef. Reported here so the ordering claim
         // below has something to order against.
-        onProgress(next.fromCache ? 'cache' : 'download', next.bytes.length, next.bytes.length);
+        //
+        // THE PHASE IS THE ROW'S OWN, NOT DERIVED FROM `fromCache` (#28). The
+        // whole finding is that the boolean does not partition the three
+        // answers, so a fixture that computed one from the other could not build
+        // the case that exposed it: a `bundled` Host, `fromCache: false`, no
+        // network.
+        if (next.source !== null) onProgress(next.source, next.bytes.length, next.bytes.length);
         return { bytes: next.bytes, fromCache: next.fromCache };
       },
       clearModel: async () => { h.clears++; },
     };
     return h;
   };
-  const stored = (bytes) => ({ bytes, fromCache: true });
-  const wire = (bytes) => ({ bytes, fromCache: false });
+  const stored = (bytes) => ({ bytes, fromCache: true, source: 'cache' });
+  const wire = (bytes) => ({ bytes, fromCache: false, source: 'download' });
+  /** A Host that SHIPS the weights: no cache to drop, no request made. */
+  const shipped = (bytes) => ({ bytes, fromCache: false, source: 'bundled' });
+  /** A Host that announces no phase at all — the case the wording must not guess at. */
+  const silent = (bytes) => ({ bytes, fromCache: false, source: null });
 
   const clean = fakeHost(stored(weights));
   const cleanOut = await loadModel(clean, () => {}, PIN).then((v) => v, (e) => e);
@@ -7543,6 +9282,146 @@ if (group('verifyModel')) {
     rottenOut == null
       ? `corrupt bytes were ACCEPTED on the retry (${rotten.asks} asks)`
       : `${rotten.asks} asks, ${rotten.clears} clears — ${rottenOut}`);
+
+  /**
+   * #28 — THE PROVENANCE, ALL THREE VALUES OF IT, ACROSS THE SEAM.
+   *
+   * `fromCache` is a two-valued answer to a three-valued question. It stays what
+   * it always was — the retry decision, rule 3 of `EngineHost` — and the SOURCE
+   * now travels beside it, taken off the phase the Host announces before any
+   * bytes move. The case that matters is the third one: a Host that ships the
+   * weights in its installer reports `fromCache: false` honestly, and every
+   * consumer that read the boolean as provenance said "downloaded" about a file
+   * no request ever touched.
+   *
+   * THREE HOSTS, THREE ANSWERS, DRIVEN THROUGH THE SHIPPED `loadModel`. The
+   * counts ride along because a source that arrived by spending a retry would
+   * be the wrong finding reported as the right one.
+   *
+   * ---- U8, #28: THE FIVE MUTATIONS THESE ASSERTIONS ARE HELD AGAINST -------
+   * Runnable, and re-run against `main` rather than trusted from branch time
+   * (`INTEGRATION.md` §18 — a battery is only valid against the source it was
+   * cut for, and nothing announces the day that stops being true):
+   *
+   *     node tools/mutations/u8-seam-fixes.mjs M5 M6 M7 M8 M9
+   *
+   * ANCHORS CUT AGAINST `5993d32`. `made at` names the anchor TEXT, because a
+   * line number decays a slice sooner than the code does. Counts are this
+   * group's, whose clean total is 22.
+   *
+   *   #    mutation                                        | made at                                | red here, and the control
+   *   -----+--------------------------------------------------+----------------------------------------+-------------------------
+   *   M5   loadModel stops recording the announced phase   | modelcache.js `hasOwnProperty…, phase)` | "ALL THREE PROVENANCE VALUES CROSS THE SEAM", "…SHIPPED-WITH-THE-HOST case reports", "…a HEAL reports the attempt that SERVED". Control: the unannounced-Host assertion still PASSES.   19/3
+   *   M6   MODEL_SOURCES.bundled is worded 'downloaded'    | shared/host.js `bundled:`               | "…SHIPPED-WITH-THE-HOST case reports", "…the three READ differently". Control: all three still cross the seam.   20/2
+   *   M7   modelSourceWord guesses 'downloaded' again      | shared/host.js the `:` fallback branch  | "A HOST THAT ANNOUNCES NO PHASE IS QUOTED AS NAMING NO SOURCE". Control: all three still cross the seam.   21/1
+   *   M8   loadModel keeps `source` across attempts        | modelcache.js `source = null;` in the loop | "…it never INHERITS the dropped attempt's phase". Control: the plain heal still PASSES.   21/1
+   *   M9   two MODEL_SOURCES members read the same         | shared/host.js `cache:`                 | "…the three READ differently". Control: the bundled case still PASSES.   21/1
+   *
+   * M8 IS THE ROW THAT NEEDED A SECOND FIXTURE AND SAYS SO. Against the plain
+   * heal it first went GREEN: when the second ask announces a phase, that
+   * announcement overwrites the first whether or not anything was reset, so the
+   * assertion had no dynamic range for the thing it claimed. The discriminating
+   * fixture — a heal whose second ask announces NOTHING — is the one below, and
+   * M8 is red against it. A mutation that will not go red is a finding about the
+   * assertion, not about the mutation.
+   */
+  const sources = {};
+  for (const [name, row] of [['cache', stored], ['download', wire], ['bundled', shipped]]) {
+    const h = fakeHost(row(weights));
+    const out = await loadModel(h, () => {}, PIN).then((v) => v, (e) => e);
+    sources[name] = { out, asks: h.asks };
+  }
+  const eachRight = Object.entries(sources).every(([name, r]) => !(r.out instanceof Error)
+    && r.out.source === name && r.asks === 1);
+  ok('ALL THREE PROVENANCE VALUES CROSS THE SEAM — a Host cache, the network, and weights that SHIPPED WITH THE HOST, each reported as itself in 1 ask  '
+    + '[entry point: shared/modelcache.js loadModel(), reached from engine.js loadOnce()]',
+    eachRight,
+    eachRight
+      ? Object.entries(sources).map(([n, r]) => `${n} -> ${JSON.stringify(r.out.source)} (${r.asks} ask)`).join(', ')
+      : Object.entries(sources).map(([n, r]) => `${n} -> ${r.out instanceof Error
+        ? `REJECTED ${r.out.message}` : `${JSON.stringify(r.out.source)} in ${r.asks} ask(s)`}`).join(', '));
+
+  /**
+   * ...AND THE BUNDLED CASE IS THE ONE THE OLD BOOLEAN GOT WRONG, so it gets its
+   * own assertion rather than being one row of the loop above. It is the whole
+   * of issue #28: `fromCache` is honestly `false`, and every reading of that as
+   * "then it was downloaded" contradicts P1 in the one place a user checks it.
+   */
+  const bundledOut = sources.bundled.out;
+  const bundledWords = bundledOut instanceof Error ? '' : modelSourceWord(bundledOut.source);
+  ok('...and the SHIPPED-WITH-THE-HOST case reports `fromCache: false` AND is not worded as a download — the two facts that used to be one boolean  '
+    + '[entry point: shared/host.js modelSourceWord(), quoted by engine.js loadOnce()]',
+    !(bundledOut instanceof Error) && bundledOut.fromCache === false && bundledOut.source === 'bundled'
+      && bundledWords === MODEL_SOURCES.bundled && !/download/i.test(bundledWords),
+    bundledOut instanceof Error
+      ? `loadModel rejected a bundled Host: ${bundledOut.message}`
+      : /download/i.test(bundledWords)
+        ? `a Host that shipped its weights is told: "weights ${bundledWords}" — that is the defect, in the words of the fix`
+        : `fromCache=${bundledOut.fromCache}, source=${JSON.stringify(bundledOut.source)}, worded "weights ${bundledWords}"`);
+
+  /**
+   * THE THREE WORDS ARE THREE WORDS. A vocabulary whose members read alike is a
+   * vocabulary that partitions nothing: the assertion above would pass over a
+   * `MODEL_SOURCES` in which `bundled` and `cache` were the same sentence, and
+   * the user would be no better off than with the boolean.
+   */
+  const words = Object.keys(MODEL_SOURCES).map((k) => modelSourceWord(k));
+  ok('...and the three READ differently, so the partition survives contact with a reader  '
+    + '[entry point: shared/host.js MODEL_SOURCES, the vocabulary a Host picks its phase out of]',
+    words.length === 3 && new Set(words).size === 3 && words.every((w) => typeof w === 'string' && w.length > 0),
+    `${words.length} member(s), ${new Set(words).size} distinct: ${words.map((w) => JSON.stringify(w)).join(', ')}`);
+
+  /**
+   * A HOST THAT ANNOUNCES NOTHING IS SAID TO HAVE ANNOUNCED NOTHING. The defect
+   * being fixed was a GUESS — "not a cache hit, therefore downloaded" — and
+   * answering an unannounced source with any of the three real ones is the same
+   * guess with a longer vocabulary. This is also the one case the loop above
+   * cannot reach, because every row in it announces.
+   */
+  const mute = fakeHost(silent(weights));
+  const muteOut = await loadModel(mute, () => {}, PIN).then((v) => v, (e) => e);
+  const muteWords = muteOut instanceof Error ? '' : modelSourceWord(muteOut.source);
+  ok('A HOST THAT ANNOUNCES NO PHASE IS QUOTED AS NAMING NO SOURCE, not as having downloaded 109 MB',
+    !(muteOut instanceof Error) && muteOut.source === null
+      && muteWords.length > 0 && !/download/i.test(muteWords) && !Object.values(MODEL_SOURCES).includes(muteWords),
+    muteOut instanceof Error
+      ? `loadModel rejected a Host that announced nothing: ${muteOut.message}`
+      : `source=${JSON.stringify(muteOut.source)}, worded "weights ${muteWords}"`);
+
+  /**
+   * A HEAL REPORTS THE SOURCE THAT ACTUALLY SERVED, not the one that was thrown
+   * away: the bad `cache` copy is dropped and the good bytes come off the wire,
+   * and wording the line "from this Host's store" would name the copy that just
+   * failed.
+   */
+  const healSrc = fakeHost(stored(wrongContent), wire(weights));
+  const healSrcOut = await loadModel(healSrc, () => {}, PIN).then((v) => v, (e) => e);
+  ok('...and a HEAL reports the attempt that SERVED, not the one that was dropped  '
+    + '[entry point: shared/modelcache.js loadModel(), the retry loop]',
+    !(healSrcOut instanceof Error) && healSrc.asks === 2 && healSrcOut.source === 'download'
+      && healSrcOut.fromCache === false,
+    healSrcOut instanceof Error
+      ? `the heal failed: ${healSrcOut.message}`
+      : `${healSrc.asks} asks, source=${JSON.stringify(healSrcOut.source)}, fromCache=${healSrcOut.fromCache}`);
+
+  /**
+   * ...AND IT DOES NOT INHERIT ONE EITHER, which is the case the assertion above
+   * cannot see: when the second ask announces a phase, that announcement
+   * overwrites the first whether or not anything was reset, so a `loadModel`
+   * with no per-attempt reset passes it. The discriminating fixture is a heal
+   * whose SECOND ask announces NOTHING — then a kept `source` reports `'cache'`,
+   * naming the copy that was just deleted for failing its hash.
+   */
+  const healQuiet = fakeHost(stored(wrongContent), silent(weights));
+  const healQuietOut = await loadModel(healQuiet, () => {}, PIN).then((v) => v, (e) => e);
+  ok('...and it never INHERITS the dropped attempt\u2019s phase — `source` is reset per attempt, so an ask that announces nothing reports nothing  '
+    + '[entry point: shared/modelcache.js loadModel(), the top of the retry loop]',
+    !(healQuietOut instanceof Error) && healQuiet.asks === 2 && healQuietOut.source === null,
+    healQuietOut instanceof Error
+      ? `the heal failed: ${healQuietOut.message}`
+      : healQuietOut.source === 'cache'
+        ? 'the load reports `cache` — that is the copy it just deleted for failing its hash'
+        : `${healQuiet.asks} asks, source=${JSON.stringify(healQuietOut.source)}`);
 
   /**
    * WHAT THE HOST HANDED OVER MUST BE WHAT THE WORKER GETS — rule 2 of

@@ -91,7 +91,7 @@ Electron main process, the preloads, the window that draws the deck, and the two
 > — `stem-splitter-live/CONTEXT.md`, verbatim
 
 **"The second product" is this one.** Here the unit is 35 files copied at tag
-`v0.2.0` and verified against `extension/unit.sha256`, and **it is never
+`v0.3.1` and verified against `extension/unit.sha256`, and **it is never
 edited** — ADR 0001 decision 4 in `stem-splitter-live` exists to prevent exactly
 that, and `CONTRIBUTING.md` here states it as a rule with a check behind it. A
 unit file that differs from its recorded SHA-256 is a fork, whatever the commit
@@ -238,7 +238,7 @@ and the one this deliberately is not)
 
 Where those documents define a term, their definition wins; this file points and
 does not restate. They live in `stem-splitter-live` **at the tag this product
-vendors, `v0.2.0`** — not on its `main`, which moves.
+vendors, `v0.3.1`** — not on its `main`, which moves.
 
 - **Stem** — the six-stem set, its wire order (`STEMS`) and its display order:
   `docs/SIX-STEM-CONTRACT.md`.

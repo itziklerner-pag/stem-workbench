@@ -18,7 +18,7 @@ verified by the tests written against that exact code.
 
 | | what it gates | who owns it |
 |---|---|---|
-| `vendor/stem-splitter-live/tools/verify.mjs --unit` | the engine and the deck — 12 suites, **1156 assertions**, ~74 s, plain Node | `stem-splitter-live`. **We do not edit it and do not reimplement it.** |
+| `vendor/stem-splitter-live/tools/verify.mjs --unit` | the engine and the deck — 12 suites, **1327 assertions**, ~74 s, plain Node | `stem-splitter-live`. **We do not edit it and do not reimplement it.** |
 | `tools/verify.mjs` (this repo) | the **Host** — everything the desktop product writes for itself | us |
 
 **T1 was rejected:** copying the extension's `tools/verify.mjs` here and growing
@@ -39,8 +39,9 @@ for. Step `conformance` runs it; `docs/CONFORMANCE.md` is the report.
 
 **Option 1 is the intermediate green, and it was recorded.** `--unit` run
 *before* the holes were swapped: `GREEN (partial — the vendored unit's suites
-only; 12 of 23 steps)`, 12 of 12 PASS, **1156 assertions**, in the vendoring
-commit. It says the copy arrived intact and it is what `vendor/.pin` pins.
+only; 12 of 23 steps)`, 12 of 12 PASS, **1327 assertions** (unit 766), in the
+vendoring commit that ships the v0.3.1 pin. It says the copy arrived intact and
+it is what `vendor/.pin` pins.
 
 **Option 3 IS available, and what it took is worth stating precisely, because
 this document said the opposite for one wave and a plan that is not the practice
@@ -50,27 +51,35 @@ is worse than either.**
 keyed on the extension's own upstream weights pin, `getUserMedia` with
 `chromeMediaSource` constraints — and drives the hole modules over it. Ours reach
 for an Electron preload bridge, an `app://` origin and a bundled file. Pointed at
-our files with nothing underneath them, the group does not report on our Host:
-**it CRASHES.**
+our files with nothing underneath them, the group did not report on our Host at
+`v0.2.0`: **it CRASHED.**
 
 ```
 node test.js
 TypeError: listeners[0] is not a function   at test.js:5833
 ```
 
-The deck half calls `deckHost.onMessage(fn)`, asserts `listeners.length === 1`,
-**correctly reports it RED**, and then calls `listeners[0](...)` on the next
+The deck half called `deckHost.onMessage(fn)`, asserted `listeners.length === 1`,
+**correctly reported it RED**, and then called `listeners[0](...)` on the next
 line. Measured on a clean tree at `v0.2.0`: **50 of the group's 122 assertions
-run**, and `group('verifyModel')` and `group('backend')` — 31 further assertions
-about the unit itself — never start. 612 assertions become 509. A crash is
+ran**, and `group('verifyModel')` and `group('backend')` — 31 further assertions
+about the unit itself — never started. 612 assertions became 509. A crash is
 strictly worse than a red: it hides the reds worth reading, and it looks like a
 broken vendored copy rather than an unimplemented duty.
 
-**No Host that is not a Chrome extension can get past that line**, because the
-only thing that fills that array is `chrome.runtime.onMessage.addListener`. It is
-an upstream defect — a sibling of `stem-splitter-live#30`, not the same bug — it
-is **not patched in the vendored copy** (rule V1; `vendor-intact` gates it byte
-for byte and runs first), and `docs/CONFORMANCE.md` records it.
+**That crash is fixed upstream.** `stem-splitter-live#30` landed in v0.3.0: a
+hole module that throws while `group('host')` exercises it is now a **named red**
+(the whole-group guard), and the sibling instrument check that dereferenced
+`listeners[0]` shipped with the same fix — the file runs to its end everywhere.
+Measured on a
+clean tree at the v0.3.1 pin with this Host's holes, the same `--unit` run
+completes: 11 of 12 suites PASS, step `unit` reports `676 passed, 18 failed`
+under the runner's own `RED — 18 failing assertions` banner, and nothing is lost
+to a crash. (The unit's duty-refusal probes require `settled.resolved === false
+&& msg.includes(duty)` — `test.js:7202-7219` — which is why our hole modules name
+the duty in their refusal messages.) It is **not patched in the vendored copy**
+(rule V1; `vendor-intact` gates it byte for byte and runs first), and
+`docs/CONFORMANCE.md` records both the old measurement and the fix.
 
 **What makes option 3 work is supplying the platform, not editing the group.**
 [`tools/conformance-platform.mjs`](../tools/conformance-platform.mjs) is a Node
@@ -81,9 +90,9 @@ then completes:
 
 | | assertions | passed | failed |
 |---|---|---|---|
-| before the swap (option 1, the intermediate green) | 612 | 612 | 0 |
-| after the swap, bare | **509 reported, 103 lost to the crash** | 492 | 17 |
-| after the swap, under the platform double (**option 3**) | **612** | **593** | **19** |
+| before the swap (option 1, the intermediate green) | 1327 | 1327 | 0 |
+| after the swap, bare | **694 reported, 0 lost — the file runs to its end** | 676 | 18 |
+| after the swap, under the platform double (**option 3**) | **766** | **747** | **19** |
 
 Step **`conformance`** is that run, and `vendor/.conformance.json` pins the
 result — the total, the pass count, and **every one of the 19 reds by name, with
@@ -135,11 +144,11 @@ node tools/verify.mjs --list         # the steps table
 |---|---|---|---|---|
 | `void-canary` | `tools/suites/void-canary.mjs` | — | 52 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
-| `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
+| `vendor-unit` | *(the vendored runner)* | — | *561, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 53 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
 | `backend` | `tools/suites/backend.mjs` | — | 55 | **which inference backend, and the wire to the second one** — `chooseBackend()` over all twenty platform/probe/preference rows; `createNativeBackend` against `serveInference` over a `worker_threads` `MessageChannel` with a FAKE engine (the frozen layout, both buffers back undetached, `dispose()` settling by name); and the negative control — on this platform the shipped hole builds the unit's own `WorkerBackend`. **No CoreML anywhere in it** |
 | `shell` | `tools/suites/shell.mjs` | window | 50 | **the app skeleton** — two real launches: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, **the `/file/` ROOT** (a one-shot handle serves a picked file's exact bytes to the engine renderer, and the second fetch of it is refused by name), the capture grant, the mute, the allowlist, and **seed §9's sign-in disguise** — the stock Chrome user-agent on `persist:youtube` and on nothing of ours, and the four Google sign-in hosts really reaching the wire; then a SECOND launch on the same profile, because *the session persists across restarts* is the one claim a single launch cannot make |
-| `engine-host` | `tools/suites/engine-host.mjs` | window | 41 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine declared duties, the file-bytes duty `sourceBytes` over the real `/file/` ROOT, the bundled weights end to end, and a real capture |
+| `engine-host` | `tools/suites/engine-host.mjs` | window | 41 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all eleven declared duties, the file-bytes duty `sourceBytes` over the real `/file/` ROOT, the bundled weights end to end, and a real capture |
 | `transport` | `tools/suites/transport.mjs` | window | 83 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim; and **a live export's ONE CONTIGUOUS PASS** — a seek ends it and a drop ends it the same way, what was captured stays exportable, and autoplay-next is suspended for its whole duration and restored even when the recording is aborted |
 | `deck-host` | `tools/suites/deck-host.mjs` | window | 29 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
@@ -995,9 +1004,10 @@ The nine `EngineHost` duties are reached **two ways, and both are the shipping
   module registry returns the instance the engine is holding — so `assetUrl`'s
   trailing slash, its **detached** call, `modelBytes`'s whole-buffer rule and
   `clearModel`'s honesty can be read as values instead of inferred from a green.
-- **Directly, and only directly: `sourceBytes`.** The vendored v0.2.0 engine has
-  no caller for the file-bytes duty — that caller arrives at the v0.3.0 pin,
-  which is also where the interface declares it. What the probe drives is still
+- **Directly, and only directly: `sourceBytes`.** The vendored v0.2.0 engine had
+  no caller for the file-bytes duty — the caller arrived at the v0.3.0 pin,
+  which is also where the interface declares it, and the v0.3.1 pin we are at
+  carries both. What the probe drives is still
   the shipping module over the shipping wire: a token minted on the app's own
   `state.pathTokens` registry (the same object `src/main/files.js`'s intake
   mints from when a user picks a file), spent by the real `/file/` ROOT, against
@@ -1025,7 +1035,7 @@ Host.
 | 6–7 | the frozen payloads: `CAPTURE_START {sourceToken, source:{title,url}}` with no `tabId`, and `deck?` **omitted** for the default deck | the key lists |
 | 8 | the app launches and the probe writes a report | electron/chromium versions |
 | 9 | **the vendored engine boots under this Host** — `HELLO` on the bus after a reload | the envelope's `from`/`to` |
-| 10 | the module declares all nine duties, against `ENGINE_HOST_DUTIES` itself | the nine names |
+| 10 | the module declares all eleven duties, against `ENGINE_HOST_DUTIES` itself | the eleven names |
 | 11–14 | `assetUrl`: inside the unit bundle, **trailing slash intact**, fetchable with a readable `.ok`, and an escape refused (M1) | the URLs, the `HEAD` status |
 | 15–17 | `modelBytes`: 114,559,139 bytes owning their whole buffer, a **fresh buffer per call**, phase `'cache'` announced at 0 bytes | offsets, lengths, the phase |
 | 18 | `modelCached` + `clearModel` as **one decision** — a no-op paired with `fromCache: false` | all four values |
@@ -2835,25 +2845,25 @@ so the cheap question goes first.
 
 ```json
 {
-  "tag": "v0.2.0",
+  "tag": "v0.3.1",
   "steps": 12,
-  "assertions": 1156,
-  "archive": { "url": "https://github.com/…/v0.2.0.tar.gz", "sha256": "f22ef12b…" },
-  "ours": []
+  "assertions": 561,
+  "archive": { "url": "https://github.com/…/v0.3.1.tar.gz", "sha256": "734b8cf0…" },
+  "ours": ["extension/offscreen/host.js", "extension/ui/host.js"]
 }
 ```
 
 `archive.sha256` is **provenance, not a gate** — GitHub builds those tarballs on
-demand and has changed their gzip framing before, and 50 content hashes over the
+demand and has changed their gzip framing before, and 48 content hashes over the
 same bytes carry the claim without that failure mode. A mismatch prints a note
 and the run continues into the checks that can actually tell.
 
 `ours` is the manifest of files inside `vendor/` that are **not** vendored — the
-two holes and `offscreen/host-pin.js`. It is `[]` today, because this Host has
-not written them yet, and the commit that writes the first one adds its path
-here in the same commit. `tools/vendor-unit.sh` backs those files up before it
-wipes the tree and restores them after the copy, so a pin bump does not silently
-replace this Host with the extension's reference implementation.
+two hole modules, `extension/offscreen/host.js` (the `EngineHost`) and
+`extension/ui/host.js` (the `DeckHost`). `tools/vendor-unit.sh` backs those
+files up before it wipes the tree and restores them after the copy, so a pin
+bump does not silently replace this Host with the extension's reference
+implementation.
 
 The step runs `node tools/verify.mjs --unit --no-reap` **inside**
 `vendor/stem-splitter-live` and then asserts three things about that run:
@@ -2885,17 +2895,18 @@ permanent: it expires by itself, on the commit that creates the pin.
 
 **`--unit` runs the vendored `test.js` whole, and that file is two things at
 once**: the unit's largest DSP suite, and a conformance suite over the two hole
-modules a Host replaces. With the extension's holes it is 612 green — the
-`assertions: 1156` above. With **this Host's** holes it does not fail, it
-**crashes** (`TypeError: listeners[0] is not a function` at `test.js:5833`), so
-the vendored runner exits 1 on every run, for ever, and the step could only ever
-be red.
+modules a Host replaces. With the extension's holes it is 766 green — the
+`assertions: 1327` above. With **this Host's** holes it runs to its end and
+**fails cleanly** — `676 passed, 18 failed`, the runner's own `RED — 18 failing
+assertions` banner, exit 1 — because the upstream `stem-splitter-live#30`
+fix — a report that crashes is not one — makes the old dereference a named red
+since v0.3.0 (the whole-group guard), and the step
+could only ever be red.
 
 **A step that can never be green again is worse than no step** — standing reds
-train everyone to distrust every red — and the crash is a known upstream defect
-with a ticket (`stem-splitter-live#30`) whose fix lands in that repository behind
-a later tag. It is not patched here: rule V1, and `vendor-intact` runs first and
-would say so.
+train everyone to distrust every red — and the 18 reds include the transport,
+wire and chrome-scan assertions no non-Chrome Host can satisfy. They are not
+patched here: rule V1, and `vendor-intact` runs first and would say so.
 
 So the step declares the exit code it expects and pins the **whole report**, in
 `vendor/.pin`'s `hostSuite` block:
@@ -2904,40 +2915,41 @@ So the step declares the exit code it expects and pins the **whole report**, in
 |---|---|
 | `exitCode` | 1 |
 | `passingSuites` | 11 |
-| `passingAssertions` | 544 |
-| `crashingSuite` | `unit` |
-| `crashAt` / `crashMessage` | `test.js:5833` / `listeners[0] is not a function` |
+| `passingAssertions` | 561 |
+| `failingSuite` | `unit` |
+| `failingShape` | asserts and fails cleanly — the counts on the row (`676 passed, 18 failed` at this pin), the runner's own `RED — 18 failing assertions` banner, no crash |
 
 **Three things fail this step, and the second is the one an ignore-list never
 has:**
 
 1. any of the eleven other suites stops passing, or their assertions stop
-   summing to 544;
+   summing to 561;
 2. **`unit` PASSES** — post-swap that means the hole modules are not this Host's
    any more, and the failure message names both paths;
-3. `unit` fails **without crashing**, or the crash **moves**. Asserting and
-   failing is different in kind from dying, and that difference has to stay
-   visible: two earlier descriptions of this failure were already stale by the
-   time they were read.
+3. `unit` **CRASHES**, or fails in a shape the pin does not recognise. The
+   pinned case runs to its end and prints its RED banner — a crash is not a
+   named red, wherever it lands, and that difference has to stay visible: two
+   earlier descriptions of this failure were already stale by the time they were
+   read.
 
 **Watched red, both directions:**
 
 | direction | mutation | what went red |
 |---|---|---|
-| the eleven | `process.exit(1)` at the top of `extension/engine/chroma.js`, behind an env var, restored byte-identically after | `7 suites passed, vendor/.pin pins 11`; the assertion sum (214 vs 544); the non-PASS set; and the crash clause, because `unit` then failed without crashing |
-| **the other way** | `git show v0.2.0:extension/{offscreen,ui}/host.js` over both holes — the extension's Host, back | the run goes `GREEN (partial … 12 of 23 steps)` and the step FAILS, naming `vendor/stem-splitter-live/extension/offscreen/host.js` and `…/ui/host.js` as no longer this Host's |
+| the eleven | `process.exit(1)` at the top of `extension/engine/chroma.js`, behind an env var, restored byte-identically after | `7 suites passed, vendor/.pin pins 11`; the assertion sum (214 vs 561); the non-PASS set; and the crash clause, because `unit` then CRASHED, which is not the pinned clean-failure shape |
+| **the other way** | `git show v0.3.1:extension/{offscreen,ui}/host.js` over both holes — the extension's Host, back | the run goes `GREEN (partial … 12 of 23 steps)` and the step FAILS, naming `vendor/stem-splitter-live/extension/offscreen/host.js` and `…/ui/host.js` as no longer this Host's |
 
 **`classify()` was changed in one place and narrowly.** A step may declare
 `expect.code`; only then is `expect` consulted on a non-zero exit, and exactly
 one step in the table declares it (asserted by `--self-check`). **The VOID rule
 is not relaxed**: a step that exits with its pinned code having asserted nothing
 is still VOID, because silence is not a pass at any exit code. That, a green
-`unit`, a clean red, a moved crash, a short plan and a different non-zero exit
-are six `--self-check` cases.
+`unit`, a crashed `unit`, a crash anywhere, a short plan and a different non-zero
+exit are six `--self-check` cases.
 
 **The verdict for `test.js` itself is the `conformance` step**, which runs the
-same file, unedited, to completion under this Host's own platform: 612
-assertions, 593 passed, 19 failed. Nothing this step loses is unmeasured; what it
+same file, unedited, to completion under this Host's own platform: 766
+assertions, 747 passed, 19 failed. Nothing this step loses is unmeasured; what it
 still gates is the other eleven suites.
 
 ### `vendor-intact` — rule V1, in 0.1 s and offline
@@ -2978,9 +2990,9 @@ edit to `.pin` that no other check would notice.
 ---
 
 The row parser and the verdict regex were read off a **real** run — `node
-tools/verify.mjs --unit --no-reap` in `stem-splitter-live` at `v0.2.0`
-(`git diff --name-only v0.2.0..HEAD` empty), 2026-08-26 — which printed 12 rows
-summing to 1156, the number `VENDORING.md` §7 independently pins. It is not a
+tools/verify.mjs --unit --no-reap` in `stem-splitter-live` at `v0.3.1`
+(`git diff --name-only v0.3.1..HEAD` empty), 2026-08-27 — which printed 12 rows
+summing to 1327, the number `VENDORING.md` §7 independently pins. It is not a
 guess at the shape. `--self-check` keeps that transcript excerpt pinned, so the
 vendored runner changing its summary line fails **here**, in 0 s, rather than by
 reporting a green step as VOID.

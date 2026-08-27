@@ -237,7 +237,7 @@ mutate_case 15 "engine-messages: CAPTURE_STOP without revoking the claims" \
 # ============================================================== the launch cases
 mutate_case 1 "host.js: delete a duty — captureStream" \
   "$HOST" \
-  "THE VENDORED ENGINE BOOTS UNDER THIS HOST|...and the module it imported declares all nine duties" \
+  "THE VENDORED ENGINE BOOTS UNDER THIS HOST|...and the module it imported declares all eleven duties" \
   -- "$HOST" \
 "export const captureStream = async (sourceToken) => {" \
 "const captureStream = async (sourceToken) => {" 
@@ -328,7 +328,7 @@ mutate_case 32 "host.js sourceBytes: answer a refusal with an EMPTY buffer" \
   "$HOST" \
   "A TOKEN NOBODY MINTED BUYS NOTHING here either|...and ONE token buys ONE buffer" \
   -- "$HOST" \
-"    throw new Error(\`file read failed: HTTP \${res.status} for \${url}\${why}\`);" \
+"    throw new Error(\`EngineHost.sourceBytes: file read failed: HTTP \${res.status} for \${url}\${why}\`);" \
 "    return new ArrayBuffer(0);"
 
 mutate_case 33 "host.js sourceBytes: drop the zero-byte rejection" \
@@ -336,7 +336,7 @@ mutate_case 33 "host.js sourceBytes: drop the zero-byte rejection" \
   "...and a REAL file with ZERO bytes REJECTS" \
   -- "$HOST" \
 "  if (bytes.byteLength === 0) {
-    throw new Error('file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
+    throw new Error('EngineHost.sourceBytes: file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
       + 'decodes to a track that is silently not the track');
   }
 " ""

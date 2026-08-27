@@ -104,18 +104,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ------------------------------------------------------------------- the pin
 # Bumping the tag means bumping all four together, from the new tag's
 # VENDORING.md §7. --tag alone is refused for that reason.
-DEF_TAG='v0.2.0'
+DEF_TAG='v0.3.1'
 DEF_STEPS=12
-# 544, NOT the 1156 a fresh copy reports, and the difference is `test.js`'s 612.
-# With this Host's hole modules in place `test.js` CRASHES rather than failing
-# (upstream stem-splitter-live#30), so `vendor-unit` pins the ELEVEN suites that
-# still pass — this number — and delegates the verdict for test.js to the
-# `conformance` step. `vendor/.pin`'s `hostSuite` block is the prose, and it is
-# carried across a re-vendor below for the same reason.
-DEF_ASSERTIONS=544
-# Observed 2026-08-26 on the tarball GitHub served for v0.2.0. Provenance, not a
+# 561, NOT the 1327 a fresh copy reports, and the difference is `test.js`'s 766.
+# With this Host's hole modules in place `test.js` runs to its end and fails
+# cleanly — 676 passed, 18 failed, its own RED banner (the upstream
+# stem-splitter-live#30 fix — a report that crashes is not one — makes the
+# old dereference a named red since v0.3.0) — so
+# `vendor-unit` pins the ELEVEN suites that still pass — this number — and
+# delegates the verdict for test.js to the `conformance` step. `vendor/.pin`'s
+# `hostSuite` block is the prose, and it is carried across a re-vendor below for
+# the same reason.
+DEF_ASSERTIONS=561
+# Observed 2026-08-27 on the tarball GitHub served for v0.3.1. Provenance, not a
 # gate — see the header.
-DEF_ARCHIVE_SHA='f22ef12bf29f1c46061def6905095361712ec83cb693a232da2f9bc2cbc3962b'
+DEF_ARCHIVE_SHA='734b8cf032d573387274386110a72f0211ccde033f28fba04ebfa4ae6cd1edc2'
 
 REPO='itziklerner-pag/stem-splitter-live'
 DEST_REL='vendor/stem-splitter-live'

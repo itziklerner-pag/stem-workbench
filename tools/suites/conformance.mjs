@@ -42,23 +42,30 @@
  * ---------------------------------------------------------------------------
  * WHY THE PLATFORM DOUBLE HAS TO BE THERE, MEASURED
  * ---------------------------------------------------------------------------
- * Without `tools/conformance-platform.mjs`, `node test.js` does not fail — it
- * CRASHES:
+ * The group installs a Chrome platform under the hole modules, and
+ * `tools/conformance-platform.mjs` is what lets `node test.js` run AT ALL under
+ * plain Node: it is the Host surface the assertions drive, not a workaround.
+ * It started as one, though — at v0.2.0, without it, the deck half installed a
+ * Chrome platform, called `deckHost.onMessage(fn)`, correctly reported
+ * `listeners.length === 1` RED, and then dereferenced `listeners[0]` anyway:
  *
  *   TypeError: listeners[0] is not a function   at test.js:5833
  *
- * The deck half installs a Chrome platform, calls `deckHost.onMessage(fn)`,
- * correctly reports `listeners.length === 1` RED, and then dereferences
- * `listeners[0]` anyway. Measured on a clean tree at v0.2.0: **50 of the group's
- * 122 assertions run, and `group('verifyModel')` and `group('backend')` — 31
- * further assertions about the unit itself — never run at all.** A crash is
- * strictly worse than a red: it hides the reds worth reading, and it looks like
- * a broken vendored copy rather than an unimplemented duty.
+ * Measured on a clean tree at v0.2.0: **50 of the group's 122 assertions ran,
+ * and `group('verifyModel')` and `group('backend')` — 31 further assertions
+ * about the unit itself — never ran at all.** A crash is strictly worse than a
+ * red: it hides the reds worth reading, and it looks like a broken vendored
+ * copy rather than an unimplemented duty.
  *
- * That is an upstream defect, it is NOT patched here (rule V1), and it is a
- * sibling of `stem-splitter-live#30` rather than the same bug — #30 is a hole
- * that throws while being IMPORTED; this is an instrument check that reports an
- * absence and then dereferences it. `docs/CONFORMANCE.md` records both.
+ * That defect is the sibling instrument check that shipped with
+ * `stem-splitter-live#30`'s fix (v0.3.0): a report that crashes is not one —
+ * holes import inside a try/catch, and a throw anywhere else in the group
+ * reddens the assertion at its foot — so the dereference is a named red and
+ * the file runs to its end everywhere (the vendored `vendor-unit` gate shows
+ * it from the other side: 676 passed, 18 failed, no crash). Nothing is
+ * patched here (rule V1). The crash is why the double was built; the fix is
+ * why the pinned red set below is COMPLETE rather than a partial read of a
+ * crash. `docs/CONFORMANCE.md` records both.
  *
  * ---------------------------------------------------------------------------
  * THE PART THAT MUST NOT BE FORGOTTEN

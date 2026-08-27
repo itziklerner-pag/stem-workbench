@@ -386,11 +386,12 @@ export async function runGate({ state, outDir, sourceUrl }) {
    * token it cannot tell from the intake's, spent by the ROOT it shares with
    * every renderer.
    *
-   * WHY DIRECTLY AND NOT THROUGH THE UNIT: the vendored v0.2.0 engine has no
-   * caller for this duty (it arrives with the `sourceBytes` caller at the
-   * v0.3.0 pin, which is also where `ENGINE_HOST_DUTIES` declares it). The
-   * direct drive is the shipping module answering, over the shipping wire —
-   * the same shape the other direct drives take.
+   * WHY DIRECTLY AND NOT THROUGH THE UNIT: the vendored engine has no caller
+   * for this duty outside the unit's own duty-refusal probes (the `sourceBytes`
+   * caller and `ENGINE_HOST_DUTIES`'s declaration of it arrived together at the
+   * v0.3.0 pin; the v0.3.1 pin we are at carries both). The direct drive is the
+   * shipping module answering, over the shipping wire — the same shape the
+   * other direct drives take.
    *
    * THE FOUR CALLS, AND WHAT EACH IS FOR: `first` and `second` use the SAME
    * handle back to back — one handle buys one response, so the second must

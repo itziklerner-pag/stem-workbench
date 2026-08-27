@@ -75,9 +75,9 @@ that decides what this product may become. The code itself is
 | | |
 |---|---|
 | step 1 — the capture/mute spike | **done on Linux**; macOS is [#2](https://github.com/itziklerner-pag/stem-workbench/issues/2), blocked on hardware |
-| step 2 — the Host seam in `stem-splitter-live` | **done** — Host interface v1, frozen at `v0.2.0` |
+| step 2 — the Host seam in `stem-splitter-live` | **done** — Host interface v1.1, frozen at `v0.3.1` |
 | step 3 — desktop host v0, the YouTube Live source | **it runs end to end on Linux.** A real `youtube.com` watch page in the window, armed from the bar or the application menu, captured while the view is muted, and **six stems out of the engine with the real 109 MB weights**. `node tools/verify.mjs --only youtube` — **26 assertions, 0 failed**. Packaging for macOS and Windows is **written and never built** — see [What was verified, and what was only configured](#what-was-verified-and-what-was-only-configured) |
-| step 3, the vendored unit | **landed** — 50 files at `v0.2.0`, byte-verified twice, plus ONNX Runtime at its pin |
+| step 3, the vendored unit | **landed** — 50 files at `v0.3.1`, byte-verified twice, plus ONNX Runtime at its pin |
 | step 3, what is NOT done | the File source and stem export — neither started. **Packaging is configured and has never been built**; **macOS has never run any of it**; **six stems moving live has never been observed on any machine** |
 
 ## Run it on this machine
@@ -275,17 +275,19 @@ asserts no level band on any stem. The loud four are stable to three digits.
   page: youtube.com's home page has no player, so the Host no longer hunts for a
   control that page never has, and a cold start no longer opens with a failure
   banner about a page nobody asked about.)
-- **One suite in the vendored gate CRASHES rather than runs, and the crash is
-  pinned rather than hidden.** The vendored `test.js` is both the unit's largest
-  suite and a conformance suite over the two hole modules; with a non-Chrome Host
-  in them it dies at `:5833` — an instrument check that reports an absence and
-  then dereferences the thing it just proved absent. `vendor-unit` therefore
-  passes on the eleven suites it can run (544 assertions) and holds the crash
-  against a pinned expectation, so the crash CHANGING is as red as a new failure.
-  The verdict for `test.js` itself is the `conformance` step — 612 assertions,
-  593 passed, 19 failed, every red pinned by name and argued in
+- **One suite in the vendored gate is red by design, and the red is pinned
+  rather than hidden.** The vendored `test.js` is both the unit's largest suite
+  and a conformance suite over the two hole modules; with a non-Chrome Host in
+  them it runs to its end and fails cleanly — `676 passed, 18 failed`, the
+  runner's own RED banner — because the upstream `stem-splitter-live#30`
+  fix — a report that crashes is not one — makes the old `listeners[0]`
+  dereference a named red since v0.3.0. `vendor-unit` therefore passes on the
+  eleven suites it can run (561 assertions) and pins the failure's shape, so a
+  green `unit` or a crashed one is as red as a new failure. The verdict for
+  `test.js` itself is the `conformance` step — 766 assertions, 747 passed, 19
+  failed, every red pinned by name and argued in
   [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md). The fix is upstream
-  (`stem-splitter-live#30`), not here: rule V1.
+  (`stem-splitter-live#30`, landed in v0.3.0), not here: rule V1.
 
 ### What was verified, and what was only configured
 
@@ -389,7 +391,7 @@ src/main/netguard.js         P1' with teeth: main.js's FIRST import, and it
 src/preload/                 four preloads: engine, deck, chrome — and youtube,
                              which exposes nothing on `window`, by design
 src/renderer/                our own pages: the chrome bar, the engine's page
-vendor/stem-splitter-live/   the vendored unit at v0.2.0 — 50 files, NEVER edited
+vendor/stem-splitter-live/   the vendored unit at v0.3.1 — 50 files, NEVER edited
 vendor/.pin                  the pin: tag, expected counts, `ours`, and the
                              SHA-256 of every ONNX Runtime file (the gitignored
                              27 MB nothing else hashes)
@@ -463,7 +465,7 @@ proves six stems come out of the engine inside this app.
 |---|---|---|
 | `void-canary` | PASS | 35 passed, 0 failed |
 | `vendor-intact` | PASS | 6 passed, 0 failed |
-| `vendor-unit` | PASS | 11 suites PASS, **544 assertions**; `unit` CRASHES at `test.js:5833` **as pinned** — 17 reds before it dies, upstream `stem-splitter-live#30`. The verdict for that file is `conformance` |
+| `vendor-unit` | PASS | 11 suites PASS, **561 assertions**; `unit` FAILS CLEANLY **as pinned** — `676 passed, 18 failed`, its own RED banner (the upstream `stem-splitter-live#30` fix makes the old dereference a named red since v0.3.0). The verdict for that file is `conformance` |
 | `deck-seam` | PASS | 49 passed, 0 failed |
 | `shell` | PASS | 35 passed, 0 failed |
 | `engine-host` | PASS | 37 passed, 0 failed |

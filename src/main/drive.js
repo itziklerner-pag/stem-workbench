@@ -146,11 +146,11 @@ export function speedReasonFor(event) {
 /**
  * THE FOUR MEMBER NAMES, and this is the ONE place they are written down.
  *
- * Source: `shared/stemcache.js`'s `PASS_END`, upstream. NOT vendored at the
- * pinned tag (v0.2.0) — it arrives with the tag that carries U7. §4b of the
- * suite pins that absence in BOTH directions, so this list becomes a real
- * equality pin on the day the pin bumps rather than staying a copy nobody
- * re-checked.
+ * Source: `shared/stemcache.js`'s `PASS_END`, upstream. NOT vendored at
+ * v0.2.0, and still absent at the v0.3.1 pin — it arrives with the tag that
+ * carries U7. §4b of the suite pins that absence in BOTH directions, so this
+ * list becomes a real equality pin on the day a pin carries it rather than
+ * staying a copy nobody re-checked.
  */
 export const PASS_END_NAMES = Object.freeze(['stopped', 'ended', 'seek', 'drop']);
 

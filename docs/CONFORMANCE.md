@@ -8,7 +8,7 @@ writing.
 **Pinned by:** [`vendor/.conformance.json`](../vendor/.conformance.json), which is the
 machine-readable half of this document and is compared against the run **both
 ways** on every gate.
-**Tag:** `stem-splitter-live` `v0.2.0`.
+**Tag:** `stem-splitter-live` `v0.3.1`.
 
 ---
 
@@ -22,9 +22,9 @@ it is the thing that says the copy arrived intact.
 
 | | what was run | result |
 |---|---|---|
-| **BEFORE** — option 1 | `node tools/verify.mjs --unit --no-reap` in the vendored copy, with the **extension's** two hole modules in place | `GREEN (partial — the vendored unit's suites only; 12 of 23 steps)`, 12 of 12 PASS, **1156 assertions**. `vendor/.pin` pins those two numbers. Recorded in the vendoring commit `b8e476a`. |
-| **AFTER the swap** — bare | the same command, with **this Host's** hole modules at the two paths | **RED, and worse than red: `test.js` CRASHES.** `TypeError: listeners[0] is not a function` at `test.js:5833`. 11 of 12 suites PASS; step `unit` reports `CRASHED after start`. **50** of `group('host')`'s 122 assertions run, 17 of them red; `group('verifyModel')` and `group('backend')` — **31 further assertions about the unit itself** — never start. 612 → 509 reported, **103 lost**. |
-| **AFTER the swap** — option 3 | `node --import tools/conformance-platform.mjs test.js` in the vendored copy | **Complete. 612 assertions, 593 passed, 19 failed.** Every assertion in the file runs. Nothing under `vendor/` is edited; `vendor-intact` gates that byte for byte and runs first. |
+| **BEFORE** — option 1 | `node tools/verify.mjs --unit --no-reap` in the vendored copy, with the **extension's** two hole modules in place | `GREEN (partial — the vendored unit's suites only; 12 of 23 steps)`, 12 of 12 PASS, **1327 assertions** (unit 766). `vendor/.pin` pins those two numbers. Recorded in the vendoring commit that ships the v0.3.1 pin. |
+| **AFTER the swap** — bare | the same command, with **this Host's** hole modules at the two paths | **RED — 18 failing assertions.** 11 of 12 suites PASS; step `unit` reports `FAIL unit 10.6s 676 passed, 18 failed`. The file ran to its END: the upstream `stem-splitter-live#30` fix — a report that crashes is not one — makes the old `listeners[0]` dereference a **named red** since v0.3.0, so none of the old 103-assertion blackout remains — every one of the file's 766 assertions is reached. The 11 passing suites sum to **561**; `vendor/.pin` pins that. |
+| **AFTER the swap** — option 3 | `node --import tools/conformance-platform.mjs test.js` in the vendored copy | **Complete. 766 assertions, 747 passed, 19 failed.** Every assertion in the file runs. Nothing under `vendor/` is edited; `vendor-intact` gates that byte for byte and runs first. |
 
 **One red was fixed rather than justified.** `group('verifyModel')`'s scan —
 *"NO FILE UNDER `extension/` NAMES THE MODEL'S UPSTREAM HOST EXCEPT
@@ -36,30 +36,32 @@ spelling it, and the assertion is green. It is a real result: the string is
 absent from this Host because this Host has no download, which is the same
 sentence P1′ makes.
 
-## 2. Why the crash is not fixed here
+## 2. Why the red is not fixed here
 
-`test.js`'s deck half installs a Chrome platform, calls `deckHost.onMessage(fn)`,
-asserts `listeners.length === 1`, **correctly reports it RED** — and then calls
-`listeners[0](...)` on the next line. Our DeckHost registered its inbox with an
-Electron preload bridge that is not present in plain Node, so the array is empty
-and the dereference throws.
+At v0.2.0, `test.js`'s deck half installed a Chrome platform, called
+`deckHost.onMessage(fn)`, asserted `listeners.length === 1`, **correctly
+reported it RED** — and then called `listeners[0](...)` on the next line. Our
+DeckHost registered its inbox with an Electron preload bridge that is not
+present in plain Node, so the array was empty and the dereference threw, killing
+the file mid-run and taking 103 assertions with it.
 
-**No Host that is not a Chrome extension can get past that line**, because the
-only thing that fills the array is `chrome.runtime.onMessage.addListener`. It is
-not a defect in this Host and it is not fixable from this side.
+**That crash is fixed upstream.** `stem-splitter-live#30` landed in v0.3.0: a
+hole module that throws while `group('host')` exercises it is now a **named red**
+(the whole-group guard) rather than an unhandled death, and the file runs to its
+end everywhere. The sibling finding recorded here in earlier versions — an
+INSTRUMENT CHECK that dereferenced the thing it had just proved absent,
+`test.js:5828-5836` — shipped with the same fix. The v0.3.1 measurement is the
+clean failure in §1's middle row: `unit` asserts and fails — 676 passed, 18
+failed — with every assertion reached. Our duty-refusal messages carry the
+duty's name because the unit's probes require it: `settled.resolved === false &&
+msg.includes(duty)` (`test.js:7202-7219`), and a refusal that cannot be blamed
+is not a refusal the unit can see.
 
-It is **not patched in the vendored copy** — `CONTRIBUTING.md` rule V1, and
-`vendor-intact` would go red the moment it were. It is a **finding for the other
-repository**, behind a later tag:
-
-- **`stem-splitter-live#30`** (filed): a hole that throws while being *imported*
-  should become a named red rather than an unhandled rejection.
-- **A sibling of it, recorded here:** an INSTRUMENT CHECK that reports an absence
-  and then dereferences the thing it just proved absent. `AGENTS.md`'s own
-  vocabulary covers it — the check could not lose *and could not survive its own
-  verdict*. `test.js:5828-5836`. The same shape appears again at
-  `feedListeners[0]` in the storage section, guarded there by `if (feed)`, which
-  is what the deck half's message section wants.
+What remains is a plain red set over this Host's holes: 18 assertions that no
+non-Chrome Host can satisfy — the transport, wire and chrome-scan claims —
+measured in §1's middle row and argued one by one in §6. They are **not patched
+in the vendored copy** — `CONTRIBUTING.md` rule V1, and `vendor-intact` would go
+red the moment they were.
 
 ## 3. What gets past it, and what that costs
 
@@ -128,7 +130,8 @@ being read at all. This is not one. It is a **set equality**:
 - a red that is **not** in the pin → the step FAILS. Something about this Host changed.
 - a pinned red that **did not appear** → the step FAILS too. Either it was fixed,
   and the pin owes an update, or the assertion **stopped running** — which is
-  precisely how the crash hid 103 assertions while the transcript still looked busy.
+  precisely how the old crash once hid 103 assertions while the transcript still
+  looked busy.
 
 Every entry carries a `class` from a closed vocabulary, a reason long enough to
 be an argument rather than a label, and the place the claim is re-made. All four
@@ -138,7 +141,7 @@ are asserted.
 
 ## 6. The 19 unfixed reds, one by one
 
-### 1. `and OWNERSHIP TRANSFERS: the stream arrives exactly as the platform made it`
+### 1. `...and OWNERSHIP TRANSFERS: the stream arrives exactly as the platform made it, and the opaque token reached the platform untouched`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -146,7 +149,7 @@ The extension's sourceToken IS the grant: chrome.tabCapture.getMediaStreamId ret
 
 **Where the claim is re-made:** engine-host (docs/TESTING.md §5b), over a real launch and a real capture
 
-### 2. `modelCached() ANSWERS WITHOUT READING THE BYTES, AND ASKS THE PINNED KEY IN THE PINNED BUCKET`
+### 2. `modelCached() ANSWERS WITHOUT READING THE BYTES, AND ASKS THE PINNED KEY IN THE PINNED BUCKET — the deck asks at boot, before any gesture, and an answer that costs a 109 MB read is one nobody can afford to ask for`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -154,7 +157,7 @@ The pinned key and the pinned bucket are the extension's Cache API store keyed o
 
 **Where the claim is re-made:** engine-host (§5b), which reads the real 114,559,139-byte file through the real protocol handler
 
-### 3. `modelBytes() SERVES A STORED COPY WITHOUT TOUCHING THE NETWORK`
+### 3. `modelBytes() SERVES A STORED COPY WITHOUT TOUCHING THE NETWORK — P1 is held by the ORDER of these lines, and by nothing else`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -162,7 +165,7 @@ The claim is that a warm store is served without a fetch. This Host is never war
 
 **Where the claim is re-made:** engine-host (§5b); and P1' itself, tools/suites/p1.mjs, which observes that the model read puts nothing on any network
 
-### 4. `and on a MISS it fetches the PINNED url exactly once, and stores what it fetched`
+### 4. `...and on a MISS it fetches the PINNED url exactly once, and stores what it fetched under THE SAME KEY IT JUST LOOKED UNDER — a write key that is not the read key is a fresh 109 MB on every load, for ever`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -170,7 +173,7 @@ Same reason: no store, therefore no read key and no write key to agree. The fail
 
 **Where the claim is re-made:** engine-host (§5b)
 
-### 5. `and it ANNOUNCES ITS PHASE BEFORE ANY BYTES MOVE`
+### 5. `...and it ANNOUNCES ITS PHASE BEFORE ANY BYTES MOVE, and says 'cache' only when it is really serving from store — the progress card reads the phase to decide whether it may quote a percentage at all`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -178,7 +181,7 @@ The assertion wants 'cache' on a store hit and 'download' on a cold fetch. This 
 
 **Where the claim is re-made:** not re-made. Stated here as the one place this Host answers a phase the extension would call wrong.
 
-### 6. `THE HOST HANDS OVER WHATEVER IT HAS AND NEVER JUDGES IT`
+### 6. `THE HOST HANDS OVER WHATEVER IT HAS AND NEVER JUDGES IT — verification did NOT follow the fetch across the seam`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -186,7 +189,7 @@ The property under test — the Host does not verify, so it cannot decline to �
 
 **Where the claim is re-made:** engine-host (§5b) asserts the same property the other way round: the SHA-256 refusal comes from the unit, over bytes this Host handed over unjudged
 
-### 7. `clearModel() REALLY DROPS THE STORE`
+### 7. `clearModel() REALLY DROPS THE STORE, AND DROPS THE BUCKET THE OTHER TWO DUTIES OPEN — a no-op, or a bucket by another name, turns one corrupt download into a permanently dead deck`
 
 **Class:** `policy` — This Host answers differently ON PURPOSE, and shared/host.js or ADR 0001 blesses the difference. The row says which sentence.
 
@@ -194,7 +197,7 @@ shared/host.js scopes its MUST precisely so this Host does not have to satisfy t
 
 **Where the claim is re-made:** not re-made; it is a no-op with nothing to observe
 
-### 8. `THE DECK NAMES NO PLATFORM: zero executable `chrome.` in extension/ui/embed.js`
+### 8. `THE DECK NAMES NO PLATFORM: zero executable `chrome.` in extension/ui/embed.js, while the Host it imports is made of them`
 
 **Class:** `upstream-vacuous` — test.js's own control reports that it can no longer lose under a non-Chrome Host. The red is the unit correctly refusing to claim something it cannot check — not a defect in this Host.
 
@@ -202,7 +205,7 @@ The claim is that the deck names no platform while the Host it imports is made o
 
 **Where the claim is re-made:** vendor-intact (rule V1) and the p1 source scans, which are the same shape of claim about this Host's own platform words
 
-### 9. `INSTRUMENT CHECK: the scan can still SEE a chrome. call`
+### 9. `INSTRUMENT CHECK: the scan can still SEE a chrome. call — offscreen/host.js, the one file that must have them`
 
 **Class:** `upstream-vacuous` — test.js's own control reports that it can no longer lose under a non-Chrome Host. The red is the unit correctly refusing to claim something it cannot check — not a defect in this Host.
 
@@ -210,7 +213,7 @@ The control for the assertion above: it requires offscreen/host.js to contain at
 
 **Where the claim is re-made:** n/a — it is the control for the row above
 
-### 10. `HOSTED IS A FACT ABOUT THE HOST, NOT ABOUT FRAMES`
+### 10. `HOSTED IS A FACT ABOUT THE HOST, NOT ABOUT FRAMES: a player above the deck is what supplies a transport`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -218,7 +221,7 @@ The assertion imports ui/host.js twice, under a framed window and a lone one, an
 
 **Where the claim is re-made:** deck-seam (§5d), which drives `hosted` over a real preload answer including a non-boolean
 
-### 11. `and the PAGE survives either way`
+### 11. `...and the PAGE survives either way — a deck with no player still has to size itself and take its keys`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -234,7 +237,7 @@ It requires `window.parent !== window` to appear in ui/host.js. This Host delibe
 
 **Where the claim is re-made:** deck-seam (§5d)
 
-### 13. `THE PAGE AND TRANSPORT DUTIES POST THE DECK'S OWN NAMESPACE`
+### 13. `THE PAGE AND TRANSPORT DUTIES POST THE DECK'S OWN NAMESPACE, one wire type each`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -242,7 +245,7 @@ The extension's DeckPage and DeckTransport ride `window.parent.postMessage` to a
 
 **Where the claim is re-made:** deck-seam (§5d) for the payloads, transport (§5c) for what reaches the player
 
-### 14. `and content.js is told which keys are the deck's, and how tall it is, verbatim`
+### 14. `...and content.js is told which keys are the deck's, and how tall it is, verbatim`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -250,7 +253,7 @@ Same wire as the row above, and red for the same reason: the extension's DeckPag
 
 **Where the claim is re-made:** transport (§5c) and deck-host (§5e)
 
-### 15. `to `parent` and to nothing else, and with no origin pinned`
+### 15. `...to `parent` and to nothing else, and with no origin pinned — the deck cannot know at build time what page it was mounted into`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -258,7 +261,7 @@ A claim about postMessage's target and targetOrigin. This Host posts nothing: th
 
 **Where the claim is re-made:** shell (§5), which asserts the source view's page can see no bridge of ours at all
 
-### 16. `drive() WRITES ONLY THE THREE FIELDS ADR 0001 DECISION 4 NAMES`
+### 16. `drive() WRITES ONLY THE THREE FIELDS ADR 0001 DECISION 4 NAMES, and carries currentTime as the wire's seekTo`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -266,7 +269,7 @@ The claim is the closed write set, and it is one this Host holds and cares about
 
 **Where the claim is re-made:** transport (§5c), where the closed write set is asserted at BOTH ends — filtered at the Host and named at the call site
 
-### 17. `and a mute-only acquire stays mute-only, while the USER's speed is a different message`
+### 17. `...and a mute-only acquire stays mute-only, while the USER's speed is a different message with a different type`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -274,7 +277,7 @@ Same postMessage wire as `drive()` above. The claim is that acquiring the player
 
 **Where the claim is re-made:** transport (§5c) and speed (src/main/speed.js, executed out of the vendored speed.js)
 
-### 18. `INSTRUMENT CHECK: ui/host.js registered exactly one `message` listener on the window`
+### 18. `INSTRUMENT CHECK: ui/host.js registered exactly one `message` listener on the window, at module scope`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 
@@ -282,7 +285,7 @@ The control for the two rows below it, and it is red because it is working. It r
 
 **Where the claim is re-made:** deck-seam (§5d), whose instrument check is the same claim over the real bridge
 
-### 19. `EACH WIRE TYPE REACHES ITS OWN DUTY, and all five payloads arrive as the host sent them`
+### 19. `EACH WIRE TYPE REACHES ITS OWN DUTY, and all five payloads arrive as the host sent them — the SAME object`
 
 **Class:** `platform` — The assertion's subject is a Chrome API this Host does not have and must not pretend to. Named here, re-made against our own platform in the suite the row points at.
 

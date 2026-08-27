@@ -369,12 +369,20 @@ export const exportSink = async (plan) => {
   if (!plan || typeof plan !== 'object' || typeof plan.title !== 'string'
       || !Array.isArray(plan.files) || plan.files.length === 0
       || plan.files.some((f) => typeof f !== 'string' || !f)) {
-    throw new Error('export refused: an export plan is a title and at least one file name');
+    throw new Error('EngineHost.exportSink: export refused — an export plan is a title and at least one file name');
   }
-
+  // THE REFUSAL NAMES THE DUTY. The vendored unit's own group('host') drives
+  // both new duties and requires `settled.resolved === false && msg.includes(duty)`
+  // — a rejection whose message does not say which duty refused it is a refusal
+  // that cannot be blamed, and `w.openExportSink is not a function` is exactly
+  // that: it names a method, not the duty. The bridge is also the one surface
+  // a pre-export preload can lack, so the guard is measured, not assumed.
+  if (typeof w.openExportSink !== 'function') {
+    throw new Error('EngineHost.exportSink: export refused — the bridge has no openExportSink, so nothing was opened');
+  }
   const opened = await w.openExportSink({ title: plan.title, files: plan.files });
   if (!opened || opened.ok !== true) {
-    throw new Error(`export refused: ${(opened && (opened.message || opened.code)) || 'the Host answered nothing'}`
+    throw new Error(`EngineHost.exportSink: export refused: ${(opened && (opened.message || opened.code)) || 'the Host answered nothing'}`
       + ` — nothing was opened, so nothing was exported`);
   }
   stats.exportSinks++;
@@ -769,11 +777,11 @@ export const sourceBytes = async (sourceToken) => {
   if (!res.ok) {
     let why = '';
     try { why = ` — ${String(await res.text()).slice(0, 120)}`; } catch { /* the status carries it */ }
-    throw new Error(`file read failed: HTTP ${res.status} for ${url}${why}`);
+    throw new Error(`EngineHost.sourceBytes: file read failed: HTTP ${res.status} for ${url}${why}`);
   }
   const bytes = await readAll(res);
   if (bytes.byteLength === 0) {
-    throw new Error('file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
+    throw new Error('EngineHost.sourceBytes: file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
       + 'decodes to a track that is silently not the track');
   }
   return bytes.buffer;
