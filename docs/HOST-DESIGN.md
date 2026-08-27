@@ -144,6 +144,69 @@ P3 measured that the capture crosses that boundary: the engine (default session)
 captured a frame owned by a view on `persist:youtube`. Without that measurement
 the two-session design would have been a guess.
 
+**The sessions are made by one factory and the factory is where per-session
+policy lands** (`src/main/sessions.js`). It exists for P1' — Electron cannot
+enumerate its own sessions, so the set has to be closed at the source — and the
+sign-in user-agent below is the second thing it applies, for the same reason: a
+property that is a fact about a session belongs where sessions are made, not
+scattered across the modules that happen to hold one.
+
+### 1.4a The sign-in user-agent `[measured]`
+
+Seed §9. Google has refused sign-in from embedded browser frameworks by
+user-agent since 2019 — *"This browser or app may not be secure"* — so
+`persist:youtube` presents a **stock Chrome user-agent**, built by
+`src/main/useragent.js` and applied by the factory as it creates the session.
+Four things about it are decisions rather than details:
+
+| | |
+|---|---|
+| **the major version is read off the runtime** | `process.versions.chrome`, not a literal. The app claims to be the Chromium it really runs, and an Electron upgrade moves the claim with it. A literal would start true and rot on the first `npm update`, invisibly — a stale user-agent does not fail, it just gets conspicuous to the thing it exists not to be conspicuous to. |
+| **everything else is Chrome's frozen text** | Chrome's UA reduction pinned the platform token to one of three literals, the last three version fields to `0.0.0`, and `AppleWebKit`/`Safari` to `537.36`. Deriving any of them from `os.release()` would produce a string no real Chrome ever sends. |
+| **it is applied BEFORE the view exists** | `Session.setUserAgent()` does not reach a `WebContents` that already exists. Every session is made in the factory, before anything is put on it, so "before" is structural rather than a comment asking somebody to be careful. |
+| **an `app`-owned session is REFUSED** | `makeSession()` throws if `UA_SESSIONS` names a session `SESSION_OWNERS` calls ours. The one request P1' permits is the update check and it must reach GitHub as what it is; widening the table cannot quietly disguise our own traffic, it stops the app at boot. |
+
+**Measured, Electron 44.0.0 / Chromium 152.0.7977.54, Linux:** the partition's
+session, the source view's `WebContents` and `navigator.userAgent` inside the
+page all report
+`Mozilla/5.0 (X11; Linux x86_64) … Chrome/152.0.0.0 Safari/537.36`, while our
+default session, our renderers and `app.userAgentFallback` all still carry
+`Electron/44.0.0`. **Watched red both ways** (`tools/suites/shell.mjs` cases 33
+and 34): removing the call, and `app.userAgentFallback = <the stock UA>` — one
+line that disguises every session at once and is exactly what a gate written
+only against the source view's UA is green over.
+
+**The limit, `[measured]` and disclosed.** `setUserAgent` overrides the header
+and `navigator.userAgent`. It does NOT rewrite Chromium's USER-AGENT CLIENT
+HINTS: the same run reports `navigator.userAgentData.brands` as
+`[Not?A_Brand 24, Chromium 152]`. Anything reading `Sec-CH-UA` can tell. That is
+recorded by the gate and not asserted — it is Chromium's behaviour, not this
+product's — and `FAQ.md` says it to the user in as many words rather than
+promising a durability nobody can promise.
+
+### 1.4b The anonymous fallback `[decided]`
+
+Seed §9's third decision, and the only one of the three that is behaviour. The
+requirement is not "handle the signed-out case"; it is that **nothing about
+determining sign-in state can stop the app**, which includes a bug in the
+determination. `src/main/signin.js` is built as that claim: the cookie-jar read
+and the verdict are inside ONE `try`, so a throw in either becomes an anonymous
+answer carrying its reason, and the two anonymous answers are deliberately
+different sentences so a broken verdict is visible rather than merely silent.
+`state.account` reaches the chrome bar as one word and nothing in `src/` branches
+on it.
+
+It reads cookie NAMES and domains, never values — the value of a Google session
+cookie is not a fact about the session, it is the session — and the projection to
+`{name, domain}` happens at the one place the jar is obtained, so the pure
+function never has a value in scope to leak. `PRIVACY.md` says exactly this.
+
+**Watched red** by `tools/suites/smoke.mjs` case 24, which makes the anonymous
+verdict throw: the app still boots, the bar's Arm button still arms, the player
+still plays, and the only thing that changes is which sentence the bar carries.
+The obvious mutation — make the read reject — was rejected as evidence: it takes
+`boot()` down, and the suite then stops before the assertion it was written for.
+
 ### 1.5 Preloads
 
 | renderer | preload | `sandbox` | exposes |

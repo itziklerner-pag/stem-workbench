@@ -122,21 +122,50 @@ What follows from that, all of it:
   side changing.** Google can detect embedded frameworks by more than the
   user-agent, and it changes what it checks. This is the least durable thing in
   the product, and it is a third party's decision, not a bug we can fix.
+- **We know of one such signal already, and we are not going to pretend
+  otherwise.** Chromium sends *client hints* — `Sec-CH-UA`, and
+  `navigator.userAgentData` in the page — which are built from its own brand
+  list, and setting a user-agent does not rewrite them. Measured on this build:
+  the page still sees `Chromium 152`. So the disguise is one string, not a
+  costume, and anybody who looks past the user-agent can tell. That is a
+  deliberate limit rather than an oversight — the alternative is an arms race
+  this project is not going to run.
 - **Signing in may trigger account challenges.** Expect "verify it's you"
   prompts, unfamiliar-device warnings, and **two-factor flows that behave badly
   or fail outright** in an embedded view. Some 2FA methods — particularly ones
   that want to hand off to another app or a security key — may simply not
   complete here.
-- **If you would rather not risk it, don't sign in.** The app is designed to fall
-  back to anonymous YouTube. The cost is real and stated: ads get separated too,
-  and you are more likely to meet a bot-check wall.
+- **If you would rather not risk it, don't sign in.** The app falls back to
+  anonymous YouTube, and "falls back" is not a manner of speaking: nothing in
+  the app asks whether you are signed in before doing anything. It reads the
+  answer, prints one word in its own bar, and stops there. An automated test
+  starts the app with an empty cookie jar, arms a Source and plays a video, and
+  the build is red if any of that stops working (`tools/suites/smoke.mjs`). The
+  cost of staying signed out is real and stated: ads get separated too, and you
+  are more likely to meet a bot-check wall.
 - **Your credentials never touch this app's own code.** You are signing in to
   Google, in a browser, and the cookies land in that view's own storage
-  partition on your disk. The app does not read them, does not copy them from
-  Chrome, and does not send them anywhere. See [`PRIVACY.md`](PRIVACY.md).
+  partition on your disk. The app never opens a cookie — the value of a Google
+  session cookie is not a fact about your session, it *is* your session. It does
+  read the cookie NAMES in that partition, to decide whether its own bar says
+  `signed in` or `anonymous`, and that is the whole of it: names and domains, a
+  word on a toolbar, nothing stored and nothing sent. It does not copy anything
+  from Chrome. See [`PRIVACY.md`](PRIVACY.md).
+- **The disguise is on that partition and nowhere else.** The app's own network
+  request — the update check — goes to GitHub as what it is. That is not a
+  promise you have to take on trust: it is the second half of an automated test,
+  and putting the Chrome user-agent on the app's own session turns the build red
+  (`tools/suites/shell.mjs`).
 
-**Status: not built.** Sign-in is step 5 of the plan. Nothing above has been
-implemented or tested.
+**Status: built, and verified on Linux only.** Sign-in is step 5 of the plan and
+the code is in: the user-agent, the sign-in hosts on the navigation allowlist,
+and the anonymous fallback. **What has NOT been done is the thing this section is
+actually about — nobody has signed in to a real Google account through this
+app.** The gates run against a local fake player with the four Google hosts
+pointed at a dead port, on purpose, because a test that needs somebody's real
+credentials is a test nobody can run. So: the mechanism is verified, the
+*outcome* — that Google accepts it — is not, and the second bullet above is the
+reason we are not going to promise it.
 
 ### Can I use this commercially?
 

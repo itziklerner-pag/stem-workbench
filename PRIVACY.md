@@ -10,8 +10,10 @@
 >
 > **Updated 26 August 2026:** the network promise — *one host, and the YouTube
 > partition excluded by name* — **is** held by an automated test now
-> (`tools/suites/p1.mjs`, `docs/TESTING.md` §9). Everything else on this page is
-> still design.
+> (`tools/suites/p1.mjs`, `docs/TESTING.md` §9). So is the sign-in promise: that
+> the stock Chrome user-agent is on the YouTube partition and on **nothing** of
+> ours, so the update check reaches GitHub as what it is
+> (`tools/suites/shell.mjs`). Everything else on this page is still design.
 
 ## The short version
 
@@ -39,7 +41,10 @@ Nothing.
 - No usage analytics, no telemetry, no event logging, no crash reporting.
 - No audio, ever. Not a sample, not a fingerprint, not a hash.
 - No browsing history, no page content, no URLs, no titles.
-- No cookies, no advertising identifiers, no device fingerprinting.
+- No cookies, no advertising identifiers, no device fingerprinting. (The app
+  does look at the NAMES of the cookies in the YouTube view, to decide whether
+  its own bar says `signed in` or `anonymous`. It never opens one, and nothing
+  about them leaves your machine. *The YouTube view*, below, is the long form.)
 - No "anonymous" or "aggregated" statistics. There is no exception hiding here.
 - Nothing is sold, shared or transferred to anyone, because none of it exists.
 
@@ -89,15 +94,27 @@ YouTube in any browser: YouTube's own cookies, YouTube's own analytics,
 YouTube's own ads, Google's own network calls.
 
 - **We do not read that traffic, log it, proxy it, or send it anywhere.**
-- **We do not read your Google cookies.** They live in the view's own storage
-  partition on your disk, where the embedded Chromium keeps them.
+- **We never read the VALUE of any of your cookies.** The value is the
+  credential — a Google session cookie is not a fact about your session, it *is*
+  your session. They live in the view's own storage partition on your disk,
+  where the embedded Chromium keeps them, and nothing in this app opens one.
+- **We do read cookie NAMES, and here is exactly why and exactly when.** Once at
+  start-up and again after each page you navigate to, the app asks that
+  partition for the list of cookie names and the domains they belong to, purely
+  to decide whether its own bar should say `signed in` or `anonymous`. Names and
+  domains only, never values; the answer is a word on a toolbar and is not
+  stored, not written to disk, and not sent anywhere. If you would rather it did
+  not, the code is one file — [`src/main/signin.js`](src/main/signin.js) — and
+  deleting it costs the app nothing but that word.
 - If you sign in, you are signing in to Google, in a browser, exactly as you
   would anywhere else. Your session persists between launches because cookies do.
 - The app presents a **stock Chrome user-agent** on that partition, so that
-  Google's sign-in flow does not refuse it. That is disclosed here and again, at
-  length, in [`FAQ.md`](FAQ.md) — including that Google does not endorse this,
-  that it may stop working, and that account challenges are possible. *(Not
-  built yet — sign-in is step 5.)*
+  Google's sign-in flow does not refuse it. It is on that partition and on
+  nothing else: the app's own update check goes to GitHub as what it is, and an
+  automated test fails the build if that stops being true. Disclosed here and
+  again, at length, in [`FAQ.md`](FAQ.md) — including that Google does not
+  endorse this, that it may stop working, and that account challenges are
+  possible.
 
 **The honest summary:** installing this app does not send Google anything it
 would not already get if you opened youtube.com in Chrome. It also does not
