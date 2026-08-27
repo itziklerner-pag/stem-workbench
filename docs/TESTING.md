@@ -2741,6 +2741,13 @@ updater feed, and therefore the release channel — exists only inside an artifa
 | 9 | ...and the bundled weights were hash-verified by the unit through `process.resourcesPath` — **rule M1 over the installer's own copy**, a branch no other suite reaches |
 | 10 | ...and `--gate=DIR` passed to the SHIPPED binary did nothing. Two independent reasons: `GATE` is `app.isPackaged ? '' : …`, and row 6 says the module it would import is not in the bundle either |
 
+**And it is the only evidence the macOS and Windows blocks have.** Not that they
+build — nothing has — but electron-builder validates the WHOLE `build` object
+against its schema before it packages anything and refuses unknown properties, so
+a green `dist-linux` says electron-builder ACCEPTS those two blocks rather than
+that their JSON looks plausible. `updates` §4 is the shape check; this is the
+tool's own opinion of it.
+
 **It SKIPS on a machine and FAILS on a defect**, §3 rule 8: no electron-builder,
 no weights, no ORT drop, no `xvfb-run`, no `flock` — each named in the `SKIPPED`
 line, each turned into exit 2 by `--strict`. The one non-preflight skip is
