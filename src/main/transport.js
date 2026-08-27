@@ -19,6 +19,13 @@
  *   · WHO MAY SPEAK. The source view's preload is the only sender allowed on
  *     `'yt'`. Addresses are assigned by `main` and never claimed by a renderer —
  *     the rule `bus.js` already follows, one channel over.
+ *   · WHEN A LIVE EXPORT STOPS BEING CONTIGUOUS. A live export is ONE
+ *     CONTIGUOUS REAL-TIME PASS from where it started (`CONTEXT.md:311-314`),
+ *     and this file is where the observations that end one are all in scope at
+ *     once: the page's seek, OUR OWN corrective seek, a source swap, the source
+ *     ending. `src/main/drive.js` holds the decision and the machine; this holds
+ *     the wire. The unit owns the vocabulary and never the detection — see the
+ *     block above `PASS_END_NAMES` in that file.
  *
  * ---------------------------------------------------------------------------
  * IT IS AN EVENT SOURCE IN `main`, NOT A WIRE TO THE DECK RENDERER
@@ -55,9 +62,12 @@ import { createAutonav, AUTONAV_TOGGLE_SEL, AUTONAV_CANCEL_SEL, PREFS_KEY } from
 // The two decisions that are worth asserting without a launch live in a file
 // with no `electron` import, so `tools/suites/transport.mjs` can drive every
 // branch of them in plain node. Re-exported here so the wire has one import site.
-import { DRIVE_FIELDS, filterDrive, speedReasonFor } from './drive.js';
+import {
+  DRIVE_FIELDS, filterDrive, speedReasonFor,
+  PASS_END_NAMES, passEndFor, createPass, createPassSink,
+} from './drive.js';
 
-export { DRIVE_FIELDS, filterDrive, speedReasonFor };
+export { DRIVE_FIELDS, filterDrive, speedReasonFor, PASS_END_NAMES, passEndFor, createPass, createPassSink };
 
 /** preload -> main, and main -> preload. The source view is on no bus address. */
 export const YT_UP = 'yt';
@@ -125,6 +135,20 @@ export function createTransport({ source, sourceRequests }) {
   });
 
   /**
+   * THE LIVE EXPORT'S CONTIGUOUS PASS — `null` until one is armed, and one at a
+   * time. `src/main/drive.js` holds the machine; what lives here is the wire
+   * into it and the sink it writes through.
+   *
+   * IT IS NOT A REPORT CHANNEL. The five `on…(fn)` registrations above are the
+   * `DeckTransport`/`DeckPage` duties `shared/host.js` froze; a sixth would be a
+   * duty this Host invented, and the deck's own end of live export is #7/S7b,
+   * upstream and unwritten. The record is READ (`recording()`), which is what a
+   * Host that has not been given a wire yet can honestly offer.
+   */
+  let pass = null;
+  const passLog = [];
+
+  /**
    * The preload's `ended` handler is the only thing that can pause the page, and
    * it only does so while this is true. PUSHED on every change rather than asked
    * for, because `ended` has to decide synchronously and a round trip would land
@@ -187,6 +211,9 @@ export function createTransport({ source, sourceRequests }) {
       state.emit(lastState);
       // THE REASON IS THE DECISION, and the event is what carries it.
       speed.apply(speedReasonFor(msg.event));
+      // A LIVE EXPORT ENDS AT A BOUNDARY, and the boundaries are in this
+      // payload. `passEndFor` decides which; nothing here re-reads the event.
+      if (pass) pass.observe(lastState);
       // The player chrome is rebuilt around a source swap, which can put a
       // freshly-built toggle in front of us with the page's own value on it.
       if (msg.event === 'play' || msg.event === 'loadedmetadata') autonav.reassert();
@@ -208,6 +235,9 @@ export function createTransport({ source, sourceRequests }) {
         // A different track is a different speed, and it is home.
         speed.dropClaim();
         autonav.reassert();
+        // ...AND A DIFFERENT TRACK IS A DIFFERENT PASS. `arrived` is the element
+        // showing up on a page that was still building, which moves nothing.
+        if (pass) pass.end('seek');
       }
       speed.openWindow('remount');
       return;
@@ -256,8 +286,26 @@ export function createTransport({ source, sourceRequests }) {
     onKey: key.on,
     onAutonav: autonavReport.on,
 
-    /** `DeckTransport.drive` — the closed write set, filtered a second time. */
-    drive(patch) { stats.drives++; toPreload({ c: 'drive', ...filterDrive(patch) }); },
+    /**
+     * `DeckTransport.drive` — the closed write set, filtered a second time.
+     *
+     * OUR OWN SEEK ENDS A CONTIGUOUS PASS TOO, and this is the one place that
+     * can know it. The preload deliberately hides a self-seek from the JUMP
+     * channel — `sendJump()`'s header: a jump reported for our own correction is
+     * a 109 MB model download the user declined (stem-splitter-live #15) — but
+     * that exemption is about CONSENT, not about contiguity. The audio after a
+     * seek does not join the audio before it whoever moved the playhead, so
+     * ending here is what stops the exemption becoming a hole in the rule.
+     *
+     * IT ENDS BEFORE IT WRITES. The other order would put the seek on the wire
+     * first and leave one chunk's worth of post-seek audio inside the pass.
+     */
+    drive(patch) {
+      stats.drives++;
+      const cmd = filterDrive(patch);
+      if (pass && cmd.seekTo !== undefined) pass.end('seek');
+      toPreload({ c: 'drive', ...cmd });
+    },
     /** `DeckTransport.release` — unmuted, rate 1, key lock on. */
     release() { stats.releases++; toPreload({ c: 'release' }); },
     /**
@@ -302,10 +350,61 @@ export function createTransport({ source, sourceRequests }) {
       toPreload({ c: 'relook' });
     },
 
+    // ----------------------------------------------- the contiguous pass
+    /**
+     * ENTRY POINT: arm a live export. One contiguous real-time pass from where
+     * the player is now, written to `file` as it arrives.
+     *
+     * @param {{file: string, sink?: object}} o  `sink` is for a Host that has
+     *   somewhere else to put it; absent, the pass writes `file` itself.
+     * @returns {null|string} null if it opened, a refusal CODE otherwise
+     */
+    startRecording({ file, sink } = {}) {
+      if (pass && pass.recording()) return 'already-recording';
+      const s = sink || (file ? createPassSink({ path: file }) : null);
+      pass = createPass({
+        sink: s,
+        // THE SUSPEND IS THE PAGE'S TOGGLE, not a preference we wrote down.
+        hold: (on) => autonav.holdSuppress(on),
+        report: (payload) => passLog.push(payload),
+      });
+      const refused = pass.start();
+      if (refused) pass = null;
+      return refused;
+    },
+    /** ENTRY POINT: separated audio for the pass in progress. */
+    recordChunk(chunk) { return pass ? pass.chunk(chunk) : 'not-recording'; },
+    /**
+     * ENTRY POINT: the engine could not keep up. RULING 29 — this ENDS the pass,
+     * exactly as a seek does, so no delivered file ever contains a gap.
+     */
+    recordDrop(n) { return pass ? pass.drop(n) : 'not-recording'; },
+    /** ENTRY POINT: the user's own stop. What was captured stays exportable. */
+    stopRecording() { return pass ? pass.end('stopped') : 'not-recording'; },
+    /**
+     * ENTRY POINT: the recording failed or was thrown away. Nothing is
+     * delivered, the partial file is removed — AND AUTOPLAY-NEXT IS RESTORED,
+     * which is the half this path normally ships dead (issue #7).
+     */
+    abortRecording(why) { return pass ? pass.abort(why) : 'not-recording'; },
+    /** The record the unit's `recordingRefusal()` and `passEndNote()` take. */
+    recording: () => (pass ? {
+      ...pass.record(),
+      open: pass.recording(),
+      chunks: pass.chunks(),
+      retained: pass.retained(),
+      refusals: pass.refusals(),
+      holding: pass.holding(),
+      file: pass.file(),
+      stats: pass.stats,
+    } : null),
+    passLog: () => passLog.slice(),
+
     // ------------------------------------------------------ the Host's own
     stats,
     speed,
     autonav,
+    PASS_END_NAMES,
     PREFS_KEY,
     SPEED_JS,
     /**
@@ -327,6 +426,11 @@ export function createTransport({ source, sourceRequests }) {
     }),
     stop() {
       ipcMain.removeListener(YT_UP, onUp);
+      // A RECORDING IN PROGRESS IS ENDED, NOT ABORTED. The app going down is not
+      // a reason to throw away what the user already captured — `PASS_END`'s
+      // `stopped` is exactly "you stopped the recording", and everything
+      // captured stays deliverable. `autonav.stop()` below drops the hold.
+      if (pass && pass.recording()) pass.end('stopped');
       speed.stop();
       autonav.stop();
     },

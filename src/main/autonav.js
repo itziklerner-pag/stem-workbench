@@ -187,6 +187,28 @@ export function createAutonav({ ask, report }) {
   const MAX_CLICKS = 3;
 
   let suppress = resolveSuppress(null);
+  /**
+   * THE RECORDING'S HOLD, LAYERED OVER THE USER'S PREFERENCE — S7a.
+   *
+   * `CONTEXT.md:311-314`: autoplay-next has to be SUSPENDED while a live export
+   * runs, or the next video records into the same file. That is a suspension,
+   * not a preference change: the user's own setting must be exactly what comes
+   * back when the recording ends, including when it ends by being ABORTED.
+   *
+   * SO IT IS A SECOND BOOLEAN, NEVER A WRITE TO `suppress`. Driving the
+   * recording through `setSuppress` would work perfectly right up to the moment
+   * the user changes the setting mid-recording — and then "restore" would put
+   * back the value we captured rather than the value they chose, silently, on
+   * the one path nobody drives twice. `suppress` stays the user's answer for the
+   * whole of the recording and `held` is ours; the effective value is the OR,
+   * computed in one place below.
+   *
+   * IT IS NOT A SECOND STATE MACHINE. Everything downstream — the find window,
+   * the click budget, `missing`/`stuck`/`lost` — is the machine that was already
+   * here, so a suspension that could not be applied reports itself in the
+   * vocabulary the deck's banner already knows.
+   */
+  let held = false;
   let engaged = false;
   /** The page's `aria-checked` as we found it, or null if we never clicked. */
   let original = null;
@@ -198,7 +220,7 @@ export function createAutonav({ ask, report }) {
   const stats = { plans: 0, clicks: 0, reports: 0, states: {} };
 
   function emit(next, detail) {
-    last = { state: next, suppress, ...detail };
+    last = { state: next, suppress: effective(), held, ...detail };
     stats.reports++;
     stats.states[next] = (stats.states[next] || 0) + 1;
     if (next === state) return;
@@ -221,9 +243,17 @@ export function createAutonav({ ask, report }) {
    * @param {{found: boolean, checked: boolean|null, afterClick?: boolean}} obs
    * @returns {boolean} settled — nothing further to do, so the poll may stop.
    */
+  /**
+   * THE EFFECTIVE SETTING, IN ONE PLACE. The user's answer OR the recording's
+   * hold. Two readers — `sync()` and `suppressing()` — and a second formula
+   * would be suppression that applies to the page and not to the preload's
+   * `ended` handler, or the reverse.
+   */
+  const effective = () => suppress || held;
+
   function sync(obs) {
     const o = obs || { found: false, checked: null };
-    const plan = autonavPlan({ suppress, engaged, found: o.found, checked: o.checked, original });
+    const plan = autonavPlan({ suppress: effective(), engaged, found: o.found, checked: o.checked, original });
     stats.plans++;
 
     if (plan.act === 'click') {
@@ -269,7 +299,7 @@ export function createAutonav({ ask, report }) {
     AUTONAV_CANCEL_SEL,
     PREFS_KEY,
     /** Is suppression in force right now — the flag the preload's `ended` handler needs. */
-    suppressing: () => engaged && suppress,
+    suppressing: () => engaged && effective(),
     /** ENTRY POINT: one observation from the preload. */
     observe(obs) { if (sync(obs)) stopPoll(); else poll(); },
     /**
@@ -312,16 +342,43 @@ export function createAutonav({ ask, report }) {
       const want = next === true;
       if (want === suppress) return false;
       suppress = want;
+      // REASSERT EVEN WHILE HELD. The effective value has not moved, so nothing
+      // will be clicked — but `emit` republishes it, and the deck's checkbox
+      // going dead for the length of a recording is the same class of defect as
+      // a control that produces no visible outcome.
       api.reassert();
       return true;
     },
+    /**
+     * SUSPEND AUTOPLAY-NEXT FOR THE LENGTH OF A LIVE EXPORT, and put the user's
+     * own setting back afterwards — `src/main/drive.js`'s `createPass({hold})`.
+     *
+     * IT DRIVES THE PAGE, IT DOES NOT ONLY RECORD A PREFERENCE. `reassert()` is
+     * what hunts for the page's own toggle and clicks it, and issue #7 names the
+     * failure this exists to avoid in as many words: *"A Host that writes the
+     * preference and never drives the view passes a weaker assertion and ships
+     * the bug."*
+     *
+     * @param {boolean} on
+     * @returns {boolean} did the effective setting actually move
+     */
+    holdSuppress(on) {
+      const want = on === true;
+      if (want === held) return false;
+      const was = effective();
+      held = want;
+      api.reassert();
+      return effective() !== was;
+    },
+    /** Is a recording holding it right now — separate from the user's answer. */
+    heldNow: () => held,
     /** The same thing from the raw stored record, so `resolveSuppress` has one caller shape. */
     setPrefs(prefs) { return api.setSuppress(resolveSuppress(prefs)); },
     suppressed: () => suppress,
     engagedNow: () => engaged,
     /** The deck mounted and has never been told anything. Undeduped on purpose. */
     resend() { if (last) report(last); },
-    stop() { stopPoll(); state = null; last = null; },
+    stop() { stopPoll(); state = null; last = null; held = false; },
     peek: () => last,
   };
   return api;
