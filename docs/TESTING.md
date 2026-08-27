@@ -133,7 +133,7 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 44 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 45 | the runner's own VOID rule, the steps table against this document, the coverage-drift instrument that names an assertion which stopped running, and every mutation battery — bash and JS alike — carrying a restore-on-signal guard and a sentinel |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 53 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
@@ -202,6 +202,26 @@ first run reports nothing). When the names move, the runner prints
 change moves names on purpose. A red here would fire on correct work and be
 routed around within a week, which is the same death as an instrument that never
 fires. The pin is what reds a shortfall; this is what lets you diagnose one.
+
+**Which is only safe because the warning is impossible to miss.** A warning
+sitting in a wall of green is an instrument that never fired, one step slower, so
+it is repeated on the VERDICT LINE — the line a human reads last and CI greps —
+on GREEN and RED alike, naming the steps:
+
+```
+GREEN (partial — 1 of 13 steps ran; see WHAT DID NOT RUN above)
+! COVERAGE DRIFT on deck-seam — see above. This run did not check the same things as the last one.
+```
+
+```
+RED — 1 failing assertion. Do not commit as green.
+! COVERAGE DRIFT on deck-seam · BASELINE NOT UPDATED for deck-seam — see above. The coverage
+  baseline still holds the last COMPLETE run, so this verdict is about the assertions that RAN.
+```
+
+A clean run's verdict is undecorated — a warning about nothing trains people to
+skip the line. Both halves are watched red (`tree-guard-mutations.sh` cases 15
+and 16).
 
 #### Three things it does differently from the extension's, each from a measured hole
 

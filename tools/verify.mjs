@@ -203,7 +203,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 44,
+    assertions: 45,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
@@ -896,6 +896,33 @@ export function coveredNames(out) {
 export const completedRun = (out) => countOf(out) !== null;
 
 /**
+ * WHAT THE VERDICT LINE HAS TO CARRY, so a coverage warning cannot be lost in a
+ * wall of green.
+ *
+ * The drift and BASELINE NOT UPDATED sections print above the verdict, and the
+ * verdict is the line a human reads and CI greps. A warning nobody reads is the
+ * same failure as an instrument that never fires, one step slower — so the
+ * verdict line names both, every time, on GREEN and on RED alike.
+ *
+ * `BASELINE NOT UPDATED` matters most and is the reason this is not optional: it
+ * is the difference between "this instrument is working" and "this instrument
+ * has quietly stopped comparing", and a reader who sees only the last line would
+ * otherwise never learn which.
+ *
+ * Returns '' when there is nothing to say, so a clean run's verdict is unchanged.
+ */
+export function coverageCaveat(driftedIds, staleIds) {
+  const parts = [];
+  if (driftedIds.length) parts.push(`COVERAGE DRIFT on ${driftedIds.join(', ')}`);
+  if (staleIds.length) parts.push(`BASELINE NOT UPDATED for ${staleIds.join(', ')}`);
+  if (!parts.length) return '';
+  return `${parts.join(' · ')} — see above. `
+    + (staleIds.length
+      ? 'The coverage baseline still holds the last COMPLETE run, so this verdict is about the assertions that RAN.'
+      : 'This run did not check the same things as the last one.');
+}
+
+/**
  * The diff, pure so `tools/suites/void-canary.mjs` can drive it over transcripts
  * instead of over a previous run of the gate. Multiplicity is preserved: a
  * name that ran three times and now runs twice is `gone`, because a block that
@@ -1500,9 +1527,15 @@ async function main(argv) {
   }
 
   console.log(`\n${C.d}logs -> ${OUT}${C.x}`);
+  // ON THE VERDICT LINE, not only in a section above it. Ruling 27: a warning
+  // nobody reads is an instrument that never fired, one step slower.
+  const caveat = coverageCaveat(drifted.map((r) => r.id), truncated.map((r) => r.id));
+  // The caveat already leads with COVERAGE DRIFT / BASELINE NOT UPDATED, so the
+  // marker is a marker and not a second label.
+  const CAVEAT = caveat ? `\n${C.y}${C.b}!${C.x} ${C.y}${caveat}${C.x}` : '';
   const code = exitFor(v, STRICT);
   if (v.colour === 'RED') {
-    console.log(`\n${C.r}${C.b}RED${C.x} — ${v.hard.length} failing assertion${v.hard.length === 1 ? '' : 's'}. Do not commit as green.\n`);
+    console.log(`\n${C.r}${C.b}RED${C.x} — ${v.hard.length} failing assertion${v.hard.length === 1 ? '' : 's'}. Do not commit as green.${CAVEAT}\n`);
     return code;
   }
   if (v.colour === 'GREEN-PARTIAL') {
@@ -1512,10 +1545,10 @@ async function main(argv) {
           + `NOT BUILT (${[...v.skipped, ...v.todo].map((x) => x.id).join(' ')}). A step the machine declined to `
           + 'run is a question nobody answered, and it reads as success from the outside. Filtering with '
           + '--quick or --only is NOT what this refuses.'
-        : ''}\n`);
+        : ''}${CAVEAT}\n`);
     return code;
   }
-  console.log(`\n${C.g}${C.b}GREEN${C.x} — ${results.map((r) => `${r.id} ${r.detail}`).join(' · ')}\n`);
+  console.log(`\n${C.g}${C.b}GREEN${C.x} — ${results.map((r) => `${r.id} ${r.detail}`).join(' · ')}${CAVEAT}\n`);
   return code;
 }
 

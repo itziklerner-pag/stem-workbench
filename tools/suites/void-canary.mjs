@@ -36,7 +36,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STEPS, classify, verdict, coveredNames, completedRun, coverageDrift, HARNESS_PREFIX } from '../verify.mjs';
+import { STEPS, classify, verdict, coveredNames, completedRun, coverageDrift, coverageCaveat, HARNESS_PREFIX } from '../verify.mjs';
 import { LOCK_MARKERS, sinkLock, strayLockPaths } from '../lib/locks.mjs';
 import { standingMutations } from '../lib/tree-guard.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
@@ -538,6 +538,28 @@ const base = (names) => ({ names, when: '2026-08-26T00:00:00Z' });
     + '[entry point: completedRun() in tools/verify.mjs, and the `if (names.length && finished)` in its run loop]',
     finished === true && died === false,
     `with a summary -> ${finished} · died mid-run -> ${died}`);
+}
+
+/**
+ * AND IT REACHES THE LINE PEOPLE READ. The drift and BASELINE NOT UPDATED
+ * sections print above the verdict, and a warning sitting in a wall of green is
+ * an instrument that never fired, one step slower. The stale-baseline half is
+ * the one that must never be missed: it is the difference between "this
+ * instrument is working" and "it has quietly stopped comparing".
+ *
+ * The control is the clean run — an empty caveat, so a green verdict is not
+ * decorated with a warning about nothing.
+ */
+{
+  const quiet = coverageCaveat([], []);
+  const stale = coverageCaveat(['transport'], ['transport']);
+  const drift = coverageCaveat(['deck-seam'], []);
+  ok('a coverage warning reaches the VERDICT LINE, naming the steps — and a clean run adds nothing to it  '
+    + '[entry point: coverageCaveat() in tools/verify.mjs, appended to all three verdict branches]',
+    quiet === '' && /BASELINE NOT UPDATED for transport/.test(stale) && /assertions that RAN/.test(stale)
+    && /COVERAGE DRIFT on deck-seam/.test(drift) && !/BASELINE/.test(drift),
+    `clean -> ${quiet === '' ? 'nothing, as it must be' : 'A WARNING ABOUT NOTHING'} · `
+    + `stale -> ${stale.slice(0, 52)}… · drift-only -> ${drift.slice(0, 34)}…`);
 }
 
 const guardRow = fs.readFileSync(path.join(SUITES, 'transport.mjs'), 'utf8')

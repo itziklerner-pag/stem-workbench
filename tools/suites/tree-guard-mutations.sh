@@ -210,6 +210,22 @@ canary_case 13 "let a run that never finished become the next baseline" \
   "export const completedRun = () => true;" \
   "a run that printed NO SUMMARY LINE is not recordable as a baseline"
 
+# RULING 27's CONDITION. Drift is a warning rather than a verdict, which is only
+# safe if the warning is impossible to miss — a warning nobody reads is an
+# instrument that never fired, one step slower.
+canary_case 15 "the coverage warning never reaches the verdict line" \
+  "tools/verify.mjs" \
+  "  if (!parts.length) return '';" \
+  "  return '';
+  if (!parts.length) return '';" \
+  "a coverage warning reaches the VERDICT LINE, naming the steps"
+
+canary_case 16 "...or decorates a clean run with a warning about nothing" \
+  "tools/verify.mjs" \
+  "  if (!parts.length) return '';" \
+  "  if (!parts.length) return 'coverage is fine';" \
+  "a coverage warning reaches the VERDICT LINE, naming the steps"
+
 canary_case 14 "the block guard loses the marker that keeps it out of coverage" \
   "tools/suites/transport.mjs" \
   "  ok('HARNESS: the launch section ran to its end without throwing" \
