@@ -17,17 +17,36 @@
  * session, with a refused folder (the user pressing Escape) asserted as a
  * THROW, never an empty map.
  *
- * WHERE THE PROBE ENTERS, AND WHY THE GESTURE IS REAL. The chrome bar's File
- * controls are their own slice, so `tools/gate/export.mjs` calls `exportStems()`
- * and `chooseSourceFile()` directly, from inside main, where the counter lives.
- * What is driven is now the GESTURE, not a private door: every launch asks for
- * the folder through the REAL native chooser, the writer's WAVs are read back
- * off the disk and compared byte-for-byte against planes the suite generated
- * itself, and the expected bytes are built with plain `Buffer` ops — the
- * vendored `encodeWav` is exercised only by the app under test, never by the
- * expected bytes. This is the closure of a promise this header has carried for
- * three releases: *"When the writer lands, this suite should drive the export
- * rather than the intake."* It does — exports #1-#4 are all writer gestures.
+ * WHERE THE PROBE ENTERS — THE CONTROL IS PRESSED, AND THE WRITER IS DRIVEN.
+ * Two generations stand in one gate, because the merged product needs both and
+ * no single gesture reaches both halves:
+ *
+ *   THE GESTURE IS PRESSED. The probe presses `#source-file` and `#export` in
+ *   the app's own chrome renderer; the gesture goes through the real preload
+ *   bridge and the real `ipcMain.handle`s; and the answer is read where the
+ *   user reads it, off the bar. Nothing here calls `ensureExportFolder()` or
+ *   `chooseSourceFile()`.
+ *
+ *   WHY THAT MATTERED ENOUGH TO REWIRE FOR. `HTMLElement.click()` on a disabled
+ *   button does nothing at all — so a control that ships `disabled`, is not
+ *   wired, or does not exist now takes every count below to zero. The old shape
+ *   could not see any of those, and this repository has already paid for
+ *   exactly that: the bar's Arm button shipped `disabled` with a "not built
+ *   yet" tooltip for a whole wave AFTER arming worked, while every gate that
+ *   called `arm()` stayed green. An auditor found it by clicking
+ *   (`src/renderer/chrome.js`'s header).
+ *
+ *   AND THE WRITER IS STILL DRIVEN. The bar's export control REFUSES by design
+ *   — the file has not been separated yet, so `chrome:export` answers `no-stems`
+ *   and there is no writer behind it. The writer (`exportStems()`) is the
+ *   previous slice's gesture, and this probe drives it directly, into the
+ *   folder the press settled: the press asks for the folder once and remembers
+ *   it, the writer writes the six WAVs into it. A probe that only pressed could
+ *   not see a broken writer; one that only called the writer could not see a
+ *   broken control. Every writer drive arms its own chooser answerer, so a
+ *   mutation that empties the remembered folder makes the COUNT name the defect
+ *   instead of hanging the launch on an unanswered picker. Exports #1-#4 are
+ *   BOTH: a pressed gesture AND a writer gesture.
  *
  * HOW THE PLANES TRAVEL: the suite generates six synthetic stems (dyadic
  * rationals, exact in Float32) and passes them to the probe as `WB_EXPORT_PLANES`
@@ -64,6 +83,12 @@
  * `docs/TESTING.md` §3 rule 7 is the same rule from the other side, and
  * `tools/suites/transport.mjs` already takes this position for the preload
  * (§5c, *"It drives the real interface, not a private door"*).
+ *
+ * AND THE CONTROL IS NEVER STUBBED EITHER. There is no test hook on the bar, no
+ * injected handler, and no second path to the intake: the probe finds the button
+ * by its id in the shipped markup and calls `click()` on it. A gate that
+ * replaced the control would be asserting a fact about the replacement — the
+ * same argument as the dialog, one layer out.
  *
  * ---------------------------------------------------------------------------
  * THE MACHINE FACT THIS SUITE HAS TO KNOW, AND WHY THE LAUNCH IS NOT PLAIN
@@ -725,7 +750,15 @@ for (const phase of ['first', 'again']) {
       DBUS_SESSION_BUS_ADDRESS: 'disabled:',
       WB_EXPORT_PHASE: phase,
       WB_EXPORT_TARGET: chosen,
-      WB_EXPORT_FIXTURE: phase === 'first' ? fixtureFile : '',
+      // THE FIXTURE IS HANDED TO BOTH LAUNCHES. An export needs a Source, and a
+      // new process has none — so the relaunch chooses the file again, through
+      // the same control, before it presses Export. That is the product's own
+      // order of gestures, and it is what makes the restart case reachable from
+      // a control rather than from the function behind it.
+      WB_EXPORT_FIXTURE: fixtureFile,
+      // THE PLANES TRAVEL WITH THE LAUNCH — the suite's own generator, consumed
+      // by the probe; the expected bytes are re-derived by the suite. The writer
+      // drives in the probe consume them; a launch without them has no writer.
       WB_EXPORT_TITLE: 'Gate Song',
       WB_EXPORT_PLANES: PLANES_JSON,
     },
@@ -743,13 +776,13 @@ const A2 = launches.again.report;
 // not a reason to stop asserting.
 ok('both launches ran from the real entry point and wrote a gate report  '
   + '[entry point: `electron . --gate-probe=export` -> src/main/main.js]',
-  !!A1 && A1.gate === 1 && A1.phase === 'first' && !!A2 && A2.gate === 1 && A2.phase === 'again',
+  !!A1 && A1.gate === 2 && A1.phase === 'first' && !!A2 && A2.gate === 2 && A2.phase === 'again',
   [['first', A1, launches.first], ['again', A2, launches.again]].map(([n, R, l]) =>
     `${n}: ${R ? `ok, electron ${R.versions.electron}` : `NO REPORT (exit ${l.run.code} — ${lastLine(l.run.out)})`}`).join(' · '));
 if (!A1 || !A2) done();
 
 /**
- * THE INSTRUMENT, AND IT COMES BEFORE EVERY COUNT BELOW IT.
+ * THE FIRST INSTRUMENT, AND IT COMES BEFORE EVERY COUNT BELOW IT.
  *
  * Everything after this is "how many times did the app ask for a folder", read
  * off a counter in `src/main/files.js`. That number is a fact about THIS APP
@@ -764,17 +797,116 @@ ok('INSTRUMENT CHECK: the intake in the running app holds electron\'s own `dialo
   `first ${A1.dialogIsElectron}, again ${A2.dialogIsElectron}; `
   + `the chooser is driven with xdotool on ${A1.display} (DBUS=${A1.dbus})`);
 
+/**
+ * THE SECOND INSTRUMENT, AND IT IS THE ONE THIS SUITE WAS REWIRED TO GET.
+ *
+ * Every gesture below is a PRESS on a control in the app's own chrome renderer,
+ * not a call to the function behind it. That distinction has already cost this
+ * repository a wave: the bar's Arm button shipped `disabled` with a "not built
+ * yet" tooltip AFTER arming worked, and every gate stayed green because every
+ * gate called `arm()`. `HTMLElement.click()` on a disabled button does nothing
+ * at all, so this row is what makes the counts below able to see that — and it
+ * records the `disabled` flag each control carried at the moment it was pressed,
+ * rather than inferring it from a count that could be zero for other reasons.
+ */
+const presses = [
+  ['export/no-source', A1.noSourcePress], ['source-file', A1.filePress],
+  ['export #1', A1.export1Press], ['export #1 again', A1.export1DupPress],
+  ['export #2', A1.export2Press], ['source-file/refused', A1.refusedPress],
+  ['relaunch source-file', A2.filePress], ['export #3', A2.export3Press], ['export #4', A2.export4Press],
+];
+const pressed = presses.filter(([, p]) => O(p).pressed === true && O(O(p).was).disabled === false);
+ok('INSTRUMENT CHECK: every gesture below is a PRESS on a LIVE control in the app\'s own chrome bar, '
+  + 'never a call to the function behind it  '
+  + '[entry point: src/renderer/chrome.html #source-file / #export -> src/preload/chrome.cjs -> ipcMain.handle]',
+  pressed.length === presses.length
+  && /^app:\/\/workbench\/chrome\.html$/.test(String(A1.chromeUrl))
+  && /^app:\/\/workbench\/chrome\.html$/.test(String(A2.chromeUrl)),
+  `${pressed.length}/${presses.length} presses landed on an enabled control in ${JSON.stringify(A1.chromeUrl)}`
+  + `${pressed.length === presses.length ? '' : ` — NOT PRESSED OR DISABLED: ${presses.filter(([, p]) => !(O(p).pressed === true && O(O(p).was).disabled === false)).map(([n, p]) => `${n} ${JSON.stringify(p)}`).join(', ')}`}`);
+
 ok('a launch on its own asks for nothing — the export folder is asked for by an EXPORT, never by starting up',
   A1.asksAtBoot === 0 && A2.asksAtBoot === 0,
   `first launch ${A1.asksAtBoot} ask(s) at boot, relaunch ${A2.asksAtBoot} — the control the counts below rest on`);
 
+// ------------------------------------------------- export with nothing loaded
+/**
+ * THE REFUSAL THAT ASKS NOTHING, and it is measured FIRST for a reason: after a
+ * folder has been chosen the ask count stops moving anyway, so "it did not ask"
+ * measured later would be true of a build with no guard at all.
+ *
+ * TWO FACTS, because either alone is weak. The gesture was REFUSED BY NAME —
+ * `no-source`, drawn on the control that produced it and spelled out on the
+ * refusal line — and NO PICKER OF EITHER KIND OPENED. A build that refused
+ * silently would satisfy the second; one that asked for a folder it could not
+ * use would satisfy the first.
+ */
+const noSourceBar = O(O(A1.afterNoSource).bar);
+ok('pressing Export with nothing loaded is REFUSED BY NAME on the bar, and asks the operating system for nothing  '
+  + '[entry point: #export -> ipcMain.handle(\'chrome:export\') in src/main/main.js]',
+  O(A1.noSourceSettled).ok === true
+  && O(noSourceBar.exportBtn).outcome === 'no-source'
+  && /choose an audio file/i.test(String(O(noSourceBar.refusal).text))
+  && O(A1.afterNoSource).folderAsks === 0 && O(A1.afterNoSource).fileAsks === 0,
+  `the control reads ${JSON.stringify(O(noSourceBar.exportBtn).outcome)} and the bar says `
+  + `${JSON.stringify(String(O(noSourceBar.refusal).text).slice(0, 70))} after `
+  + `${O(A1.noSourceSettled).waitedMs} ms · ${O(A1.afterNoSource).folderAsks} folder ask(s), `
+  + `${O(A1.afterNoSource).fileAsks} file ask(s) — neither picker opened`);
+
+// -------------------------------------------------------- the source picker
+const picked = O(A1.chosen);
+const pickBar = O(O(A1.afterPick).bar);
+ok('pressing `Open file…` opens the REAL native file chooser, and the chosen file reaches the intake  '
+  + '[entry point: #source-file -> ipcMain.handle(\'chrome:chooseFile\') -> chooseSourceFile() in src/main/files.js]',
+  A1.fileChooserMapped === true && O(A1.fileAnswered).answered === true
+  && O(A1.afterPick).fileAsks === 1
+  && picked.file === A1.fixture && picked.title === deriveTitle(A1.fixture)
+  && picked.mime === 'audio/wav' && picked.tokenIsString === true,
+  picked.file
+    ? `${JSON.stringify(path.basename(String(picked.file)))} -> title ${JSON.stringify(picked.title)} `
+      + `mime ${picked.mime}, one token minted, over the real ${JSON.stringify(A1.fileDialogTitle)} chooser `
+      + `answered in ${O(A1.fileAnswered).waitedMs} ms`
+    : `chooser mapped=${A1.fileChooserMapped} answered=${JSON.stringify(A1.fileAnswered)} chosen=${JSON.stringify(A1.chosen)}`);
+
+/**
+ * ...AND WHAT THE BAR WAS TOLD IS NOT WHAT `main` KEPT.
+ *
+ * `src/main/files.js` mints a one-shot path token so that *"the renderer that
+ * fetches the bytes must not be able to name a path"*. The chrome bar is the
+ * renderer with the least reason to hold either, and it is the one that draws
+ * text into a DOM. So the two readings are taken from different places on
+ * purpose: `main`'s own `state.file` above, and the bar's painted surface here.
+ * The absolute path must appear in the first and in NEITHER the text nor the
+ * tooltip of the second, and the token must not appear at all.
+ */
+const barText = JSON.stringify(pickBar);
+ok('...and the bar was told the title and the MIME and NEITHER the path NOR the token  '
+  + '[entry point: the answer built by ipcMain.handle(\'chrome:chooseFile\'), and pushStatus() in src/main/main.js]',
+  O(pickBar.file).text === picked.title
+  && String(O(pickBar.file).title).includes('audio/wav')
+  && !barText.includes(String(A1.fixture))
+  && !barText.includes(path.dirname(String(A1.fixture)))
+  && O(pickBar.sourceBtn).outcome === 'ok',
+  `the bar reads file=${JSON.stringify(O(pickBar.file).text)} title=${JSON.stringify(O(pickBar.file).title)}; `
+  + `the fixture's directory ${JSON.stringify(path.dirname(String(A1.fixture)))} appears `
+  + `${barText.includes(path.dirname(String(A1.fixture))) ? 'IN THE BAR' : 'nowhere in the bar'}`);
+
+ok('...and that token resolves to that file exactly once, over the running app\'s own registry  '
+  + '[entry point: createPathTokens() spend(), through src/main/main.js state.pathTokens]',
+  O(A1.tokenFirst).ok === true && O(A1.tokenFirst).file === A1.fixture
+  && O(A1.tokenFirst).mime === 'audio/wav' && O(A1.tokenSecond).ok === false
+  && O(A1.tokenSecond).code === 'unknown-token',
+  `first spend ${JSON.stringify(A1.tokenFirst)} · second ${JSON.stringify(A1.tokenSecond)}`);
+
 // --------------------------------------------------------- the first export
-ok('the first export opens the REAL native folder chooser, and it was answered with a chosen folder  '
-  + '[entry point: exportStems() -> ensureExportFolder() in src/main/files.js]',
+ok('pressing `Export stems…` opens the REAL native folder chooser, and it was answered with a chosen folder — and the WRITER then wrote six stems into the folder the press settled  '
+  + '[entry point: #export -> ipcMain.handle(\'chrome:export\') -> ensureExportFolder() in src/main/files.js; exportStems()]',
   A1.chooserMapped === true && O(A1.answered).answered === true
-  && O(A1.export1).ok === true && O(A1.export1).folder === A1.target && O(A1.export1).asked === true,
+  && O(A1.export1Settled).ok === true && O(A1.stored).local === A1.target
+  && O(A1.export1).ok === true && O(A1.export1).folder === A1.target && O(A1.export1).asked === false,
   `a window named ${JSON.stringify(A1.folderDialogTitle)} mapped, answered in ${O(A1.answered).waitedMs} ms `
-  + `at corner offset ${JSON.stringify(O(A1.answered).at)} -> folder ${JSON.stringify(O(A1.export1).folder || A1.export1)}`);
+  + `at corner offset ${JSON.stringify(O(A1.answered).at)} -> ${JSON.stringify(O(A1.stored).local)}; `
+  + `the writer resolved from memory (asked=${O(A1.export1).asked})`);
 
 // The options are a separate claim from the count: a picker opened with
 // `openFile` would be opened exactly once too, and would hand back a file.
@@ -786,38 +918,93 @@ ok('...and the options it was opened with are a FOLDER picker that may create on
   && !opts.properties.includes('openFile') && !opts.filters && opts.title === FOLDER_DIALOG.title,
   `properties ${JSON.stringify(opts.properties)} title ${JSON.stringify(opts.title)} filters ${JSON.stringify(opts.filters)}`);
 
-ok('a second export requested while the chooser is UP joins that ask — one picker, never two stacked modals  '
-  + '[entry point: ensureExportFolder()]',
-  A1.asksWhileChooserUp === 1 && A1.joinedPending === 1
-  && O(A1.export1dup).ok === true && O(A1.export1dup).folder === O(A1.export1).folder,
-  `${A1.asksWhileChooserUp} ask(s) with the chooser up, ${A1.joinedPending} request joined it; `
-  + `both resolved to ${JSON.stringify(O(A1.export1dup).folder)}`);
+/**
+ * A SECOND PRESS WHILE THE CHOOSER IS UP, AND IT IS DRIVABLE BECAUSE THE CONTROL
+ * DOES NOT DISABLE ITSELF.
+ *
+ * Two stacked native modals is a real defect — the user answers the one in front
+ * and the export that gets the folder is the other one. `ensureExportFolder()`
+ * de-duplicates it, and `src/renderer/chrome.js` deliberately leaves `#export`
+ * live in flight (unlike `#arm`, where a second click means the OPPOSITE
+ * gesture) so that the rule stays reachable by something a user can press.
+ */
+ok('a second PRESS of Export while the chooser is UP joins that ask — one picker, never two stacked modals  '
+  + '[entry point: #export pressed twice -> ensureExportFolder() in src/main/files.js]',
+  O(A1.joined).ok === true && A1.asksWhileChooserUp === 1 && A1.joinedPending === 1,
+  `${A1.asksWhileChooserUp} ask(s) with the chooser up, ${A1.joinedPending} request joined it `
+  + `after ${O(A1.joined).waitedMs} ms — the second press was on an enabled control `
+  + `(disabled=${O(O(A1.export1DupPress).was).disabled})`);
 
 // ---------------------------------------------------------------------- G3
-ok('the folder is asked EXACTLY ONCE across two consecutive exports  [entry point: ensureExportFolder()]',
+ok('the folder is asked EXACTLY ONCE across two consecutive exports  '
+  + '[entry point: #export -> ensureExportFolder()]',
   A1.asksAfterSecond === 1,
   `${A1.asksAfterSecond} real invocation(s) of dialog.showOpenDialog across export #1 and export #2 `
   + `(${A1.asksAfterFirst} after the first); a chooser during export #2: ${JSON.stringify(O(A1.secondChooser).appeared)}`);
 
-ok('...and export #2 resolved to the REMEMBERED folder without a chooser at all  [entry point: ensureExportFolder()]',
-  O(A1.export2).ok === true && O(A1.export2).folder === A1.target && O(A1.export2).asked === false
-  && O(A1.secondChooser).appeared === false && O(A1.stats).folderFromMemory >= 1,
-  `export #2 -> ${JSON.stringify(O(A1.export2).folder || A1.export2)} asked=${O(A1.export2).asked}, `
-  + `${O(A1.stats).folderFromMemory} export(s) served from memory`);
+ok('...and export #2 resolved to the REMEMBERED folder without a chooser at all — the press and the WRITER both  '
+  + '[entry point: #export -> ensureExportFolder(); exportStems()]',
+  O(A1.export2Settled).ok === true && A1.folderFromMemory === 3
+  && O(A1.secondChooser).appeared === false
+  && O(A1.export2).ok === true && O(A1.export2).folder === A1.target && O(A1.export2).asked === false,
+  `export #2 was served from memory after ${O(A1.export2Settled).waitedMs} ms; `
+  + `by then ${A1.folderFromMemory} memory hits (the writer p1, the press, the writer p2); `
+  + `a chooser appeared: ${JSON.stringify(O(A1.secondChooser).appeared)}`);
+
+/**
+ * ...AND THE USER CAN SEE WHERE THEIR STEMS GO.
+ *
+ * A folder the app remembers and never shows is a folder the user cannot find
+ * again, and this bar's own history is the argument: a control whose outcome is
+ * invisible is the defect `src/renderer/chrome.js` was rewritten to fix. Both
+ * ends are asserted — it read `—` before the export and the chosen path after —
+ * because "it shows a folder" is also true of a bar that had always shown one.
+ */
+const firstBar = O(O(A1.afterFirst).bar);
+ok('...and the bar SHOWS where the stems go, having said `—` before the export  '
+  + '[entry point: #dest in src/renderer/chrome.html, from pushStatus() in src/main/main.js]',
+  O(O(A1.barAtBoot).dest).text === '—'
+  && O(A1.export1Drawn).ok === true && O(firstBar.dest).title === A1.target
+  && O(firstBar.exportBtn).outcome === 'no-stems'
+  && /has not been separated yet/.test(String(O(firstBar.refusal).text)),
+  `#dest went ${JSON.stringify(O(O(A1.barAtBoot).dest).text)} -> ${JSON.stringify(O(firstBar.dest).text)} `
+  + `(title ${JSON.stringify(O(firstBar.dest).title)}) · the export itself is refused as `
+  + `${JSON.stringify(O(firstBar.exportBtn).outcome)}: ${JSON.stringify(String(O(firstBar.refusal).text).slice(0, 60))} — `
+  + 'the writer is not behind this control; the bar refuses by name until a separation exists, '
+  + 'rather than looking like it worked');
 
 // ---------------------------------------------------------------------- G4
 ok('the remembered folder survives a RESTART — a second launch on the same profile asks zero times  '
-  + '[entry point: ensureExportFolder()]',
-  A2.asksAfterRestart === 0 && O(A2.restartChooser).appeared === false && O(A2.export3).ok === true
-  && O(A2.export3).asked === false,
+  + '[entry point: #export -> ensureExportFolder()]',
+  A2.asksBeforeExport === 0 && A2.asksAfterRestart === 0
+  && O(A2.restartChooser).appeared === false && O(A2.export3Settled).ok === true,
   `${A2.asksAfterRestart} ask(s) in a new process over ${path.relative(ROOT, userData)}; `
-  + `export -> ${JSON.stringify(O(A2.export3).folder || A2.export3)} asked=${O(A2.export3).asked}`);
+  + `the export resolved from memory after ${O(A2.export3Settled).waitedMs} ms — `
+  + `the writer wrote into ${JSON.stringify(O(A2.export3).folder || A2.export3)} (asked=${O(A2.export3).asked})`);
 
 ok('...and it is the SAME folder, read back out of the `local` area rather than a lifetime that dies with the process  '
   + '[entry point: EXPORT_FOLDER_AREA in src/main/files.js]',
-  O(A2.export3).folder === A1.target && O(A2.stored).local === A1.target && O(A2.stored).session === null,
+  O(A2.export3).folder === A1.target && O(A2.stored).local === A1.target && O(A2.stored).session === null
+  && O(O(O(A2.afterRestart).bar).dest).title === A1.target,
   `local=${JSON.stringify(O(A2.stored).local)} session=${JSON.stringify(O(A2.stored).session)} `
-  + `chosen in launch 1: ${JSON.stringify(A1.target)}`);
+  + `chosen in launch 1: ${JSON.stringify(A1.target)}; the relaunch's bar read `
+  + `${JSON.stringify(O(O(O(A2.afterRestart).bar).dest).title)}`);
+
+/**
+ * ...AND THE BAR SAYS SO BEFORE THE FIRST EXPORT OF THAT RUN.
+ *
+ * The row above is about the STORE. This one is about the app being able to
+ * answer "where do my stems go?" on a cold start — read at boot, before any
+ * gesture, which is the only moment that can tell a remembered folder from one
+ * this run happened to choose again.
+ */
+ok('...and the bar carries it at BOOT, before any gesture in that run  '
+  + '[entry point: state.exportFolder seeded in boot(), src/main/main.js]',
+  O(O(A2.barAtBoot).dest).title === A1.target
+  && O(O(A2.barAtBoot).dest).text !== '—'
+  && A2.asksAtBoot === 0,
+  `at boot the relaunch's bar reads #dest ${JSON.stringify(O(O(A2.barAtBoot).dest).text)} `
+  + `(title ${JSON.stringify(O(O(A2.barAtBoot).dest).title)}) with ${A2.asksAtBoot} ask(s) made`);
 
 /**
  * AND THE FOLDER THE USER DELETED — issue #6's case, and a branch of
@@ -830,33 +1017,15 @@ ok('...and it is the SAME folder, read back out of the `local` area rather than 
  * its own: it asked, AND it took the new answer.
  */
 ok('...and a remembered folder that has been DELETED is not used — the app asks again, and takes the new answer  '
-  + '[entry point: ensureExportFolder()]',
+  + '[entry point: #export -> ensureExportFolder()]',
   A2.goneChooserMapped === true && O(A2.goneAnswered).answered === true
   && A2.asksAfterRestart === 0 && A2.asksAfterGone === 1 && A2.askReason === 'gone'
   && O(A2.export4).ok === true && O(A2.export4).folder === A2.moved
-  && O(A2.storedAfterGone).local === A2.moved && O(A2.stats).folderGone >= 1,
+  && O(A2.storedAfterGone).local === A2.moved && O(A2.stats).folderGone === 1
+  && O(O(O(A2.afterGone).bar).dest).title === A2.moved,
   `${A2.asksAfterRestart} ask(s) while it existed, ${A2.asksAfterGone} after it was removed `
   + `(reason ${JSON.stringify(A2.askReason)}); ${JSON.stringify(path.basename(String(A2.moved)))} `
-  + `replaced it in \`local\``);
-
-// ------------------------------------------------------------ the file picker
-const picked = O(A1.picked);
-ok('the file picker admits a real audio file, derives its title and mints a one-shot path token  '
-  + '[entry point: chooseSourceFile() in src/main/files.js]',
-  A1.fileChooserMapped === true && O(A1.fileAnswered).answered === true
-  && picked.ok === true && picked.file === A1.fixture
-  && picked.title === deriveTitle(A1.fixture) && picked.mime === 'audio/wav' && typeof picked.token === 'string',
-  picked.ok
-    ? `${JSON.stringify(path.basename(picked.file))} -> title ${JSON.stringify(picked.title)} mime ${picked.mime} `
-      + `ttl ${picked.ttlMs} ms, over the real ${JSON.stringify(A1.fileDialogTitle)} chooser`
-    : `chooser mapped=${A1.fileChooserMapped} answered=${JSON.stringify(A1.fileAnswered)} picked=${JSON.stringify(A1.picked)}`);
-
-ok('...and that token resolves to that file exactly once, over the running app\'s own registry  '
-  + '[entry point: createPathTokens() spend(), through src/main/main.js state.pathTokens]',
-  O(A1.tokenFirst).ok === true && O(A1.tokenFirst).file === A1.fixture
-  && O(A1.tokenFirst).mime === 'audio/wav' && O(A1.tokenSecond).ok === false
-  && O(A1.tokenSecond).code === 'unknown-token',
-  `first spend ${JSON.stringify(A1.tokenFirst)} · second ${JSON.stringify(A1.tokenSecond)}`);
+  + `replaced it in \`local\` and on the bar`);
 
 /**
  * THE REFUSAL, DRIVEN FOR REAL OVER THE SAME CHOOSER.
@@ -864,18 +1033,22 @@ ok('...and that token resolves to that file exactly once, over the running app\'
  * `filters` is a browsing convenience and decides nothing — Ctrl+L takes any
  * path at all, which is exactly how this suite answers its own picker. So the
  * allowlist's call site inside `chooseSourceFile()` is the thing that has to
- * refuse, and it has to refuse BY NAME: a picker that closes and produces no
- * outcome is the defect `src/renderer/chrome.js` was rewritten to fix.
+ * refuse, it has to refuse BY NAME, and the bar has to SAY so: a picker that
+ * closes and produces no outcome is the defect `src/renderer/chrome.js` was
+ * rewritten to fix.
  */
-const refusedPick = O(A1.refusedPick);
-ok('...and a file the allowlist does not admit is REFUSED BY NAME over that same chooser, never silently dropped  '
-  + '[entry point: chooseSourceFile()]',
+const refusedBar = O(O(A1.afterRefused).bar);
+ok('...and a file the allowlist does not admit is REFUSED BY NAME on the bar, over that same chooser  '
+  + '[entry point: #source-file -> chooseSourceFile()]',
   A1.refusedChooserMapped === true && O(A1.refusedAnswered).answered === true && A1.fileAsks === 2
-  && refusedPick.ok === false && refusedPick.code === 'not-audio'
-  && typeof refusedPick.message === 'string' && refusedPick.message.includes('sleeve-notes.txt')
-  && O(A1.stats).refused === 1,
+  && O(A1.refusedSettled).ok === true && O(A1.stats).refused === 1
+  && O(refusedBar.sourceBtn).outcome === 'not-audio'
+  && /sleeve-notes\.txt/.test(String(O(refusedBar.refusal).text))
+  && O(refusedBar.file).text === picked.title,
   `${A1.fileAsks} real file pickers; ${JSON.stringify(path.basename(String(A1.notAudio)))} -> `
-  + `${JSON.stringify(refusedPick.code)}: ${String(refusedPick.message).slice(0, 90)}`);
+  + `the control reads ${JSON.stringify(O(refusedBar.sourceBtn).outcome)} and the bar says `
+  + `${JSON.stringify(String(O(refusedBar.refusal).text).slice(0, 70))}; the file field still reads `
+  + `${JSON.stringify(O(refusedBar.file).text)} — a refused pick does not replace the Source`);
 
 // ==========================================================================
 // 3. THE WRITER AND THE EXPORT SINK, IN THE RUNNING APP

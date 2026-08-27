@@ -1,9 +1,9 @@
 /**
  * The `export` probe — driven INSIDE the app by `--gate=DIR --gate-probe=export`.
  *
- * IT ANSWERS THE REAL NATIVE FILE CHOOSER. That is the whole reason this file is
- * shaped the way it is, and it is worth stating before anything else, because
- * the obvious alternative is forbidden:
+ * IT PRESSES THE APP'S OWN CONTROLS AND ANSWERS THE REAL NATIVE FILE CHOOSER.
+ * Both halves of that sentence are the reason this file is shaped the way it is,
+ * and both obvious alternatives are forbidden:
  *
  *   THE DIALOG IS NEVER STUBBED, REPLACED OR MONKEY-PATCHED. Nothing here
  *   assigns to `dialog.showOpenDialog`. The app opens the real GTK chooser
@@ -12,11 +12,36 @@
  *   X display the suite launched under. The count of asks is read off the
  *   counter `src/main/files.js` increments beside the real call.
  *
- *   WHY IT MATTERS: a gate that substitutes its own `dialog` asserts a fact
- *   about the stub's call count, not about the app. The real picker could then
- *   be opened twice, never, or with `openFile` instead of `openDirectory`, and
- *   the gate would stay green. `docs/TESTING.md` §3 rule 7 — a suite that cannot
- *   look FAILS — is the same rule from the other side.
+ *   AND THE GESTURE IS NOT CALLED, IT IS PRESSED — AND THE WRITER IS STILL
+ *   DRIVEN. Two generations stand in one gate, because the merged product needs
+ *   both, and the header says so in order:
+ *
+ *   1. THE FOLDER IS SETTLED BY A PRESS. The probe clicks `#source-file` and
+ *      `#export` in the real chrome renderer, which go through the real preload
+ *      bridge (`src/preload/chrome.cjs`) and the real `ipcMain.handle`s, and it
+ *      reads the answer where the USER reads it — off the bar. It never calls
+ *      `ensureExportFolder()` or `chooseSourceFile()`.
+ *
+ *   2. THE STEMS ARE WRITTEN BY THE WRITER. The bar's export control REFUSES by
+ *      design — the file has not been separated yet, so `chrome:export` answers
+ *      `no-stems` and there is no writer behind it. The writer (`exportStems()`)
+ *      is the previous slice's gesture and this probe still drives it directly,
+ *      into the folder the press settled. A probe that only pressed could not
+ *      see a broken writer; one that only called the writer could not see a
+ *      broken control. Each writer drive arms its own chooser answerer, so a
+ *      mutation that empties the remembered folder makes the COUNT name the
+ *      defect instead of hanging the launch on an unanswered picker.
+ *
+ * WHY THE FIRST HALF WAS WORTH REWIRING FOR. It used to call the two intake
+ * functions directly from inside main, and said so: *"nothing a user can press
+ * reaches the intake yet... it is one step short of `docs/TESTING.md` §5c's
+ * standard — it drives the real interface, not a private door."* This repository
+ * has already paid for that distinction once. The chrome bar's Arm button
+ * shipped `disabled`, with a "not built yet" tooltip, for a whole wave AFTER
+ * arming worked — every gate stayed green, because every gate called the
+ * FUNCTION the button would have called. An auditor found it by clicking.
+ * A probe that calls `ensureExportFolder()` cannot tell a working export control
+ * from one that is not wired, is `disabled`, or does not exist.
  *
  * ---------------------------------------------------------------------------
  * THE ONE MACHINE FACT THIS COST AN AFTERNOON TO FIND, RECORDED SO NOBODY PAYS
@@ -43,6 +68,21 @@
  *     entry, `xdotool key Return` closed the chooser with
  *     `{canceled: true, filePaths: []}` on every attempt. The Open button is
  *     what accepts. Both were measured, twice.
+ *
+ * A THIRD, ABOUT THE BAR'S CLICKS: a native chooser is MODAL to the window, and
+ * that grabs INPUT — it does not stop a renderer running script. `b.click()` in
+ * the chrome renderer therefore lands while a chooser is up, which is what makes
+ * the "a second export joins the first ask" case drivable through the control
+ * rather than through the function behind it.
+ *
+ * ---------------------------------------------------------------------------
+ * COUNTS AND POLLS, NEVER SLEEPS
+ * ---------------------------------------------------------------------------
+ * A press is a round trip — renderer, ipc, main, and back — so every step below
+ * WAITS FOR A COUNT to move rather than for a duration to pass: the intake's own
+ * `folderAsks` / `fileAsks` / `joinedPending`, or a `data-outcome` the bar sets
+ * from what `main` answered. A budget exists only so a broken build fails
+ * instead of hanging, and every one of them is reported.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -174,11 +214,22 @@ async function answerIfItAppears(titleOrTitles, target, budgetMs) {
   return { appeared: true, ...r };
 }
 
-/** Never let one hung await cost every assertion after it. */
-async function within(ms, promise, what) {
-  let timer;
-  const t = new Promise((res) => { timer = setTimeout(() => res({ TIMED_OUT: `${what} did not settle in ${ms} ms` }), ms); });
-  try { return await Promise.race([promise, t]); } finally { clearTimeout(timer); }
+/**
+ * POLL A COUNT, AND SAY WHAT IT WAS WHEN THE BUDGET RAN OUT.
+ *
+ * `{ok:false, waitedMs, saw}` rather than a throw or a bare `false`: a step that
+ * did not happen has to be reportable, because the assertion above it is the one
+ * that names what went wrong and it can only do that from the report.
+ */
+async function until(what, look, budgetMs = 15000, every = 100) {
+  const began = Date.now();
+  for (;;) {
+    let saw = false;
+    try { saw = await look(); } catch (e) { saw = `THREW: ${String((e && e.message) || e)}`; }
+    if (saw === true) return { ok: true, what, waitedMs: Date.now() - began };
+    if (Date.now() - began > budgetMs) return { ok: false, what, waitedMs: Date.now() - began, saw };
+    await sleep(every);
+  }
 }
 
 export async function runGate({ state, outDir }) {
@@ -208,8 +259,35 @@ export async function runGate({ state, outDir }) {
   // goes through this, so a throw lands in the report as `{threw: ...}`.
   const drive = (p) => p.then((r) => r, (e) => ({ threw: String((e && e.message) || e) }));
 
+  const chromeWc = state.chrome && !state.chrome.webContents.isDestroyed() ? state.chrome.webContents : null;
+
+  /**
+   * THE BAR, READ AND PRESSED. Both go through `executeJavaScript` on the REAL
+   * chrome renderer — the same handle `tools/gate/probe.mjs` reads the bar with.
+   *
+   * `press()` RECORDS `disabled` BEFORE IT CLICKS, and that is the whole point of
+   * pressing rather than calling: `HTMLElement.click()` on a disabled button
+   * does nothing at all, so a control that shipped `disabled` produces no ask,
+   * and every count below it goes to zero rather than staying green.
+   */
+  const read = () => chromeWc.executeJavaScript(`(() => {
+    const f = (id) => { const e = document.getElementById(id); return e ? {
+      text: String(e.textContent).trim(), title: e.title || null,
+      outcome: (e.dataset && e.dataset.outcome) || null, disabled: e.disabled === true,
+    } : null; };
+    return { exportBtn: f('export'), sourceBtn: f('source-file'), file: f('file'),
+             dest: f('dest'), progress: f('progress'), refusal: f('refusal'), url: location.href };
+  })()`);
+  const press = (id) => chromeWc.executeJavaScript(`(() => {
+    const b = document.getElementById(${JSON.stringify(id)});
+    if (!b) return { pressed: false, why: 'no #${id} in the chrome bar' };
+    const was = { disabled: b.disabled === true, outcome: (b.dataset && b.dataset.outcome) || null };
+    b.click();
+    return { pressed: true, was };
+  })()`);
+
   const R = {
-    gate: 1,
+    gate: 2,
     phase,
     when: new Date().toISOString(),
     versions: process.versions,
@@ -227,37 +305,105 @@ export async function runGate({ state, outDir }) {
      * module object the app is holding with the one imported here.
      */
     dialogIsElectron: !!(files && files.usesDialog(dialog)),
+    /**
+     * THE SECOND INSTRUMENT, and it is about the other end of the gesture: the
+     * thing being pressed is the app's own chrome renderer, on the app's own
+     * origin, and not a page this probe built.
+     */
+    chromeUrl: chromeWc ? chromeWc.getURL() : null,
     folderDialogTitle: FOLDER_DIALOG.title,
     fileDialogTitle: FILE_DIALOG.title,
     /** Before any export. The app must not ask for a folder just because it started. */
     asksAtBoot: files ? files.stats.folderAsks : null,
   };
 
-  if (!files) {
-    R.broken = 'state.files is not installed — src/main/main.js did not build the intake';
+  if (!files || !chromeWc) {
+    R.broken = !files
+      ? 'state.files is not installed — src/main/main.js did not build the intake'
+      : 'the chrome view is gone — there is no bar to press';
     fs.writeFileSync(path.join(outDir, 'report.json'), `${JSON.stringify(R, null, 2)}\n`);
     return 0;
   }
 
+  // WHAT THE BAR SAYS BEFORE ANYTHING IS PRESSED. In the relaunch this is the
+  // visible half of "the folder survived a restart": the destination is on the
+  // bar before the first export of the run, not after it.
+  R.barAtBoot = await read();
+
   if (phase === 'first') {
+    // ------------------------------------------- export with nothing to export
+    /**
+     * PRESSED FIRST, BECAUSE IT IS THE ONE ORDER THAT PROVES THE REFUSAL ASKS
+     * NOTHING. Once a folder has been chosen the count stops moving anyway, so a
+     * "did not ask" measured after the first export would be true of a build with
+     * no guard at all.
+     */
+    R.noSourcePress = await press('export');
+    R.noSourceSettled = await until('the bar to draw the no-source refusal',
+      async () => ((await read()).exportBtn || {}).outcome !== null, 15000);
+    R.afterNoSource = { bar: await read(), folderAsks: files.stats.folderAsks, fileAsks: files.stats.fileAsks };
+
+    // ------------------------------------------------------- the source picker
+    if (fixture) {
+      R.filePress = await press('source-file');
+      const fseen = await waitForChooser(FILE_DIALOG.title, 30000);
+      R.fileChooserMapped = !!fseen;
+      R.fileAnswered = fseen ? await answerChooser(FILE_DIALOG.title, fixture, 5000) : { answered: false, why: 'no chooser to answer' };
+      R.fileSettled = await until('the bar to draw the chosen file',
+        async () => ((await read()).sourceBtn || {}).outcome !== null, 30000);
+      R.afterPick = { bar: await read(), fileAsks: files.stats.fileAsks };
+      /**
+       * WHAT REACHED THE INTAKE, read out of `main`'s own state rather than off
+       * the bar — because the point of the two readings is that they DIFFER:
+       * `main` holds the absolute path and the one-shot token, and the bar is
+       * handed the title and the MIME and neither of the other two.
+       */
+      R.chosen = state.file
+        ? { title: state.file.title, mime: state.file.mime, file: state.file.file,
+            tokenIsString: typeof state.file.token === 'string' && state.file.token.length > 0 }
+        : null;
+      // The token, over the RUNNING app's own registry — spent once, then
+      // refused. Nothing else in this app can spend it, which is the property.
+      if (state.file && state.file.token) {
+        R.tokenFirst = state.pathTokens.spend(state.file.token);
+        R.tokenSecond = state.pathTokens.spend(state.file.token);
+      }
+    }
+
     // ---------------------------------------------------------- export #1
-    // THE FIRST EXPORT IS THE WRITER, `exportStems()` — the gesture this step
-    // is about. The picker opens for real. While it is up, a SECOND export is
-    // requested — that is not padding, it is the within-one-run half of "asked
-    // exactly once" and two stacked native modals is a real defect: the user
-    // answers the one in front and the export that gets the folder is the
-    // other one. Both drives stand behind the same `ensureExportFolder()`, so
-    // the dialog, the count and the join all sit exactly where they sat.
-    const p1 = files.exportStems({ title, stems });
-    const seen = await waitForChooser(FOLDER_ASK_TITLES, 30000);
+    // The picker opens for real, pressed from the bar. While it is up, the bar's
+    // export control is pressed AGAIN — that is not padding, it is the
+    // within-one-run half of "asked exactly once", and two stacked native modals
+    // is a real defect: the user answers the one in front and the export that
+    // gets the folder is the other one. It is drivable from the control because
+    // `#export` deliberately does NOT disable itself in flight
+    // (src/renderer/chrome.js), and the de-duplication lives beside the picker.
+    const rememberedBefore = files.stats.remembered;
+    R.export1Press = await press('export');
+    const seen = await waitForChooser(FOLDER_DIALOG.title, 30000);
     R.chooserMapped = !!seen;
-    const pDup = files.exportStems({ title, stems });
+    R.export1DupPress = await press('export');
+    R.joined = await until('the second press to join the ask already in flight',
+      async () => files.stats.joinedPending >= 1, 15000);
     R.asksWhileChooserUp = files.stats.folderAsks;
     R.joinedPending = files.stats.joinedPending;
 
-    R.answered = seen ? await answerChooser(FOLDER_ASK_TITLES, target, 5000) : { answered: false, why: 'no chooser to answer' };
-    R.export1 = await within(30000, drive(p1), 'the first export');
-    R.export1dup = await within(30000, drive(pDup), 'the export that joined the first ask');
+    R.answered = seen ? await answerChooser(FOLDER_DIALOG.title, target, 5000) : { answered: false, why: 'no chooser to answer' };
+    R.export1Settled = await until('the chosen folder to be remembered',
+      async () => files.stats.remembered > rememberedBefore, 30000);
+    R.export1Drawn = await until('the bar to draw the destination',
+      async () => ((await read()).dest || {}).text !== '\u2014', 15000);
+    R.afterFirst = { bar: await read(), folderAsks: files.stats.folderAsks };
+
+    // THEN THE WRITER — the gesture the previous slice landed, driven directly
+    // because the bar refuses `no-stems` by design (no separation exists), so
+    // nothing a user can press reaches it. The press settled the folder, so on
+    // a healthy build this resolves from memory; a MUTATED build with empty
+    // memory opens a picker, and the armed answerer keeps that from hanging
+    // the launch — the count below names the defect. Same rule as export #2.
+    const w1Watch = answerIfItAppears(FOLDER_ASK_TITLES, target, 6000);
+    R.export1 = await within(30000, drive(files.exportStems({ title, stems })), 'the first export');
+    R.export1Chooser = await w1Watch;
     R.asksAfterFirst = files.stats.folderAsks;
     R.optionsUsed = files.stats.lastFolderOptions;
 
@@ -265,39 +411,46 @@ export async function runGate({ state, outDir }) {
     // The remembered folder must answer this one with no picker at all. If a
     // picker DOES open, it is answered so the count says "twice" instead of the
     // launch hanging. See `answerIfItAppears`.
-    const p2 = files.exportStems({ title, stems });
-    const watch = answerIfItAppears(FOLDER_ASK_TITLES, target, 6000);
-    R.export2 = await within(30000, drive(p2), 'the second export');
+    const memoryBefore = files.stats.folderFromMemory;
+    R.export2Press = await press('export');
+    const watch = answerIfItAppears(FOLDER_DIALOG.title, target, 6000);
+    R.export2Settled = await until('the second export to resolve from memory',
+      async () => files.stats.folderFromMemory > memoryBefore, 30000);
+
+    // THE WRITER AGAIN — the same remembered folder, resolved with no picker.
+    // Its own answerer stands by, for the same reason export #1's does: a
+    // mutated build with empty memory opens a picker per drive, and an
+    // unanswered picker is a launch that times out instead of a red that names
+    // the count.
+    const w2Watch = answerIfItAppears(FOLDER_ASK_TITLES, target, 6000);
+    R.export2 = await within(30000, drive(files.exportStems({ title, stems })), 'the second export');
+    R.export2Chooser = await w2Watch;
     R.secondChooser = await watch;
+    R.afterSecond = { bar: await read(), folderAsks: files.stats.folderAsks };
     R.asksAfterSecond = files.stats.folderAsks;
+    R.folderFromMemory = files.stats.folderFromMemory;
     R.stored = readStored(state);
 
-    // ------------------------------------------------------- the file picker
+    // -------------------------------------------------------- a refused pick
+    // AND A PICK THE ALLOWLIST DOES NOT ADMIT. A native chooser's `filters`
+    // narrow what is easy to browse to and decide nothing: Ctrl+L takes any path
+    // at all, which is how this probe drives it. So the refusal is driven for
+    // real, over the same chooser, with a file that is plainly not audio — and
+    // it is the BAR that has to say so, because a picker that closes and
+    // produces no outcome is the defect `src/renderer/chrome.js` exists about.
     if (fixture) {
-      const pf = files.chooseSourceFile();
-      const fseen = await waitForChooser(FILE_DIALOG.title, 30000);
-      R.fileChooserMapped = !!fseen;
-      R.fileAnswered = fseen ? await answerChooser(FILE_DIALOG.title, fixture, 5000) : { answered: false, why: 'no chooser to answer' };
-      const picked = await within(30000, pf, 'the file pick');
-      R.picked = picked;
-      // The token, over the RUNNING app's own registry — spent once, then
-      // refused. Nothing else in this app can spend it, which is the property.
-      if (picked && picked.ok) {
-        R.tokenFirst = state.pathTokens.spend(picked.token);
-        R.tokenSecond = state.pathTokens.spend(picked.token);
-      }
-
-      // AND A PICK THE ALLOWLIST DOES NOT ADMIT. A native chooser's `filters`
-      // narrow what is easy to browse to and decide nothing: Ctrl+L takes any
-      // path at all, which is how this probe drives it. So the refusal is driven
-      // for real, over the same chooser, with a file that is plainly not audio.
       const notAudio = path.join(path.dirname(fixture), 'sleeve-notes.txt');
       fs.writeFileSync(notAudio, 'not audio\n');
-      const pn = files.chooseSourceFile();
+      const refusedBefore = files.stats.refused;
+      R.refusedPress = await press('source-file');
       const nseen = await waitForChooser(FILE_DIALOG.title, 30000);
       R.refusedChooserMapped = !!nseen;
       R.refusedAnswered = nseen ? await answerChooser(FILE_DIALOG.title, notAudio, 5000) : { answered: false, why: 'no chooser to answer' };
-      R.refusedPick = await within(30000, pn, 'the refused file pick');
+      R.refusedSettled = await until('the intake to refuse the pick',
+        async () => files.stats.refused > refusedBefore, 30000);
+      R.refusedDrawn = await until('the bar to draw a refusal on the control that produced it',
+        async () => ((await read()).sourceBtn || {}).outcome !== 'ok', 15000);
+      R.afterRefused = { bar: await read(), fileAsks: files.stats.fileAsks };
       R.notAudio = notAudio;
     }
     R.fileAsks = files.stats.fileAsks;
@@ -383,13 +536,32 @@ export async function runGate({ state, outDir }) {
   } else {
     // ------------------------------------------------- the relaunch (phase 2)
     // Same profile, new process. The folder was written to the `local` area last
-    // time, so this export — the WRITER again, so G4 is asserted about the
-    // gesture that matters — must resolve with no picker. A picker that opens
-    // anyway is answered, for the same reason as above.
-    const p3 = files.exportStems({ title, stems });
-    const watch = answerIfItAppears(FOLDER_ASK_TITLES, target, 6000);
-    R.export3 = await within(30000, drive(p3), 'the export after a restart');
+    // time, so this export must resolve with no picker — but an export needs a
+    // Source, and a new process has none, so the file is chosen again through
+    // the same control first. That is the product's own order of gestures.
+    if (fixture) {
+      R.filePress = await press('source-file');
+      const fseen = await waitForChooser(FILE_DIALOG.title, 30000);
+      R.fileChooserMapped = !!fseen;
+      R.fileAnswered = fseen ? await answerChooser(FILE_DIALOG.title, fixture, 5000) : { answered: false, why: 'no chooser to answer' };
+      R.fileSettled = await until('the bar to draw the chosen file',
+        async () => ((await read()).sourceBtn || {}).outcome !== null, 30000);
+    }
+    R.asksBeforeExport = files.stats.folderAsks;
+
+    const memoryBefore = files.stats.folderFromMemory;
+    R.export3Press = await press('export');
+    const watch = answerIfItAppears(FOLDER_DIALOG.title, target, 6000);
+    R.export3Settled = await until('the export after a restart to resolve from memory',
+      async () => files.stats.folderFromMemory > memoryBefore, 30000);
+
+    // THE WRITER AFTER A RESTART — the same remembered folder, still no picker.
+    // Its own answerer stands by, for the same reason export #1's does.
+    const w3Watch = answerIfItAppears(FOLDER_ASK_TITLES, target, 6000);
+    R.export3 = await within(30000, drive(files.exportStems({ title, stems })), 'the export after a restart');
+    R.export3Chooser = await w3Watch;
     R.restartChooser = await watch;
+    R.afterRestart = { bar: await read(), folderAsks: files.stats.folderAsks };
     R.asksAfterRestart = files.stats.folderAsks;
     R.stored = readStored(state);
 
@@ -422,14 +594,30 @@ export async function runGate({ state, outDir }) {
     fs.rmSync(target, { recursive: true, force: true });
     R.deleted = target;
     R.moved = moved;
-    const p4 = files.exportStems({ title, stems });
+    // THE FOLDER IS RE-CHOSEN FROM THE BAR, and the new answer is both stored
+    // and drawn. The writer then writes into the NEW folder, not the dead one.
+    const rememberedBefore = files.stats.remembered;
+    R.export4Press = await press('export');
     const seen4 = await waitForChooser(FOLDER_ASK_TITLES, 30000);
     R.goneChooserMapped = !!seen4;
-    R.goneAnswered = seen4 ? await answerChooser(FOLDER_ASK_TITLES,moved, 5000) : { answered: false, why: 'no chooser to answer' };
-    R.export4 = await within(30000, drive(p4), 'the export after the folder was deleted');
+    R.goneAnswered = seen4 ? await answerChooser(FOLDER_ASK_TITLES, moved, 5000) : { answered: false, why: 'no chooser to answer' };
+    R.export4Settled = await until('the new folder to be chosen and remembered',
+      async () => files.stats.remembered > rememberedBefore, 30000);
+    R.export4Drawn = await until('the bar to draw the new destination',
+      async () => ((await read()).dest || {}).title === moved, 15000);
+    R.afterGone = { bar: await read(), folderAsks: files.stats.folderAsks };
     R.asksAfterGone = files.stats.folderAsks;
     R.askReason = files.stats.lastAskReason;
     R.storedAfterGone = readStored(state);
+    R.fileAsks = files.stats.fileAsks;
+
+    // THE WRITER INTO THE NEW FOLDER — the memory now names `moved`, so this
+    // resolves with no ask on a healthy build. Its answerer stands by for a
+    // build that keeps the dead path; it must run BEFORE the snapshot below,
+    // or export #4's files would not be preserved for the suite to read.
+    const w4Watch = answerIfItAppears(FOLDER_ASK_TITLES, moved, 6000);
+    R.export4 = await within(30000, drive(files.exportStems({ title, stems })), 'the export after the folder was deleted');
+    R.export4Chooser = await w4Watch;
 
     // PRESERVE EXPORT #4'S FILES. The refusal drive below deletes `moved`
     // again — its own scenario — so these would vanish before the suite reads
@@ -505,6 +693,7 @@ export async function runGate({ state, outDir }) {
   }
 
   R.stats = { ...files.stats };
+  R.tokens = state.pathTokens ? state.pathTokens.stats : null;
   fs.writeFileSync(path.join(outDir, 'report.json'), `${JSON.stringify(R, null, 2)}\n`);
   console.log(`[gate] export phase=${phase} wrote ${path.join(outDir, 'report.json')}`);
   return 0;

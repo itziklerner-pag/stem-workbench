@@ -1151,5 +1151,172 @@ ok('...and the transport that ledger CANNOT see is gone from the main process: a
   `fetch is \`${guard.fetchName}\`, and calling it threw ${guard.name || '(nothing)'} — `
   + 'a TypeError here would be the kernel refusing the connection, which is a different sentence');
 
+// =========================================================================
+// 9. THE CHROME BAR'S FILE CONTROLS, AND THE PROGRESS IT REPORTS
+// =========================================================================
+/**
+ * WHY THIS BLOCK IS LAST, AND WHY IT DOES NOT OPEN A DIALOG.
+ *
+ * The two File gestures end in a NATIVE CHOOSER, and answering one needs
+ * `xdotool` and a bus-less environment — `tools/suites/export.mjs` is the suite
+ * that has both, and it drives the real chooser from these same two controls.
+ * What is left for THIS suite is the half that suite cannot see from inside the
+ * app: that the controls are on the bar, LIVE, and wired to the bridge; and that
+ * the separation readout is the ENGINE's report rather than this Host's guess.
+ *
+ * ONE PRESS HAPPENS HERE, AND IT IS THE ONE THAT MUST NOT OPEN ANYTHING. With no
+ * Source loaded, `ipcMain.handle('chrome:export')` refuses before it asks for a
+ * folder, so nothing modal appears. A build that lost that guard would reach
+ * `showOpenDialog` — and on this box, with a session bus and no
+ * `xdg-desktop-portal`, that promise never settles and no window ever maps
+ * (`tools/gate/export.mjs`'s header), so the refusal never arrives and the poll
+ * below goes red rather than the run wedging on a modal nobody can answer.
+ *
+ * IT RUNS AFTER §8 so that the STATE this section puts on the bus cannot reach
+ * the deck before any assertion that reads the deck's painted surface.
+ */
+const fileUi = O(await safe('the bar\'s File controls', () => pages.chrome.evaluate(() => {
+  const f = (id) => {
+    const e = document.getElementById(id);
+    return e ? { there: true, disabled: e.disabled === true, text: String(e.textContent).trim(),
+                 outcome: (e.dataset && e.dataset.outcome) || null } : { there: false };
+  };
+  const b = window.__wbChrome || {};
+  return {
+    sourceBtn: f('source-file'), exportBtn: f('export'),
+    file: f('file'), dest: f('dest'), progress: f('progress'),
+    bridge: { chooseFile: typeof b.chooseFile, exportStems: typeof b.exportStems },
+  };
+})));
+ok('the chrome bar carries BOTH File gestures, present, ENABLED and wired to the bridge  '
+  + '[entry point: src/renderer/chrome.html #source-file + #export -> src/preload/chrome.cjs]',
+  O(fileUi.sourceBtn).there === true && O(fileUi.sourceBtn).disabled === false
+  && O(fileUi.exportBtn).there === true && O(fileUi.exportBtn).disabled === false
+  && O(fileUi.bridge).chooseFile === 'function' && O(fileUi.bridge).exportStems === 'function'
+  && O(fileUi.file).there === true && O(fileUi.dest).there === true && O(fileUi.progress).there === true,
+  fileUi.THREW ? fileUi.THREW
+    : `#source-file ${JSON.stringify(O(fileUi.sourceBtn).text)} disabled=${O(fileUi.sourceBtn).disabled} · `
+      + `#export ${JSON.stringify(O(fileUi.exportBtn).text)} disabled=${O(fileUi.exportBtn).disabled} · `
+      + `bridge.chooseFile=${O(fileUi.bridge).chooseFile} bridge.exportStems=${O(fileUi.bridge).exportStems} · `
+      + `readouts #file=${JSON.stringify(O(fileUi.file).text)} #dest=${JSON.stringify(O(fileUi.dest).text)} `
+      + `#progress=${JSON.stringify(O(fileUi.progress).text)} — a control that ships `
+      + '`disabled` is the defect this row exists for');
+
+/**
+ * THE REFUSAL IS DRAWN, AND NOTHING WAS ASKED FOR.
+ *
+ * A control that produces no visible outcome is the defect `src/renderer/
+ * chrome.js` was rewritten to fix, and an export this build cannot perform is
+ * exactly where that defect would reappear. The conjunction is the claim: the
+ * gesture came back REFUSED BY NAME on the control, the sentence is on the
+ * refusal line where a person reads it, and the destination readout did NOT move
+ * — a build that opened a folder chooser for an export it cannot do would fail
+ * the last of those even if it eventually drew something.
+ */
+const exportPress = O(await safe('press #export', () => pages.chrome.evaluate(() => {
+  const b = document.getElementById('export');
+  const was = { disabled: b.disabled === true, outcome: (b.dataset && b.dataset.outcome) || null };
+  b.click();
+  return { pressed: true, was };
+})));
+const refusedNoSource = await until('the bar to draw the no-source refusal', async () => {
+  const r = O(await safe('bar', () => pages.chrome.evaluate(() => ({
+    outcome: (document.getElementById('export').dataset || {}).outcome || null,
+    refusal: String(document.getElementById('refusal').textContent).trim(),
+    dest: String(document.getElementById('dest').textContent).trim(),
+  }))));
+  return r.outcome ? r : null;
+}, 8000);
+ok('pressing Export with nothing loaded is REFUSED BY NAME on the bar, and no chooser is opened for it  '
+  + '[entry point: #export -> __wbChrome.exportStems -> ipcMain.handle(\'chrome:export\') in src/main/main.js]',
+  O(exportPress).pressed === true && O(exportPress.was).disabled === false
+  && O(refusedNoSource).outcome === 'no-source'
+  && /choose an audio file/i.test(String(O(refusedNoSource).refusal))
+  && O(refusedNoSource).dest === '—',
+  refusedNoSource
+    ? `the control reads data-outcome=${JSON.stringify(O(refusedNoSource).outcome)}, the bar says `
+      + `${JSON.stringify(String(O(refusedNoSource).refusal).slice(0, 70))}, and #dest is still `
+      + `${JSON.stringify(O(refusedNoSource).dest)}`
+    : 'the bar drew NOTHING within 8 s — a build that reached showOpenDialog here would look exactly like this, '
+      + 'because on this box a portal-less dialog never settles');
+
+/**
+ * SEPARATION PROGRESS IS THE ENGINE'S REPORT, RELAYED — NOT THIS HOST'S GUESS.
+ *
+ * `offscreen/engine.js` already computes every number: `state.job`
+ * (chunk/chunks/pct/eta) and `state.model` (status/phase/got/total), pushed to
+ * the deck as `STATE`. `main` taps the router read-only and forwards them to the
+ * bar. Nothing in this Host estimates anything, which is the property — a
+ * progress bar an app invents is a number with no measurement behind it.
+ *
+ * THE ENVELOPE IS SENT BY THE ENGINE ITSELF, THROUGH ITS OWN PRELOAD, and it is
+ * the engine's OWN LAST STATE with one field moved. This suite already sends the
+ * deck's two `SW_*` envelopes verbatim for the same reason (see the header): a
+ * running job needs the 109 MiB weights and a real separation, and gating an
+ * always-on step on a file that is not in git would make it SKIP on a clean
+ * checkout. What is asserted is what the HOST did with a message the ENGINE
+ * really sent.
+ */
+const lastState = await safe('the engine\'s last STATE', () => pages.deck.evaluate(() => {
+  const m = window.__smokeDeckBus.filter((x) => x && x.type === 'STATE').pop();
+  return m && m.state ? JSON.parse(JSON.stringify(m.state)) : null;
+}));
+const JOB = { status: 'running', chunk: 3, chunks: 10, pct: 30, elapsedMs: 3000, etaMs: 7000, error: null, stage: 'separate' };
+const sent = await safe('the engine\'s STATE with a running job', () => pages.engine.evaluate(
+  ({ to, from, state }) => { window.__wbEngine.send({ v: 1, to, from, type: 'STATE', state }); return true; },
+  { to: BUS.deck, from: BUS.engine, state: { ...O(lastState), job: JOB } }));
+const readProgress = () => pages.chrome.evaluate(() => {
+  const e = document.getElementById('progress');
+  return { text: String(e.textContent).trim(), title: e.title || null };
+});
+const drawn = await until('the bar to draw the engine\'s running job',
+  async () => { const r = O(await safe('bar', readProgress)); return /3\/10/.test(String(r.text)) ? r : null; }, 8000);
+ok('separation progress on the bar is the ENGINE\'s own report, relayed — chunk, chunks and pct, not an estimate  '
+  + '[entry point: STATE from vendor/…/offscreen/engine.js -> the bus tap in src/main/main.js -> #progress]',
+  sent === true && !!lastState && O(drawn).text === 'separating 3/10 · 30% · ~7s left'
+  && String(O(drawn).title).includes('"pct":30'),
+  drawn
+    ? `#progress reads ${JSON.stringify(O(drawn).text)}; its tooltip carries the engine's own fields `
+      + `${JSON.stringify(String(O(drawn).title).slice(0, 90))}`
+    : `the bar never drew the job: sent=${JSON.stringify(sent)} lastState=${lastState ? 'present' : 'ABSENT'} `
+      + `progress now ${JSON.stringify(O(await safe('bar', readProgress)).text)}`);
+
+/**
+ * ...AND A `STATE` THAT DID NOT COME FROM THE ENGINE IS IGNORED.
+ *
+ * `from` is a field in an envelope a renderer wrote. A relay that trusted it
+ * would let the DECK tell the bar that a separation was ninety per cent done,
+ * and the bar's whole value is that it reports what the engine measured. So the
+ * tap keys on the `WebContents` the router received the message on, which no
+ * renderer can spell — and this sends the same envelope, from the deck, claiming
+ * to be the engine.
+ *
+ * THE WITNESS IS A VALUE ONLY THE SPOOF COULD PRODUCE (`chunks: 999`) rather
+ * than "the readout did not change": the real engine may push a STATE of its own
+ * at any moment, and an assertion that required stillness would be about the
+ * machine's timing rather than about the tap.
+ */
+const spoofed = await safe('a STATE spoofed by the deck', () => pages.deck.evaluate(
+  ({ to, from, state }) => { window.__wbDeck.send({ v: 1, to, from, type: 'STATE', state }); return true; },
+  { to: BUS.deck, from: BUS.engine, state: { ...O(lastState), job: { ...JOB, chunk: 7, chunks: 999, pct: 90 } } }));
+/**
+ * THE DELIVERY IS WITNESSED BY A COUNT, NOT WAITED OUT WITH A SLEEP. This is a
+ * NEGATIVE claim — the bar did not move — and a negative claim over a message
+ * that never arrived is worth nothing. So the suite waits until the DECK has the
+ * spoofed envelope in its own inbox, which means the router carried it and the
+ * tap was handed it, and only then reads the bar.
+ */
+const spoofArrived = await until('the spoofed STATE to reach the deck through the real router',
+  async () => pages.deck.evaluate(() => window.__smokeDeckBus.some((m) => m && m.type === 'STATE'
+    && m.state && m.state.job && m.state.job.chunks === 999)), 8000);
+const afterSpoof = O(await safe('bar', readProgress));
+ok('...and a STATE that did not come from the ENGINE\'s own renderer is ignored — `from` is not evidence  '
+  + '[entry point: the bus tap in src/main/main.js, keyed on the sender from src/main/bus.js]',
+  spoofed === true && spoofArrived === true
+  && !/999/.test(String(afterSpoof.text)) && !/999/.test(String(afterSpoof.title)),
+  `the deck sent {chunks:999, pct:90} stamped from='${BUS.engine}', the router delivered it `
+  + `(the deck has it: ${spoofArrived === true}), and the bar still reads `
+  + `${JSON.stringify(afterSpoof.text)} — the tap read the WebContents, not the envelope`);
+
 console.log(`\n${ID}: app console ${path.relative(ROOT, path.join(OUT, 'app-console.log'))}`);
 await done(app);

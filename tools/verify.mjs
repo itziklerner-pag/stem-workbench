@@ -666,8 +666,8 @@ export const STEPS = [
   },
   {
     id: 'smoke',
-    assertions: 22,
-    title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck, the anonymous fallback',
+    assertions: 26,
+    title: 'node tools/suites/smoke.mjs — Playwright-for-Electron against the LOCAL fake player: boot, seam, transport, deck, the anonymous fallback, the bar\'s File controls',
     cmd: ['node', 'tools/suites/smoke.mjs'],
     window: true,
     /**
@@ -685,16 +685,24 @@ export const STEPS = [
      * `flock` + `xvfb-run -a` and the inner run does the work. `--quick` drops
      * it with every other windowed step.
      *
-     * WHAT FALSIFIES IT — `tools/suites/smoke-mutations.sh`, 19 named cases,
-     * each declaring the assertion names it must turn red, with
+     * WHAT FALSIFIES IT — `tools/suites/smoke-mutations.sh`, with
      * `tools/suites/coverage.py` over the whole battery refusing an assertion
-     * that has never been seen on a FAIL line.
+     * that has never been seen on a FAIL line. Each case declares the assertion
+     * names it must turn red; the four cases added with the chrome bar's File
+     * controls declare the set in BOTH directions, so a red that MIGRATES from
+     * one mutation to another is a failure rather than an unchanged total.
+     *
+     * IT IS ALSO THE ONLY SUITE THAT CAN SEE THE PROGRESS RELAY. `main` taps the
+     * bus read-only and forwards the engine's own `state.job` / `state.model` to
+     * the bar; the two rows about it drive a real `STATE` out of the ENGINE's own
+     * renderer and then the same envelope out of the DECK's, and require the
+     * second to be ignored. No other step has two renderers to send it from.
      */
   },
   {
     id: 'export',
-    assertions: 44,
-    title: 'node tools/suites/export.mjs — file intake: the allowlist, the title, the one-shot path token, the export WRITER (G1, G2a, G2b-path), the export sink, and the folder asked exactly once over two real launches',
+    assertions: 31,
+    title: 'node tools/suites/export.mjs — the bar\'s File gestures pressed for real, and the export WRITER (G1, G2a, G2b-path) and the export sink driven into the folder the press settled: the allowlist, the title, the one-shot path token, and the folder asked exactly once over two real launches',
     cmd: ['node', 'tools/suites/export.mjs'],
     window: true,
     /**
@@ -711,6 +719,16 @@ export const STEPS = [
      * is the instrument check that the intake is holding electron's own module —
      * every count after it is worthless without that one.
      *
+     * AND THE GESTURE IN FRONT OF THE DIALOG IS PRESSED, NOT CALLED. This step
+     * used to reach `ensureExportFolder()` and `chooseSourceFile()` from inside
+     * main and said, on the record, that it was one step short of
+     * `docs/TESTING.md` §5c — *"it drives the real interface, not a private
+     * door"* — until an export COMMAND existed. It exists: the probe presses
+     * `#source-file` and `#export` in the app's own chrome renderer. That is the
+     * SECOND instrument, and it is what lets a count of zero mean "the control
+     * is disabled, unwired, or gone" instead of nothing at all — the shape of
+     * the defect this repository shipped once already on the Arm button.
+     *
      * IT SKIPS, RATHER THAN FAILS, WITHOUT `xdotool`, for the same reason the
      * other windowed steps skip without `xvfb-run`: a native chooser that cannot
      * be answered is a property of the box (`docs/TESTING.md` §3 rule 8), and it
@@ -725,7 +743,7 @@ export const STEPS = [
      *
      * HALF OF IT NEEDS NO DISPLAY. Eighteen assertions drive the allowlist, the
      * title derivation, the path tokens, the writer's own bytes and the sink
-     * session in plain node, and `--quick` therefore drops twenty-six assertions
+     * session in plain node, and `--quick` therefore drops thirteen assertions
      * it did not have to — the same trade `deck-host` makes and for the same
      * reason: splitting them would let the pure half go green over an app that
      * cannot ask for a folder at all.
