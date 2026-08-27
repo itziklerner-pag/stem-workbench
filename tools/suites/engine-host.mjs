@@ -6,6 +6,10 @@
  * `EngineHost` — `assertHost` accepted it, the module evaluated to its last
  * line, and it said so on the bus; that all nine duties do what
  * `vendor/…/shared/host.js` declares, driven both directly and THROUGH the unit;
+ * that the file-bytes duty `sourceBytes` answers over the REAL `/file/` ROOT
+ * and the app's own token registry (driven directly — the vendored v0.2.0
+ * engine has no caller for it; that caller arrives at the v0.3.0 pin, which is
+ * also where the interface declares the duty);
  * that the 109 MB of bundled weights reach the engine whole and are verified by
  * the unit over what this Host handed it; that ONNX Runtime really got shared
  * memory (a THREAD COUNT, not a stopwatch); that a real capture opens, is
@@ -33,10 +37,13 @@
  * ---------------------------------------------------------------------------
  * WATCHED RED BY MUTATION — every assertion, and the edit that broke it
  * ---------------------------------------------------------------------------
- * `tools/suites/engine-host-mutations.sh` is 29 named cases, each declaring the
+ * `tools/suites/engine-host-mutations.sh` is 33 named cases, each declaring the
  * assertion NAMES it must turn red: a non-zero exit proves *something* went red,
  * not that the intended thing did. `tools/suites/coverage.py` then refuses a
- * battery in which any assertion has never appeared on a FAIL line.
+ * battery in which any assertion has never appeared on a FAIL line. Cases 30-33
+ * are additionally checked for the EXACT red set, both ways (INTEGRATION.md
+ * §38): a mutation that turns an assertion red it did not claim is as much a
+ * finding as one that misses a claimed name.
  *
  * Run on 2026-08-26, Electron 44.0.0 / Chromium 152.0.7977.54 / Linux 6.17,
  * `xvfb-run`. Baseline 37 passed, 0 failed. **coverage: all 37 assertions in
@@ -76,6 +83,10 @@
  *  27   the probe writes its report somewhere nobody looks                   1
  *  28   claims.spend(): accept a token that was never minted                 5
  *  29   host.js captureStream: leave the video track on the stream           1
+ *  30   host.js sourceBytes: hand over a TRUNCATED buffer                    1
+ *  31   files.js spend(): do not consume the handle                          1
+ *  32   host.js sourceBytes: answer a refusal with an EMPTY buffer           2
+ *  33   host.js sourceBytes: drop the zero-byte rejection                    1
  *
  * FOUR OF THESE FOUND THE SUITE RATHER THAN THE CODE, which is the whole reason
  * AGENTS.md asks for a battery instead of a green:
@@ -110,6 +121,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -271,6 +283,30 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const userData = path.join(OUT, 'userdata');
 const fixture = pathToFileURL(path.join(ROOT, 'tools', 'fixture', 'player.html')).href;
+
+/**
+ * THE SOURCE-BYTES FIXTURES, WRITTEN AND HASHED HERE, NAMED FOR THE PROBE.
+ *
+ * `WB_ENGINEHOST_FILE_FIXTURE` is a >1 MB WAV (250,000 frames = 1,000,000 data
+ * bytes), because the byte-count claim is about a STREAMED body: a fixture that
+ * fit in one chunk would be an assertion whose estimator saturates before the
+ * claim range begins (the shell suite's dynamic-range guard, and the same
+ * reason its fixture is also over a megabyte). `WB_ENGINEHOST_FILE_EMPTY` is a
+ * REAL zero-byte `.wav` — admitted by the allowlist (admission is by extension),
+ * served happily by the `/file/` ROOT with `Content-Length: 0`, and therefore
+ * refusable only by the duty itself.
+ */
+const fileDir = path.join(OUT, 'files');
+fs.mkdirSync(fileDir, { recursive: true });
+const fileFixture = path.join(fileDir, 'Deep Cuts - Track 01.wav');
+const fileEmpty = path.join(fileDir, 'Silence.wav');
+const fileBytes = fixtureWav(250_000);
+fs.writeFileSync(fileFixture, fileBytes);
+fs.writeFileSync(fileEmpty, Buffer.alloc(0));
+const fileSha = crypto.createHash('sha256').update(fileBytes).digest('hex');
+// Inherited by the launch below — `run()` spawns without an `env` of its own.
+process.env.WB_ENGINEHOST_FILE_FIXTURE = fileFixture;
+process.env.WB_ENGINEHOST_FILE_EMPTY = fileEmpty;
 
 const launch = await run(
   'flock', [LOCK, '-c',
@@ -443,13 +479,13 @@ ok('...and it carries ONE audio track and NO video track — the spec forbids an
  * DEVICE, from outside the app, and `docs/TESTING.md` §8 owns it. This says the
  * stream has signal in it, which is a different and smaller claim.
  */
-ok(`...and it carries SOUND — a peak near the fixture's 0.5 over ${O(R.gdm).levelMs} ms, measured off the stream the Host `
+ok(`...and it carries SOUND — a peak near the fixture's 0.5, measured off the stream the Host `
   + 'hands back, while the view it came from is muted  [entry point: host.captureStream(); the level the frame count cannot see]',
   gdm.ok === true && typeof gdm.peak === 'number' && gdm.peak >= 0.2
   // THE SETUP IS PART OF THE ASSERTION, again: a silent capture of a PAUSED
   // player says nothing about the Host, and the fixture loads paused.
   && O(R.fixtureBefore).paused === false,
-  gdm.ok ? `peak ${Number(gdm.peak).toFixed(4)} over ${gdm.levelSamples} samples, source paused=${O(R.fixtureBefore).paused} `
+  gdm.ok ? `peak ${Number(gdm.peak).toFixed(4)} over ${gdm.levelSamples} samples (${gdm.levelMs} ms), source paused=${O(R.fixtureBefore).paused} `
     + `t=${O(R.fixtureBefore).currentTime} (silence would be ~0; ${JSON.stringify(O(gdm).diag)})`
     : 'there is no stream to listen to');
 
@@ -516,7 +552,51 @@ ok('onTeardown() REGISTERS THE CALLER\'S OWN FUNCTION ON `pagehide`, AND IT RUNS
     : td.firedSynchronously ? 'the callback had already run when dispatchEvent() returned'
       : 'the callback had NOT run when dispatchEvent() returned — a wrapper that defers drops the track stop');
 
-// ------------------------------------------- 2.8 what the Host ORIGINATED
+// ------------------------------------------- 2.8 sourceBytes, the file half
+/**
+ * THE FILE-BYTES DUTY, DRIVEN DIRECTLY — see the probe for why the vendored
+ * v0.2.0 engine has no caller for it yet. Everything below is the shipping hole
+ * module answering over the shipping `/file/` ROOT and the app's own token
+ * registry, against bytes THIS process wrote and hashed before the app existed.
+ * `bytes` and `sha256` come back from `crypto.subtle` in the renderer, so a
+ * truncated stream, a re-encoded one and an empty one are three different
+ * numbers rather than three ways of getting a buffer.
+ */
+const sb = O(R.sourceBytes);
+const sbD = O(sb.drive);
+const sbFirst = O(sbD.first);
+ok("sourceBytes() HANDS OVER THE FILE'S OWN ENCODED BYTES — the fixture's EXACT bytes, length AND SHA-256, "
+  + 'as one ArrayBuffer, over the real `/file/` ROOT  '
+  + '[entry point: host.sourceBytes() -> app://workbench/file/<token> -> src/main/assets.js resolveHandle()]',
+  sbFirst.rejected === false && sbFirst.isArrayBuffer === true
+  && sbFirst.byteLength === fileBytes.length && sbFirst.sha256 === fileSha,
+  sb.why ? sb.why
+    : sbFirst.rejected ? `the duty refused its own minted handle: ${String(sbFirst.message).slice(0, 120)}`
+      : `${sbFirst.byteLength} of ${fileBytes.length} bytes, sha256 ${String(sbFirst.sha256).slice(0, 16)}… `
+      + `${sbFirst.sha256 === fileSha ? 'matches' : `!= ${fileSha.slice(0, 16)}…`} the ${fileBytes.length}-byte WAV this suite wrote`);
+
+const sbSecond = O(sbD.second);
+ok('...and ONE token buys ONE buffer — a SECOND call with the SAME token REJECTS BY NAME, because a retry is '
+  + 'word for word what a token nobody minted gets  [entry point: host.sourceBytes() again -> resolveHandle() spending the handle]',
+  sbSecond.rejected === true && /unknown-token|already been spent|never minted/.test(String(sbSecond.message)),
+  sbSecond.rejected ? String(sbSecond.message).slice(0, 120)
+    : `the second call RESOLVED with ${sbSecond.byteLength} bytes — the handle was not spent`);
+
+const sbForged = O(sbD.forged);
+ok('A TOKEN NOBODY MINTED BUYS NOTHING here either, and sourceBytes REJECTS rather than resolving — no empty '
+  + 'buffer, no null, no stream  [entry point: host.sourceBytes() -> the ROOT\'s 404, surfaced as a rejection]',
+  sbForged.rejected === true && /unknown-token|never minted/.test(String(sbForged.message)),
+  sbForged.rejected ? String(sbForged.message).slice(0, 120)
+    : `it resolved with ${sbForged.byteLength} bytes — every caller is .catch-wrapped, and those bytes would decode to something the Source was not`);
+
+const sbEmpty = O(sbD.empty);
+ok('...and a REAL file with ZERO bytes REJECTS — the ROOT serves it happily, so only the duty can refuse a '
+  + 'buffer that would decode to a track silently not the track  [entry point: host.sourceBytes() zero-byte check]',
+  sbEmpty.rejected === true && /0 bytes|zero-length|empty/.test(String(sbEmpty.message)),
+  sbEmpty.rejected ? String(sbEmpty.message).slice(0, 120)
+    : `a zero-byte file RESOLVED with ${sbEmpty.byteLength} bytes — it would cache as a track that is not the track`);
+
+// ------------------------------------------- 2.9 what the Host ORIGINATED
 /**
  * `docs/VENDORING.md`: *"You must ORIGINATE four messages. `assertHost` cannot
  * check for a message nobody sent."* Three of them are the engine's. Asserted
@@ -572,6 +652,28 @@ console.log(`\n${ID}: launch log ${path.relative(ROOT, path.join(OUT, 'launch.lo
 done();
 
 // ------------------------------------------------------------------ helpers
+/**
+ * A deterministic 44.1 kHz stereo 16-bit WAV of `frames` frames — 44 bytes of
+ * RIFF header plus `frames * 4` bytes of PRNG data, seeded so the same suite
+ * run writes the same bytes everywhere. The content never matters: the probe
+ * and this suite compare LENGTH and SHA-256, and what is asserted is that the
+ * duty handed over the file's own bytes, whatever they are.
+ */
+function fixtureWav(frames) {
+  const data = Buffer.alloc(frames * 4);
+  let x = 0x2f6e2b1;
+  for (let i = 0; i < frames * 2; i++) {
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    data.writeInt16LE(((x >>> 16) & 0xffff) - 0x8000, i * 2);
+  }
+  const head = Buffer.alloc(44);
+  head.write('RIFF', 0); head.writeUInt32LE(36 + data.length, 4); head.write('WAVE', 8);
+  head.write('fmt ', 12); head.writeUInt32LE(16, 16); head.writeUInt16LE(1, 20);
+  head.writeUInt16LE(2, 22); head.writeUInt32LE(44100, 24); head.writeUInt32LE(44100 * 4, 28);
+  head.writeUInt16LE(4, 32); head.writeUInt16LE(16, 34);
+  head.write('data', 36); head.writeUInt32LE(data.length, 40);
+  return Buffer.concat([head, data]);
+}
 function hasBin(name) {
   const dirs = (process.env.PATH || '').split(path.delimiter);
   return dirs.some((d) => { try { fs.accessSync(path.join(d, name), fs.constants.X_OK); return true; } catch { return false; } });

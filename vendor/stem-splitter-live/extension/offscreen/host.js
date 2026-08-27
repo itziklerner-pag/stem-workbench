@@ -466,7 +466,7 @@ export const createBackend = (hooks) => {
  * nothing else; the number that DECIDES anything is the unit's, checked after
  * the last byte lands.
  */
-async function readAll(res, onProgress) {
+async function readAll(res, onProgress = () => {}) {
   const total = Number(res.headers.get('Content-Length')) || MODEL.bytes;
   const reader = res.body.getReader();
   const parts = [];
@@ -564,6 +564,100 @@ export const modelCached = async () => {
  * and turns one corrupt file into two.
  */
 export const clearModel = async () => {};
+
+/* ------------------------------------------------------------- file bytes
+ * THE FILE HALF OF `captureStream`, and the extension's own refusal names the
+ * rule this side is written against: a Host mints ONE vocabulary of Source
+ * tokens and answers WHICHEVER duty the engine asks, so the deck can carry one
+ * token and the unit can ask for it as a stream or as bytes without knowing
+ * which it is. Under this Host a token is a `createPathTokens()` handle minted
+ * in `src/main/files.js` when the user picks a file — the same mint
+ * `chooseSourceFile()` uses, spent by the `/file/` ROOT when the fetch below
+ * lands. `captureStream` spends a CAPTURE claim and this spends a PATH token;
+ * the two registries (`src/main/claims.js`, `src/main/files.js`) are separate,
+ * and both are one-shot.
+ *
+ * THE ONE-SHOT IS NOT A CONVENIENCE OF THE ROOT, IT IS THE CONTRACT. The duty's
+ * own declaration says the unit calls it EXACTLY ONCE per Source and holds the
+ * decoded result for the life of the run — so a one-shot token is legitimate,
+ * and a unit that retried a failed decode or re-read the source for a later
+ * export would consume it twice and the second failure would present as a
+ * corrupt file. Nothing here works around that; this Host is allowed to mint a
+ * handle that buys one response and does.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Where the bytes come from under this Host — the ONE `/file/` ROOT, on our own
+ * origin, built the same way `modelUrl()` builds `/model/`: the origin is read
+ * off the document rather than spelled, so this file carries no second copy of
+ * `app://workbench` to drift from `src/main/assets.js`. Read LAZILY — see the
+ * module header: `location` does not exist in Node and a module-scope read
+ * would take the vendored `test.js` out at import.
+ *
+ * `encodeURIComponent` is not decoration: the token travels as a URL component
+ * and the ROOT's refusal for a shape that is not one handle is `404 not one
+ * /file/ handle`. A real token is a `crypto.randomUUID()` — unreserved
+ * characters only — so the encoding costs nothing and makes a token that is
+ * anything else refuse at the ROOT rather than after a byte has been fetched.
+ */
+const fileUrl = (sourceToken) => {
+  const loc = globalThis.location;
+  if (!loc || !loc.origin || loc.origin === 'null') {
+    throw new Error('EngineHost.sourceBytes: the Source file is served from this Host\'s own origin '
+      + `and there is no document here to read it from (location=${String(loc && loc.origin)})`);
+  }
+  return new URL('/file/' + encodeURIComponent(String(sourceToken)), loc.origin).href;
+};
+
+/**
+ * @type {import('../shared/host.js').EngineHost['sourceBytes']}
+ *
+ * THE ENCODED BYTES OF THE SOURCE A TOKEN NAMES — the file half of
+ * `captureStream`, and deliberately NOT DECODED. Handing back planar
+ * `Float32Array`s would make this Host own a decoder AND a resampler, and a
+ * Host that resampled badly would corrupt the source before the model saw it
+ * with nothing to say so. The unit decodes, at the model clock, on the one
+ * context it already has; this duty is `read a file and hand it over`, which
+ * is the thing an installer-shaped product can do without lying.
+ *
+ * THE ROOT DOES THE REFUSING, AND THIS DUTY SURFACES THE REFUSAL AS A
+ * REJECTION. A token that was never minted, was already spent, expired, or
+ * names a file the allowlist does not admit is a `404`/`403` over `app://` with
+ * the reason in the body — this duty turns that into a thrown Error, because
+ * every caller of a promise-returning duty is `.catch`-wrapped somewhere and a
+ * resolution with anything else would travel on as bytes that are not the
+ * source. `captureStream` must reject rather than resolve null for the same
+ * reason; this is the same rule in the same shape.
+ *
+ * REJECTS RATHER THAN RETURNS EMPTY, EXPLICITLY — even for a REAL file with
+ * ZERO bytes. A zero-length buffer decodes to a zero-length track and caches as
+ * a track that is silently not the track: the failure
+ * `../shared/stemcache.js`'s header is written against. The ROOT serves a
+ * zero-byte file happily (the allowlist admits it and `Content-Length: 0` is
+ * honest), so the empty answer can only be refused HERE, at the handover.
+ *
+ * NO `onProgress`, AND THAT IS THE CONTRACT TOO. The settled signature is
+ * `(sourceToken: unknown) => Promise<ArrayBuffer>` — nothing else — and unlike
+ * `modelBytes` (whose progress the deck paints) nothing in the unit reads a
+ * progress report from this duty. The buffer is read WHOLE into one contiguous
+ * `ArrayBuffer`; a 10-minute lossless file is ~100 MB and that is the same
+ * envelope `modelBytes` already sets, so it is not a new class of allocation.
+ */
+export const sourceBytes = async (sourceToken) => {
+  const url = fileUrl(sourceToken);
+  const res = await fetch(url);
+  if (!res.ok) {
+    let why = '';
+    try { why = ` — ${String(await res.text()).slice(0, 120)}`; } catch { /* the status carries it */ }
+    throw new Error(`file read failed: HTTP ${res.status} for ${url}${why}`);
+  }
+  const bytes = await readAll(res);
+  if (bytes.byteLength === 0) {
+    throw new Error('file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
+      + 'decodes to a track that is silently not the track');
+  }
+  return bytes.buffer;
+};
 
 /**
  * NOT A DUTY — this Host's own counters, for the gate and for a person reading a

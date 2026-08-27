@@ -472,8 +472,8 @@ export const STEPS = [
   },
   {
     id: 'engine-host',
-    assertions: 37,
-    title: 'node tools/suites/engine-host.mjs — the ENGINE half of the seam over one real launch: the nine duties, the model, a real capture',
+    assertions: 41,
+    title: 'node tools/suites/engine-host.mjs — the ENGINE half of the seam over one real launch: the nine declared duties, the file-bytes duty, the model, a real capture',
     cmd: ['node', 'tools/suites/engine-host.mjs'],
     window: true,
     /**
@@ -490,7 +490,7 @@ export const STEPS = [
      * for a file that was never meant to be committed would be a red people
      * learn to ignore.
      *
-     * WHAT FALSIFIES IT — `tools/suites/engine-host-mutations.sh`, 29 named
+     * WHAT FALSIFIES IT — `tools/suites/engine-host-mutations.sh`, 33 named
      * cases, each declaring the assertion names it must turn red, with
      * `tools/suites/coverage.py` over the whole battery refusing an assertion
      * that has never been seen on a FAIL line. Reading the battery is how you
@@ -505,6 +505,13 @@ export const STEPS = [
      *                       callback, drop createBackend's hooks, guard
      *                       onMessage on the wrong address, leave the video
      *                       track on the stream the engine is handed.
+     *   the file-bytes      cases 30-33 watch `sourceBytes` red, and 30-33 are
+     *   duty                additionally checked for the EXACT red set, both
+     *                       ways (INTEGRATION.md §38) — a truncated buffer, a
+     *                       handle that is not consumed, a refusal answered
+     *                       with an empty buffer, and a dropped zero-byte
+     *                       rejection. Case 31 edits `src/main/files.js`'s
+     *                       `spend()`, the one-shot half of the `/file/` ROOT.
      *   the platform        cases 12, 23, 24 and 26 edit `src/main/` — COOP and
      *                       COEP off every `app://` response, the `/model/` root
      *                       off the protocol handler, the grant pointed at the

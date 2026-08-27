@@ -139,7 +139,7 @@ node tools/verify.mjs --list         # the steps table
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 53 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
 | `backend` | `tools/suites/backend.mjs` | — | 55 | **which inference backend, and the wire to the second one** — `chooseBackend()` over all twenty platform/probe/preference rows; `createNativeBackend` against `serveInference` over a `worker_threads` `MessageChannel` with a FAKE engine (the frozen layout, both buffers back undetached, `dispose()` settling by name); and the negative control — on this platform the shipped hole builds the unit's own `WorkerBackend`. **No CoreML anywhere in it** |
 | `shell` | `tools/suites/shell.mjs` | window | 50 | **the app skeleton** — two real launches: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, **the `/file/` ROOT** (a one-shot handle serves a picked file's exact bytes to the engine renderer, and the second fetch of it is refused by name), the capture grant, the mute, the allowlist, and **seed §9's sign-in disguise** — the stock Chrome user-agent on `persist:youtube` and on nothing of ours, and the four Google sign-in hosts really reaching the wire; then a SECOND launch on the same profile, because *the session persists across restarts* is the one claim a single launch cannot make |
-| `engine-host` | `tools/suites/engine-host.mjs` | window | 37 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
+| `engine-host` | `tools/suites/engine-host.mjs` | window | 41 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine declared duties, the file-bytes duty `sourceBytes` over the real `/file/` ROOT, the bundled weights end to end, and a real capture |
 | `transport` | `tools/suites/transport.mjs` | window | 83 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim; and **a live export's ONE CONTIGUOUS PASS** — a seek ends it and a drop ends it the same way, what was captured stays exportable, and autoplay-next is suspended for its whole duration and restored even when the recording is aborted |
 | `deck-host` | `tools/suites/deck-host.mjs` | window | 29 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
@@ -995,6 +995,13 @@ The nine `EngineHost` duties are reached **two ways, and both are the shipping
   module registry returns the instance the engine is holding — so `assetUrl`'s
   trailing slash, its **detached** call, `modelBytes`'s whole-buffer rule and
   `clearModel`'s honesty can be read as values instead of inferred from a green.
+- **Directly, and only directly: `sourceBytes`.** The vendored v0.2.0 engine has
+  no caller for the file-bytes duty — that caller arrives at the v0.3.0 pin,
+  which is also where the interface declares it. What the probe drives is still
+  the shipping module over the shipping wire: a token minted on the app's own
+  `state.pathTokens` registry (the same object `src/main/files.js`'s intake
+  mints from when a user picks a file), spent by the real `/file/` ROOT, against
+  a >1 MB WAV fixture this suite wrote and hashed before the app existed.
 
 Plus `main`'s own half: the three messages it must **originate**, which
 `assertHost` structurally cannot check because it cannot check for a message
@@ -1032,6 +1039,7 @@ Host.
 | 32 | the `AudioContext` is at 44100 | `boot.sampleRate` |
 | 33 | `onTeardown` registers the caller's own function on `pagehide` and it runs **synchronously** | whether it had run when `dispatchEvent` returned |
 | 34–37 | the three originated messages, by name, with their frozen key sets — payload keys included — all delivered | the key lists and the counts |
+| 38–41 | `sourceBytes`: the fixture's **exact bytes** (length **and** SHA-256, as one `ArrayBuffer`, over the real `/file/` ROOT); a **second call with the same token rejects by name**; a **token nobody minted rejects** rather than resolving; a **real zero-byte file rejects** — the ROOT serves it happily, so only the duty can refuse it | the length, the SHA-256, and each refusal's own sentence |
 
 **Two of those are counts and one is a level, and each replaces a claim that
 cannot be made another way.** The **byte count** (114,559,139, exactly
@@ -1087,12 +1095,19 @@ learn to ignore.
 
 ### Watched red
 
-`tools/suites/engine-host-mutations.sh` — 29 named cases, each declaring the
+`tools/suites/engine-host-mutations.sh` — 33 named cases, each declaring the
 assertion **names** it must turn red, with `tools/suites/coverage.py` over the
 whole battery refusing any assertion that has never been seen on a `FAIL` line.
 The table is in the suite's own header, with what actually went red rather than
 what was expected to. `tools/verify.mjs`'s `engine-host` step names which cases
 falsify which claims.
+
+Cases 30–33 — the `sourceBytes` half — are additionally checked for the **exact**
+red set, **both ways** (INTEGRATION.md §38): a mutation that turns an assertion
+red it did not claim is as much a finding as one that misses a claimed name, and
+a one-way battery silently stops describing the tree as it grows. The declared
+sets are the measured truth for this source, and a case fails if its actual set
+differs in either direction.
 
 **Four of the assertions here exist in their present form because the battery
 falsified their first draft rather than the code.** They are worth reading as a

@@ -310,7 +310,104 @@ mutate_case 29 "host.js captureStream: leave the video track on the stream" \
   "...and it carries ONE audio track and NO video track" \
   -- "$HOST" \
 "    for (const t of stream.getVideoTracks()) { t.stop(); stream.removeTrack(t); }" \
-"    for (const t of stream.getVideoTracks()) { t.stop(); }" 
+"    for (const t of stream.getVideoTracks()) { t.stop(); }"
+
+mutate_case 30 "host.js sourceBytes: hand over a TRUNCATED buffer" \
+  "$HOST" \
+  "sourceBytes() HANDS OVER THE FILE'S OWN ENCODED BYTES" \
+  -- "$HOST" \
+"  return bytes.buffer;" "  return bytes.buffer.slice(0, bytes.byteLength - 1);"
+
+mutate_case 31 "files.js spend(): do not consume the handle" \
+  "src/main/files.js" \
+  "...and ONE token buys ONE buffer" \
+  -- src/main/files.js \
+"      live.delete(token);" "      // live.delete(token);"
+
+mutate_case 32 "host.js sourceBytes: answer a refusal with an EMPTY buffer" \
+  "$HOST" \
+  "A TOKEN NOBODY MINTED BUYS NOTHING here either|...and ONE token buys ONE buffer" \
+  -- "$HOST" \
+"    throw new Error(\`file read failed: HTTP \${res.status} for \${url}\${why}\`);" \
+"    return new ArrayBuffer(0);"
+
+mutate_case 33 "host.js sourceBytes: drop the zero-byte rejection" \
+  "$HOST" \
+  "...and a REAL file with ZERO bytes REJECTS" \
+  -- "$HOST" \
+"  if (bytes.byteLength === 0) {
+    throw new Error('file read failed: the Source a token named has 0 bytes, and a zero-length buffer '
+      + 'decodes to a track that is silently not the track');
+  }
+" ""
+
+# ==========================================================================
+# CASES 30-33 — THE EXACT RED SET, BOTH WAYS (INTEGRATION.md §38)
+# --------------------------------------------------------------------------
+# `mutate_case` above passes on "every name I claimed went red". These four are
+# ALSO checked for "no name went red that I did not claim", because a battery
+# that only checks the claimed direction silently stops describing the tree:
+# coverage migrating from one mutation to another leaves a one-way battery
+# green (measured in §38 — nine `RED BUT NOT CLAIMED` lines across eight cases
+# the first time a battery was made exhaustive). An assertion going red under
+# an unexpected mutation is as much a finding as one going red under none.
+#
+# THE SETS BELOW ARE THE MEASURED TRUTH FOR THIS SOURCE, not a prediction —
+# §38 measured hand-written expect sets wrong roughly two times in five. They
+# were taken from the case logs of the battery run that first cut them, and a
+# case fails if its actual set differs in EITHER direction: the edit below
+# re-cuts nothing, it reports.
+#
+# The names are the assertion names as `engine-host.mjs` prints them, truncated
+# at the two-space detail separator (docs/TESTING.md §3 — a measured number
+# goes in the DETAIL, never in the name, so these do not move run to run).
+# ==========================================================================
+S3_EXPECT_A="sourceBytes() HANDS OVER THE FILE'S OWN ENCODED BYTES — the fixture's EXACT bytes, length AND SHA-256, as one ArrayBuffer, over the real \`/file/\` ROOT"
+S3_EXPECT_B="...and ONE token buys ONE buffer — a SECOND call with the SAME token REJECTS BY NAME, because a retry is word for word what a token nobody minted gets"
+S3_EXPECT_C="A TOKEN NOBODY MINTED BUYS NOTHING here either, and sourceBytes REJECTS rather than resolving — no empty buffer, no null, no stream"
+S3_EXPECT_D="...and a REAL file with ZERO bytes REJECTS — the ROOT serves it happily, so only the duty can refuse a buffer that would decode to a track silently not the track"
+
+strict_expect() {
+  case "$1" in
+    30) printf '%s\n' "$S3_EXPECT_A" ;;
+    31) printf '%s\n' "$S3_EXPECT_B" ;;
+    32) printf '%s\n' "$S3_EXPECT_C" "$S3_EXPECT_B" ;;
+    33) printf '%s\n' "$S3_EXPECT_D" ;;
+    *) return 1 ;;
+  esac
+}
+
+strict_actual() {
+  local log="$1"
+  [ -f "$log" ] || return 1
+  sed -n 's/^FAIL  \(.*\)$/\1/p' "$log" | sed 's/  .*//' | sort -u
+}
+
+strict_bad=0; strict_ran=0
+for n in 30 31 32 33; do
+  if [ "${#ONLY[@]}" -gt 0 ] && [[ ! " ${ONLY[*]} " =~ " $n " ]]; then continue; fi
+  strict_ran=$((strict_ran + 1))
+  if [ ! -f "$OUT/$n.log" ]; then
+    echo "${C_R}STRICT $n${C_X} — out/engine-host-mutations/$n.log is absent; the case did not run"
+    strict_bad=$((strict_bad + 1)); continue
+  fi
+  strict_expect "$n" | sort -u > "$OUT/$n.expected"
+  strict_actual "$OUT/$n.log" > "$OUT/$n.actual"
+  local_missing="$(comm -23 "$OUT/$n.expected" "$OUT/$n.actual")"
+  local_extra="$(comm -13 "$OUT/$n.expected" "$OUT/$n.actual")"
+  n_exp="$(wc -l < "$OUT/$n.expected" | tr -d ' ')"
+  n_act="$(wc -l < "$OUT/$n.actual" | tr -d ' ')"
+  if [ -z "$local_missing" ] && [ -z "$local_extra" ]; then
+    echo "  ${C_G}strict${C_X} case $n turned EXACTLY its $n_exp declared assertion(s) red"
+  else
+    strict_bad=$((strict_bad + 1))
+    echo "  ${C_R}STRICT $n — THE RED SET DIFFERS${C_X} — declared $n_exp, measured $n_act"
+    [ -n "$local_missing" ] && { echo "  ${C_R}DECLARED BUT NOT RED${C_X} (decay, or a real coverage loss — investigate)"; printf '%s\n' "$local_missing" | while read -r l; do [ -n "$l" ] && echo "            - $l"; done; }
+    [ -n "$local_extra" ] && { echo "  ${C_Y}RED BUT NOT DECLARED${C_X} (this mutation reaches further than the table says)"; printf '%s\n' "$local_extra" | while read -r l; do [ -n "$l" ] && echo "            + $l"; done; }
+  fi
+done
+[ "$strict_bad" -ne 0 ] && missed=$((missed + strict_bad))
+echo "  ${C_D}strict both-ways: ${C_X}${C_G}$((strict_ran - strict_bad)) of $strict_ran cases produced EXACTLY their declared red set${C_X}"
 
 mutate_case 9 "host.js captureStream: skip the claim" \
   "$HOST" \
@@ -330,8 +427,8 @@ mutate_case 11 "host.js createBackend: drop the hooks the unit passed" \
   "$HOST" \
   "createBackend FORWARDED THE UNIT'S HOOKS" \
   -- "$HOST" \
-"export const createBackend = (hooks) => new WorkerBackend({ ...hooks, assetUrl });" \
-"export const createBackend = () => new WorkerBackend({ assetUrl });" 
+"export const createBackend = (hooks) => {" \
+"export const createBackend = () => {"
 
 mutate_case 21 "host.js onMessage: guard on the wrong address" \
   "$HOST" \

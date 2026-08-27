@@ -367,6 +367,72 @@ export async function runGate({ state, outDir, sourceUrl }) {
     model: t.state() ? { ...t.state().model, error: t.state().model.error } : null,
   };
 
+  // -------------------------------------------------- 4b. sourceBytes, directly
+  /**
+   * THE FILE-BYTES DUTY, DRIVEN OVER THE REAL `/file/` ROOT AND THE REAL TOKEN
+   * REGISTRY — the same module the engine holds, asked for the bytes a token
+   * names.
+   *
+   * THE SUITE OWNS THE BYTES, like the shell probe's `/file/` half: it writes
+   * the WAV fixture and the zero-byte file BEFORE this app is launched and names
+   * them in `WB_ENGINEHOST_FILE_FIXTURE` / `WB_ENGINEHOST_FILE_EMPTY`, so the
+   * hashes this file reports back are compared against bytes a SEPARATE PROCESS
+   * wrote and hashed. A probe that both wrote the file and checked what came
+   * back would be one instrument agreeing with itself.
+   *
+   * THE HANDLES ARE MINTED OVER `state.pathTokens` — the app's own registry,
+   * the same object `src/main/files.js`'s intake mints from when a user picks a
+   * file. What is under test is the DUTY — `host.sourceBytes()` — and it sees a
+   * token it cannot tell from the intake's, spent by the ROOT it shares with
+   * every renderer.
+   *
+   * WHY DIRECTLY AND NOT THROUGH THE UNIT: the vendored v0.2.0 engine has no
+   * caller for this duty (it arrives with the `sourceBytes` caller at the
+   * v0.3.0 pin, which is also where `ENGINE_HOST_DUTIES` declares it). The
+   * direct drive is the shipping module answering, over the shipping wire —
+   * the same shape the other direct drives take.
+   *
+   * THE FOUR CALLS, AND WHAT EACH IS FOR: `first` and `second` use the SAME
+   * handle back to back — one handle buys one response, so the second must
+   * REJECT. `forged` is a token nobody minted: the refusal path, which must be
+   * a rejection and not a resolution with anything. `empty` is a REAL token
+   * naming a REAL zero-byte file: the ROOT serves it happily, so the duty's
+   * own zero-byte refusal is the only thing that can answer it, and the suite
+   * asserts it does.
+   */
+  const fileFixture = process.env.WB_ENGINEHOST_FILE_FIXTURE || '';
+  const fileEmpty = process.env.WB_ENGINEHOST_FILE_EMPTY || '';
+  R.sourceBytes = { fixture: fileFixture, empty: fileEmpty };
+  if (!fileFixture || !fileEmpty) {
+    R.sourceBytes.why = 'WB_ENGINEHOST_FILE_FIXTURE or WB_ENGINEHOST_FILE_EMPTY was not set — '
+      + 'the suite did not write the fixtures to fetch';
+  } else {
+    const good = state.pathTokens.mint(fileFixture);
+    const empty = state.pathTokens.mint(fileEmpty);
+    R.sourceBytes.minted = {
+      good: typeof good === 'string' && good.length > 0,
+      empty: typeof empty === 'string' && empty.length > 0,
+    };
+    R.sourceBytes.drive = await evalIn(engineWc, `(async () => {
+      const host = await import('./vendor/stem-splitter-live/extension/offscreen/host.js');
+      const hex = (b) => Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, '0')).join('');
+      const probe = async (token) => {
+        try {
+          const ab = await host.sourceBytes(token);
+          const r = { rejected: false, isArrayBuffer: ab instanceof ArrayBuffer, byteLength: ab.byteLength };
+          if (r.isArrayBuffer && r.byteLength > 0) r.sha256 = await crypto.subtle.digest('SHA-256', ab).then(hex);
+          return r;
+        } catch (e) { return { rejected: true, message: String((e && e.message) || e) }; }
+      };
+      return {
+        first: await probe(${JSON.stringify(good)}),
+        second: await probe(${JSON.stringify(good)}),
+        forged: await probe('a-token-nobody-minted'),
+        empty: await probe(${JSON.stringify(empty)}),
+      };
+    })()`);
+  }
+
   // ------------------------------------------------------------ 5. the claim
   /**
    * A TOKEN NOBODY MINTED BUYS NOTHING. Driven through the shipping
