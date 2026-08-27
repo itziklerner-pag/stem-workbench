@@ -508,6 +508,15 @@ async function boot() {
     chrome: () => (state.chrome && !state.chrome.webContents.isDestroyed() ? state.chrome.webContents : null),
     source: () => (state.source && !state.source.webContents.isDestroyed() ? state.source.webContents : null),
     transport: state.transport,
+    /**
+     * THE ONE SOURCE KIND THIS BUILD HAS. Spelled rather than defaulted, because
+     * `installDeckHost` refuses an unspelled one: the deck asks once at boot and
+     * a kind nobody decided is a kind it has no branch for. A File source makes
+     * this `'file'`, and that is a DIFFERENT question from `transport` — a File
+     * source is not hosted by somebody else's player and still has a transport
+     * of its own (docs/HOST-DESIGN.md §3.3b).
+     */
+    sourceKind: 'live',
     engine: state.engineMessages,
     /**
      * The engine window is created in `boot()` and nothing in this wave tears it

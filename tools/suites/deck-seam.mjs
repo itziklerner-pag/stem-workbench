@@ -139,12 +139,14 @@ const { PREFS_KEY, ARM_ERROR_KEY } = await import(pathToFileURL(path.join(UNIT, 
 function makeBridge(opts = {}) {
   const {
     hosted = true,
+    sourceKind = 'live',
     store = { local: {}, session: {} },
     unreadable = null,
     chord = 'Ctrl+Shift+A',
   } = opts;
   const b = {
     hosted,
+    sourceKind,
     sent: [], page: [], sets: [], watches: [], gets: [], chordAsks: 0,
     busFns: [], pageFns: [], storageFns: [],
     send(msg) { b.sent.push(msg); },
@@ -291,6 +293,75 @@ async function loadHost(bridge) {
     vague.ok === true && vagueT != null && val(() => typeof vagueT.drive) === 'function',
     vague.ok ? `transport = ${vagueT === null ? 'null — COERCED to "no player"' : 'a namespace'}`
       : `THREW AT IMPORT: ${vague.error}`);
+
+  // ------------------------------------------------------------ sourceKind
+  /**
+   * THE PROFILE'S SECOND FIELD. `hosted` answers "is there a player above this
+   * deck", which decides how the deck BOOTS; `sourceKind` answers "what kind of
+   * thing is playing", which decides what a surface may OFFER. Two questions,
+   * one synchronous round trip.
+   */
+  const live = await settle(loadHost(makeBridge({ sourceKind: 'live' })));
+  const file = await settle(loadHost(makeBridge({ sourceKind: 'file' })));
+  ok('the Host carries the SOURCE KIND the bridge gave it, both of the two kinds  '
+    + '[entry point: SOURCE_KIND in ui/host.js, from __wbDeck.sourceKind]',
+    live.ok === true && live.value.sourceKind === 'live'
+    && file.ok === true && file.value.sourceKind === 'file',
+    `live -> ${live.ok ? JSON.stringify(live.value.sourceKind) : live.error} · `
+    + `file -> ${file.ok ? JSON.stringify(file.value.sourceKind) : file.error}`);
+
+  /**
+   * A kind outside the closed set is the same state as no bridge: we could not
+   * ask. It must NOT fall back to `'live'` — a File source rendered as live is a
+   * surface offering engine-speed export for something that cannot do it, and a
+   * default here would be this module inventing the answer.
+   */
+  const oddKind = await settle(loadHost(makeBridge({ sourceKind: 'stream' })));
+  const numKind = await settle(loadHost(makeBridge({ sourceKind: 7 })));
+  ok('...and a kind outside the closed set reads as "could not ask" — NEVER defaulted to `live`  '
+    + '[a default here is this module inventing a Source kind the Host never decided]',
+    oddKind.ok === true && oddKind.value.sourceKind === null
+    && numKind.ok === true && numKind.value.sourceKind === null,
+    `"stream" -> ${oddKind.ok ? JSON.stringify(oddKind.value.sourceKind) : oddKind.error} · `
+    + `7 -> ${numKind.ok ? JSON.stringify(numKind.value.sourceKind) : numKind.error}`);
+
+  ok('...and with no bridge at all it is `null`, like every other fact this module could not ask for',
+    lost !== null && lost.sourceKind === null,
+    `sourceKind = ${lost ? JSON.stringify(lost.sourceKind) : 'the module did not import'}`);
+
+  /**
+   * ===========================================================================
+   * A FILE SOURCE DOES NOT GET `transport: null` — the one that reproduces a
+   * defect three documents ratified.
+   * ===========================================================================
+   * `docs/HOST-DESIGN.md` §3.3 said a File source makes `transport` null and
+   * called that "the deck becoming the transport master". So did a phase-4 host
+   * plan, a phase-4 contract, and the comment above `HOSTED` in this very
+   * module. All four were wrong, and §3.3b now records why:
+   *
+   *   ui/embed.js:769        const HOSTED = transport != null;
+   *   ui/embed.js:250        let videoPlaying = null;
+   *   ui/embed-state.js:105  if (s.videoPlaying == null) return running || s.hosted ? 'hold' : 'start';
+   *
+   * A File source has no `<video>`, so `videoPlaying` never leaves `null`; with
+   * `hosted` false, `follow()` returns 'start' on the first 10 Hz tick and the
+   * deck opens a capture and pulls 109 MB of weights nobody asked for.
+   *
+   * `null` is reserved for a Host with genuinely no player. A File source HAS
+   * one — the engine's playback clock — so the two fields must be independent
+   * here: knowing the kind is `'file'` must not, on its own, take the transport
+   * away. The transport ITSELF over that clock is issue #5.
+   */
+  const fileHosted = await settle(loadHost(makeBridge({ sourceKind: 'file', hosted: true })));
+  const fileT = fileHosted.ok ? fileHosted.value.transport : null;
+  ok('a FILE source does not lose its transport — `sourceKind` and `hosted` are independent, and answering '
+    + '`null` for a file is the boot-start defect docs/HOST-DESIGN.md §3.3b records  '
+    + '[entry point: SOURCE_KIND and HOSTED in ui/host.js; `follow()` in ui/embed.js is the reader]',
+    fileHosted.ok === true && fileHosted.value.sourceKind === 'file'
+    && fileT !== null && val(() => typeof fileT.drive) === 'function',
+    fileHosted.ok
+      ? `sourceKind ${JSON.stringify(fileHosted.value.sourceKind)} · transport ${fileT === null ? 'null — THE DEFECT' : 'present'}`
+      : `THREW AT IMPORT: ${fileHosted.error}`);
 }
 
 // ==========================================================================
