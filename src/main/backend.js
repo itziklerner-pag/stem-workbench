@@ -92,6 +92,19 @@ export const PROBES = Object.freeze([
  */
 export const nativeIsPossible = (platform, arch) => platform === 'darwin' && arch === 'arm64';
 
+/**
+ * THE NATIVE MODULE'S NAME, IN ONE PLACE. `src/utility/inference.js` requires it
+ * and `tools/suites/backend.mjs` asserts it is absent here; a second literal is
+ * a second thing to drift, and the suite's claim is only as good as it naming
+ * the same module the shipped code loads.
+ *
+ * IT IS NOT A DEPENDENCY OF THIS PROJECT. Adding it is a native install and an
+ * owner action in the main checkout — WORKTREES.md §2.4 forbids `npm install`
+ * inside a worktree because every worktree on this box shares one
+ * `node_modules`. Its absence is a normal answer (`no-module`), not an error.
+ */
+export const NATIVE_MODULE = 'onnxruntime-node';
+
 const worker = (why) => Object.freeze({ kind: KINDS.worker, ep: null, why });
 
 /** One sentence per probe answer, written for the person reading the deck. */

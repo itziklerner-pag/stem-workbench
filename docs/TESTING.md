@@ -133,10 +133,11 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 35 | the runner's own VOID rule, and the steps table against this document |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 37 | the runner's own VOID rule, and the steps table against this document |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 49 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
+| `backend` | `tools/suites/backend.mjs` | — | 55 | **which inference backend, and the wire to the second one** — `chooseBackend()` over all twenty platform/probe/preference rows; `createNativeBackend` against `serveInference` over a `worker_threads` `MessageChannel` with a FAKE engine (the frozen layout, both buffers back undetached, `dispose()` settling by name); and the negative control — on this platform the shipped hole builds the unit's own `WorkerBackend`. **No CoreML anywhere in it** |
 | `shell` | `tools/suites/shell.mjs` | window | 35 | **the app skeleton** — one real launch: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist |
 | `engine-host` | `tools/suites/engine-host.mjs` | window | 37 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
 | `transport` | `tools/suites/transport.mjs` | window | 64 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
@@ -146,6 +147,8 @@ node tools/verify.mjs --list         # the steps table
 | `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
+
+| `backend-coreml` | `tools/suites/backend-coreml.mjs` | **manual** | *never observed* | **the CoreML claim itself, and it has never run.** On darwin/arm64 with `onnxruntime-node` present it loads the pinned weights, separates one real segment on the CoreML EP, and asserts six DISTINCT stems and agreement with the CPU EP on the same input. On this box it `SKIPPED`s with a machine reason. The count column is empty because this suite has never printed one anywhere — a pin nobody has observed is a number invented to look rigorous |
 
 <!-- suites:end -->
 

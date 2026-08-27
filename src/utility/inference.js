@@ -55,6 +55,7 @@
  */
 import { createRequire } from 'node:module';
 import { serveInference } from './inference-core.js';
+import { NATIVE_MODULE } from '../main/backend.js';
 import { DemucsEngine } from '../../vendor/stem-splitter-live/extension/engine/demucs.js';
 import { SEGMENT, STEMS } from '../../vendor/stem-splitter-live/extension/shared/config.js';
 
@@ -90,7 +91,7 @@ const log = (line) => console.log(`[backend] ${line}`);
  * `STATE.boot.ep` is the only thing the deck has to report a backend with.
  */
 async function makeEngine(ep) {
-  const ort = require('onnxruntime-node');
+  const ort = require(NATIVE_MODULE);
   const engine = new DemucsEngine(ort);
   return {
     async load(bytes, requestedEp) {

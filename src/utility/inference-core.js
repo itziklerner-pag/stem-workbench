@@ -52,24 +52,31 @@ export function serveInference(deps) {
   let disposed = false;
   /**
    * ONE OUTPUT BUFFER, REUSED — the same per-session-not-per-hop rule the
-   * renderer side lives under, one process over. Whether posting it detaches it
-   * depends on whether Electron's transfer list takes an ArrayBuffer at all
-   * (its typings say `MessagePortMain[]`), and rather than encode a guess this
-   * REREADS `byteLength` and reallocates if the buffer was taken. Either
-   * mechanism is then correct, and the cost of being wrong is one allocation
-   * rather than a `TypeError` on a detached buffer at the next segment.
+   * renderer side lives under, one process over. Nothing here transfers it (see `send`
+   * below), so it survives every hop — but the `byteLength` check stays,
+   * because a buffer this code did not detach is a weaker guarantee than a
+   * buffer this code checked, and being wrong costs one allocation rather than
+   * a `TypeError` on a detached buffer at the next segment.
    */
   let stemsBuf = null;
 
-  const send = (msg, transfer) => {
-    try { port.postMessage(msg, transfer || []); }
-    catch (err) {
-      // The transfer list was refused. Say so once, then send without it: a
-      // copy is slower than a move and infinitely faster than silence.
-      log(`postMessage transfer refused (${(err && err.message) || err}) — sending a copy`);
-      port.postMessage(msg);
-    }
-  };
+  /**
+   * NOTHING IS EVER TRANSFERRED, IN EITHER DIRECTION, AND BOTH HALVES OF THAT
+   * WERE MEASURED ON THIS BOX (Electron 44, Linux):
+   *
+   *   · child -> renderer, ArrayBuffer in the transfer list:
+   *       THROWS "Port at index 0 is not a valid port" — loud, recoverable.
+   *   · renderer -> child, ArrayBuffer in the transfer list:
+   *       does NOT throw, DETACHES the sender's buffer, and the message is
+   *       NEVER DELIVERED. Silent, and it destroys the caller's data.
+   *
+   * The second is why there is no transfer list anywhere on this wire rather
+   * than a try/catch around one: there is nothing to catch, and a `separate()`
+   * whose message vanished is a promise `LivePipeline.runChunk` waits on for
+   * ever. Seed §16's "as transferables" is not available here; the frozen
+   * borrow-and-return contract is honoured by never detaching instead.
+   */
+  const send = (msg) => { port.postMessage(msg); };
 
   const fail = (t, id, err) => send({ t, id, ok: false, error: String((err && err.message) || err) });
 
@@ -93,7 +100,7 @@ export function serveInference(deps) {
       send({
         t: 'separated', id: m.id, ok: true, stems,
         prepMs: r.prepMs, inferMs: r.inferMs, postMs: r.postMs,
-      }, [stems]);
+      });
     } catch (err) { fail('separated', m.id, err); }
   };
 
