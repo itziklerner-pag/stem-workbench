@@ -90,6 +90,8 @@ cd "$ROOT"
 MG_BATTERY='capture-mute-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 
 # ---------------------------------------------------------------------------
@@ -152,7 +154,6 @@ if compgen -G "$OUT/*.from" >/dev/null 2>&1; then
   done
 fi
 
-rm -rf "$OUT"; mkdir -p "$OUT"
 
 # ---------------------------------------------------------------------------
 # RESTORE ON SIGNAL. A killed battery that skips its restore leaves a MUTATION

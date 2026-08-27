@@ -68,7 +68,6 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/shell-mutations"
-rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
 # THE MUTATION GUARD. Traps are the belt: this battery restores on INT, TERM and
 # HUP, and `timeout` sends TERM — which is how a long battery is most likely to
@@ -81,6 +80,8 @@ MG_BATTERY='shell-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
 
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 restore_all() {
   local paths n f
   for paths in "$OUT"/*.paths; do

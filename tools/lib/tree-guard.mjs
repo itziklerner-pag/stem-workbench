@@ -57,10 +57,30 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 /** Under `out/`, which is gitignored and per-checkout — the contagion is per-checkout too. */
 export const sentinelDir = (root) => path.join(root, 'out', '.mutating');
+
+/**
+ * THE OUT-OF-TREE MARKER, one per root, keyed by a hash of the root path so a
+ * path is not content. It lives in os.tmpdir() — NOT under `out/`, because a
+ * battery wipes its own `out/<battery>/` on the way in, and the sentinel's
+ * backups live there: a second battery of the same name deletes the running
+ * one's backups from under it (the incident the shell-mutations.sh header
+ * documents from the losing side). The marker carries the owner pid, the
+ * started time, the battery name, and the ORIGINAL BYTES of every file a case
+ * has claimed — see beginBattery, endBattery and the claimMutation upsert.
+ */
+export const markerPath = (root) => path.join(
+  os.tmpdir(),
+  `stem-workbench-mutations-${createHash('sha256').update(String(root)).digest('hex').slice(0, 16)}.json`,
+);
+
+const b64 = (b) => Buffer.from(b).toString('base64');
+const unb64 = (s) => Buffer.from(s, 'base64');
 
 const ISO = () => new Date().toISOString();
 
@@ -124,6 +144,31 @@ export function claimMutation(root, battery, kase, files, pid) {
   const file = sentinelPath(root, battery, kase);
   fs.writeFileSync(file, `${JSON.stringify({
     battery, case: String(kase), pid, started: ISO(), files,
+  }, null, 2)}\n`);
+
+  // THE ORIGINAL BYTES GO INTO THE OUT-OF-TREE MARKER TOO, as each case
+  // claims: the file set is what cases ACTUALLY claimed, and the bytes
+  // survive the `out/` wipe that takes the sentinel's backups with it (the
+  // incident the shell-mutations.sh header documents). `bak` holds the
+  // PRE-EDIT bytes — claim is called after the backups exist and before the
+  // first edit. See beginBattery for the owner semantics: the marker was
+  // created by `begin` with the battery's own pid, so the upsert keeps that
+  // pid (a JS battery that claims without a `begin` creates the marker here,
+  // owned by the pid IT was called with).
+  const marker = markerPath(root);
+  let m = null;
+  try { m = JSON.parse(fs.readFileSync(marker, 'utf8')); } catch { m = null; }
+  const filesByRel = { ...((m && m.files) || {}) };
+  for (const f of files) {
+    try { filesByRel[f.rel] = b64(fs.readFileSync(f.bak)); }
+    catch (err) { process.stdout.write(`claim(${battery} ${kase}): no original bytes for ${f.rel} (${f.bak}): ${err.message}\n`); }
+  }
+  fs.writeFileSync(marker, `${JSON.stringify({
+    pid: (m && Number(m.pid)) || pid,
+    started: (m && m.started) || ISO(),
+    battery: (m && m.battery) || battery,
+    root,
+    files: filesByRel,
   }, null, 2)}\n`);
   return file;
 }
@@ -228,17 +273,154 @@ export function refuseIfCompromised(id, root) {
   process.exit(3);
 }
 
+/**
+ * THE CONCURRENCY GUARD, AT BATTERY START, BEFORE ANYTHING COSTS ANYTHING.
+ *
+ * The sentinel under `out/.mutating/` cannot carry this duty alone: its
+ * backups live under `out/<battery>/`, which a second battery of the same
+ * name wipes on its way in — and the batteries place this call before that
+ * wipe, so a refused run has deleted nothing. The marker is out of the tree
+ * entirely. Three branches:
+ *
+ *   marker, pid ALIVE  -> REFUSE. Never kill the incumbent: two runs rewriting
+ *                         the same files measure neither tree (WORKTREES §4.7).
+ *   marker, pid DEAD   -> a run was killed mid-mutation (kill -9 runs no trap
+ *                         at all, which is the point): RESTORE every file
+ *                         from the saved bytes, SAY SO LOUDLY, then refuse —
+ *                         a repair nobody is told about is the same silence.
+ *   no marker          -> claim it (owner = OUR parent, the battery shell),
+ *                         run, and let the battery's EXIT trap release it —
+ *                         the bash rendering of "release in `finally`".
+ *
+ * A refusal exits 4 before the out/ wipe, before the baseline, before the
+ * mutex and before any launch.
+ *
+ * @param {string} battery
+ * @param {string} root
+ */
+export function beginBattery(battery, root) {
+  const file = markerPath(root);
+  let m = null;
+  try { m = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { m = null; }
+  if (m !== null) {
+    const owner = Number(m.pid);
+    if (owner && alive(owner)) {
+      process.stdout.write(`\n\x1b[31mREFUSING TO START ${battery}: another battery (${m.battery || 'unknown'}, `
+        + `pid ${owner}, started ${m.started || '?'}) is rewriting this checkout right now.\x1b[0m\n`);
+      process.stdout.write('  Two runs rewriting the same files measure neither tree. The incumbent is never killed.\n');
+      process.stdout.write(`  Marker: ${file}\n`);
+      process.exit(4);
+    }
+    // Dead owner — or a marker that cannot be read: restore from the saved bytes.
+    process.stdout.write(`\n\x1b[33mA battery that was KILLED MID-MUTATION left this tree rewritten. `
+      + `Restoring it from the marker (${m.battery || 'unknown'}, pid ${owner || '(unreadable)'}, `
+      + `started ${m.started || '?'}):\x1b[0m\n`);
+    let repaired = 0, already = 0, failed = 0;
+    for (const [rel, b64s] of Object.entries((m && m.files) || {})) {
+      const p = path.join(root, rel);
+      let cur = null;
+      try { cur = fs.readFileSync(p); } catch { cur = null; }
+      const want = unb64(b64s);
+      if (cur !== null && Buffer.compare(cur, want) === 0) { already += 1; process.stdout.write(`  ${rel} — already intact\n`); continue; }
+      try {
+        fs.writeFileSync(p, want);
+        repaired += 1;
+        process.stdout.write(`  RESTORED ${rel} (${cur === null ? 'no current copy existed' : cur.length + ' -> ' + want.length + ' bytes'})\n`);
+      } catch (err) { failed += 1; process.stdout.write(`  COULD NOT RESTORE ${rel}: ${err.message}\n`); }
+    }
+    // THE KILLED RUN'S SENTINELS: every file they name was saved into this
+    // marker at claim time and the restore above just healed them, so they
+    // have served their purpose. Drop them — otherwise the suites refuse the
+    // NEXT run for an edit that is no longer standing.
+    let dropped = 0;
+    for (const s of standingMutations(root)) {
+      const allHealed = (s.files || []).every((f) => (m.files || {}).hasOwnProperty(f.rel));
+      if (allHealed) {
+        try { fs.unlinkSync(s.sentinel); dropped += 1; process.stdout.write(`  dropped stale sentinel ${s.battery} case ${s.case}\n`); }
+        catch { /* a drop is best effort — the next suite names it if it survives */ }
+      }
+    }
+    try { fs.unlinkSync(file); } catch { /* already gone */ }
+    process.stdout.write(`  ${repaired} restored, ${already} already intact, ${failed} failed, ${dropped} stale sentinel(s) dropped. `
+      + 'The marker is cleared. Re-run to measure — THIS run is refused, so the repair is not something '
+      + 'you find out about from a table.\n');
+    process.exit(4);
+  }
+  // No marker: claim it. THE OWNER IS OUR PARENT, the battery shell — this
+  // process is short-lived, and `end` must recognise the shell's ancestry.
+  fs.writeFileSync(file, `${JSON.stringify({ pid: process.ppid, started: ISO(), battery, root, files: {} }, null, 2)}\n`);
+  // Say once which tree this run measures, so the table names it.
+  const r = spawnSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8', timeout: 20000 });
+  const head = spawnSync('git', ['-C', root, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', timeout: 20000 });
+  const dirty = r.status === 0 && typeof r.stdout === 'string' ? r.stdout.split('\n').map((l) => l.trimEnd()).filter(Boolean) : null;
+  const h = head.status === 0 && typeof head.stdout === 'string' ? String(head.stdout).trim() : '?';
+  if (dirty === null) process.stdout.write(`\x1b[2m${battery}: git is unavailable here; this run cannot say which tree it measures\x1b[0m\n`);
+  else if (dirty.length) process.stdout.write(`\x1b[2m${battery}: measuring an UNCOMMITTED tree at ${h} + ${dirty.length} modified file(s): `
+    + `${dirty.map((l) => l.slice(3)).join(', ')}\x1b[0m\n`);
+  else process.stdout.write(`\x1b[2m${battery}: measuring the tree at ${h}, clean\x1b[0m\n`);
+}
+
+/**
+ * RELEASE THE MARKER — the battery's `finally`, reached on a normal `exit
+ * 0/1`, on a signal's `exit 130` and on any other exit the shell takes, via
+ * the EXIT trap mg_begin installs. Restores any file whose bytes differ from
+ * what the marker saved (a case whose restore did not run), then clears the
+ * marker.
+ *
+ * Ownership: the marker's pid is the battery shell, which is an ancestor of
+ * this process when the end came from our own trap. A marker owned by someone
+ * else is left alone — a live owner is another battery still running, and a
+ * dead owner is for the next begin() to repair loudly.
+ */
+export function endBattery(battery, root) {
+  const file = markerPath(root);
+  let m = null;
+  try { m = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { m = null; }
+  if (m === null) return { restored: [], cleared: false };
+  const owner = Number(m.pid);
+  const mine = owner && ancestors().includes(owner);
+  if (!mine) {
+    if (owner && alive(owner)) process.stdout.write(`end(${battery}): marker owned by LIVE pid ${owner} (${m.battery}) is not ours — leaving it alone\n`);
+    else process.stdout.write(`end(${battery}): marker owned by dead pid ${owner} (${m.battery}) is not ours — leaving it for the next begin() to repair loudly\n`);
+    return { restored: [], cleared: false };
+  }
+  const restored = [];
+  for (const [rel, b64s] of Object.entries(m.files || {})) {
+    const p = path.join(root, rel);
+    let cur = null;
+    try { cur = fs.readFileSync(p); } catch { cur = null; }
+    const want = unb64(b64s);
+    if (cur !== null && Buffer.compare(cur, want) === 0) continue;
+    try { fs.writeFileSync(p, want); restored.push(rel); }
+    catch (err) { process.stdout.write(`end(${battery}): COULD NOT RESTORE ${rel}: ${err.message}\n`); }
+  }
+  try { fs.unlinkSync(file); } catch { /* already gone */ }
+  if (restored.length) process.stdout.write(`end(${battery}): ${restored.length} file(s) had a mutation standing at exit; restored from the marker\n`);
+  return { restored, cleared: true };
+}
+
 // ------------------------------------------------------------------ the CLI
 // Bash cannot import an ES module, so the batteries drive it from here.
 //
-//   claim <battery> <case> <rel>=<bak> [<rel>=<bak> …]   before the first edit
-//   release <battery> <case>                             after a VERIFIED restore
-//   restore <battery>                                    the trap: undo and drop
-//   restore-all                                          a human, after a kill -9
-//   check <suite-id>                                     what a suite calls
+//   begin <battery>                                     the battery's FIRST act:
+//                                                       claim the out-of-tree
+//                                                       marker, or refuse (exit
+//                                                       4) — see beginBattery
+//   end <battery>                                       the battery's `finally`:
+//                                                       restore-and-clear, ours
+//                                                       only — see endBattery
+//   claim <battery> <case> <rel>=<bak> [<rel>=<bak> …]  before the first edit
+//   release <battery> <case>                            after a VERIFIED restore
+//   restore <battery>                                   the trap: undo and drop
+//   restore-all                                         a human, after a kill -9
+//   check <suite-id>                                    what a suite calls
 function cli(argv) {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
   const [what, a, b, ...rest] = argv;
+
+  if (what === 'begin') { beginBattery(a || 'battery', root); return 0; }
+
+  if (what === 'end') { endBattery(a || 'battery', root); return 0; }
 
   if (what === 'claim') {
     if (!a || b === undefined) { process.stderr.write('usage: claim <battery> <case> <rel>=<bak> …\n'); return 2; }
@@ -262,7 +444,7 @@ function cli(argv) {
 
   if (what === 'check') { refuseIfCompromised(a || 'tree-guard', root); process.stdout.write('clean\n'); return 0; }
 
-  process.stderr.write('usage: node tools/lib/tree-guard.mjs claim|release|restore|restore-all|check …\n');
+  process.stderr.write('usage: node tools/lib/tree-guard.mjs begin|end|claim|release|restore|restore-all|check …\n');
   return 2;
 }
 

@@ -30,6 +30,26 @@ mg_claim() { local n="$1"; shift; mg_guard claim "$MG_BATTERY" "$n" "$@"; }
 mg_release() { mg_guard release "$MG_BATTERY" "$1"; }
 mg_restore() { mg_guard restore "$MG_BATTERY"; }
 
+# ---------------------------------------------------------- the marker
+# THE OUT-OF-TREE MARKER (the long form is `beginBattery` in tree-guard.mjs).
+# A battery calls `mg_begin` right after installing the trap, BEFORE its own
+# `out/<battery>/` wipe, before the baseline, before the mutex and before any
+# launch: a live incumbent makes it exit 4 (never killed), a dead one makes it
+# restore the tree from the saved bytes and SAY SO LOUDLY, then exit 4, and a
+# clear field makes it claim the marker and continue. `mg_end` is the bash
+# rendering of "release in `finally`": the EXIT trap below runs on a normal
+# `exit 0/1`, on a signal's `exit 130` and on any other exit — and the trap's
+# own exit status does NOT override the shell's (measured). A `kill -9` runs
+# no trap at all, which is the point: the marker survives with the bytes, and
+# the NEXT battery restores the tree and refuses, so the repair is announced.
+mg_begin() {
+  mg_guard begin "${MG_BATTERY:-$(basename "$0" .sh)}" "$MG_ROOT" || exit $?
+  trap 'mg_end' EXIT
+}
+mg_end() {
+  mg_guard end "${MG_BATTERY:-$(basename "$0" .sh)}" "$MG_ROOT" || true
+}
+
 # EXIT 130, and the restore happens BEFORE anything else so a second signal
 # arriving during the report cannot cost the tree.
 mg_on_signal() {
@@ -41,5 +61,6 @@ mg_on_signal() {
   mg_restore
   [ -n "${MG_ALSO:-}" ] && "$MG_ALSO"
   git -C "$MG_ROOT" status --short -- src tools vendor spike || true
+  mg_end
   exit 130
 }

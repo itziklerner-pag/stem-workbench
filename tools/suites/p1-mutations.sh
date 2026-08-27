@@ -102,7 +102,6 @@ if [ "${STEM_WORKBENCH_LOCK_HELD:-}" != "1" ]; then
   exec env STEM_WORKBENCH_LOCK_HELD=1 flock "$LOCK" "$0" "$@"
 fi
 
-rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
 # THE MUTATION GUARD. Traps are the belt: this battery restores on INT, TERM and
 # HUP, and `timeout` sends TERM — which is how a long battery is most likely to
@@ -115,6 +114,8 @@ MG_BATTERY='p1-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
 
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 # ------------------------------------------------------- restore on a kill
 # `$OUT/<n>.<basename>.bak` is the only backup convention here, so the trap can
 # restore without knowing which case was running. It restores the MOST RECENT

@@ -87,6 +87,7 @@ cd "$ROOT"
 MG_BATTERY='vendor-unit-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
+mg_begin
 
 # The backup file for (case, path). THE WHOLE PATH GOES IN THE NAME, not the
 # basename: `vendor/.../ui/host.js` and `vendor/.../offscreen/host.js` are both

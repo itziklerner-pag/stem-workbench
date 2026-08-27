@@ -66,7 +66,6 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/transport-s7a-mutations"
-rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
 # THE MUTATION GUARD. The trap is the belt — `timeout` sends TERM, which is how a
 # long battery is most likely to die and was the one way it did not clean up
@@ -76,6 +75,8 @@ MG_BATTERY='transport-s7a-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP
 
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
 ONLY=(); STATIC_ONLY=0

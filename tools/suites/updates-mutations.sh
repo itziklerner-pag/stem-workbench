@@ -71,7 +71,6 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="$ROOT/out/updates-mutations"
-rm -rf "$OUT"; mkdir -p "$OUT"
 cd "$ROOT"
 # THE MUTATION GUARD. Traps are the belt: this battery restores on INT, TERM and
 # HUP, and `timeout` sends TERM. The SENTINEL is the braces, for `kill -9`:
@@ -81,6 +80,8 @@ MG_BATTERY='updates-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP
 
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
 

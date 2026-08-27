@@ -76,6 +76,7 @@ cd "$ROOT"
 MG_BATTERY='engine-host-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP
+mg_begin
 
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0

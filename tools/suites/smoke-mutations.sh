@@ -98,6 +98,8 @@ cd "$ROOT"
 MG_BATTERY='smoke-mutations'; MG_ROOT="$ROOT"
 . "$ROOT/tools/lib/mutation-guard.sh"
 trap mg_on_signal INT TERM HUP   # on_signal() below is chained in via MG_ALSO
+mg_begin
+rm -rf "$OUT"; mkdir -p "$OUT"   # AFTER the marker: a run refused here has wiped nothing
 
 C_R=$'\033[31m'; C_G=$'\033[32m'; C_Y=$'\033[33m'; C_D=$'\033[2m'; C_X=$'\033[0m'
 caught=0; missed=0; ran=0
@@ -121,7 +123,6 @@ export STEM_WORKBENCH_BROWSER_LOCK_HELD=1
 # `cp: cannot stat …/4.host.js.bak`. Measured, on the run that produced the table
 # in `smoke.mjs`'s header. Nothing under `$OUT` is touched until this process owns
 # the box.
-rm -rf "$OUT"; mkdir -p "$OUT"
 
 # ------------------------------------------------- restore on the way out
 # `CUR_FILES` is the case in flight. A battery killed between the edit and the
