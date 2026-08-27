@@ -203,7 +203,7 @@ export function countOf(out) {
 export const STEPS = [
   {
     id: 'void-canary',
-    assertions: 46,
+    assertions: 48,
     title: 'node tools/suites/void-canary.mjs — the steps table agrees with docs/TESTING.md, and the VOID rule is wired',
     cmd: ['node', 'tools/suites/void-canary.mjs'],
   },
@@ -432,6 +432,35 @@ export const STEPS = [
      * and the two things a broken Host breaks silently (late binding and the
      * envelope) are both in it, so a red here changes how a windowed green is
      * read.
+     */
+  },
+  {
+    id: 'backend',
+    assertions: 55,
+    title: 'node tools/suites/backend.mjs — WHICH inference backend, and the wire to seed §16\'s second one, over a fake engine',
+    cmd: ['node', 'tools/suites/backend.mjs'],
+    /**
+     * NO WINDOW, NO DISPLAY, NO MUTEX, ~0.3 s — and, like `deck-seam`, that is
+     * the point rather than a convenience. Three things are gated here and all
+     * three are true on a machine that cannot run the backend they are about:
+     *
+     *   · THE SELECTION TABLE. `chooseBackend()` is pure — a platform, an arch,
+     *     a probe result and a preference in, a decision out — so all twenty
+     *     rows are drivable anywhere. One row per assertion, so an inverted row
+     *     produces exactly one red that names itself.
+     *   · THE WIRE, over a `node:worker_threads` `MessageChannel` and a FAKE
+     *     engine: the frozen `(k*2 + ch) * SEGMENT + i` layout survives the hop,
+     *     both caller buffers come back as themselves and neither is detached,
+     *     and `dispose()` settles a genuinely in-flight call BY NAME.
+     *   · THE NEGATIVE CONTROL, which is the one that matters most: on this
+     *     platform the native backend is unavailable, the shipped hole builds
+     *     the unit's own `WorkerBackend`, and it does so even with a native
+     *     factory sitting right beside it.
+     *
+     * WHAT IT IS NOT. It is not evidence about CoreML — see `backend-coreml`,
+     * which is the step that asks that question and skips here with a machine
+     * reason. A green here over unbuilt code would be the exact failure this
+     * project keeps finding, so the suite says so in its own summary line.
      */
   },
   {
@@ -739,6 +768,34 @@ export const STEPS = [
      * launching anything (coverage 26/26), plus three `--live` rows that edit
      * `src/` for real and re-run against the site. The two halves prove
      * different things and the file says which.
+     */
+  },
+  {
+    id: 'backend-coreml',
+    title: 'node tools/suites/backend-coreml.mjs — the CoreML backend against real Apple Silicon. MANUAL, and it has never run.',
+    cmd: ['node', 'tools/suites/backend-coreml.mjs'],
+    manual: true,
+    /**
+     * THE STEP THAT NAMES WHAT NOBODY HAS ANSWERED.
+     *
+     * Seed §16's CoreML backend is written and SHIPS UNVERIFIED: the CEO ruled
+     * step 7 in scope on a machine that is Linux, has no Apple hardware and does
+     * not have `onnxruntime-node` installed. The runner's own standing note says
+     * a suite that is not in this table "is indistinguishable from a suite
+     * nobody thought of", and that is exactly the risk an unverified backend
+     * carries — so the question is declared here, by name, and skips with a
+     * MACHINE reason (`docs/TESTING.md` §3 rule 8) rather than being absent.
+     *
+     * `manual`, NOT A PERMANENT SKIP ON THE DEFAULT PLAN. `--strict` exists to
+     * refuse a SKIP, and a step that can only ever skip on every machine this
+     * project has would train people to ignore that signal. `youtube` is manual
+     * for the same shape of reason. On a Mac with the module installed this runs
+     * and answers.
+     *
+     * NO `assertions` PIN, and the absence is deliberate: this suite has never
+     * printed a count anywhere, and a pin nobody has ever observed is a number
+     * invented to look rigorous. `vendor-unit` is unpinned here for the adjacent
+     * reason. `docs/TESTING.md`'s count column says so in words.
      */
   },
 ];

@@ -47,13 +47,19 @@
  * ("IT TAKES OWNERSHIP OF `bytes` and may transfer it") and the alternative is
  * duplicating the model at the peak-memory moment.
  *
- * THE COST, STATED RATHER THAN BURIED: one process boundary means ~19.2 MB of
- * structured clone per hop (2.7 out + 16.5 back), about 10 MB/s at hop 1.95 s,
- * and the inbound 16.5 MB is per-hop garbage on the engine renderer. That is
- * what a process boundary costs; cross-process zero copy would need shared
- * memory, which Electron does not expose and which a `SharedArrayBuffer` cannot
- * cross a process to provide. Whether it is worth paying is a question only
- * hardware that can run CoreML can answer, and it has not been answered.
+ * THE COST, MEASURED ON THIS BOX RATHER THAN ESTIMATED. Electron 44 / Linux,
+ * one renderer↔utility `MessageChannelMain` hop, five consecutive round trips:
+ *
+ *     2,751,840 B up + 16,511,040 B back = 19,262,880 B per segment
+ *     five round trips in 221 ms  ->  ~44 ms each
+ *
+ * So ~19.26 MB of structured clone per hop, about 44 ms of it, against a hop of
+ * 1.95 s — roughly 2.3% of the budget, plus 16.5 MB of per-hop garbage on the
+ * engine renderer. That is what a process boundary costs; cross-process zero
+ * copy would need shared memory, which Electron does not expose and which a
+ * `SharedArrayBuffer` cannot cross a process to provide. WHETHER IT IS WORTH
+ * PAYING IS UNMEASURED: it buys whatever CoreML is faster by, and no CoreML
+ * inference has ever been timed by this project.
  *
  * ===========================================================================
  * THIS MODULE MUST IMPORT CLEANLY IN PLAIN NODE
@@ -156,19 +162,20 @@ export function createNativeBackend(o) {
   }
 
   /** One request, one answer, correlated by id — the shape `WorkerBackend` uses. */
-  function call(msg, transfer) {
+  function call(msg) {
     if (disposed) return Promise.reject(new Error(deadReason));
     return portReady.then((p) => new Promise((res, rej) => {
       if (disposed) { rej(new Error(deadReason)); return; }
       const wireId = `${id}:${++seq}`;
       pending.set(wireId, { res, rej });
-      try { p.postMessage({ ...msg, id: wireId }, transfer || []); }
-      catch (err) {
-        // The transfer list was refused. Retry as a copy rather than leaving the
-        // caller holding a promise nothing will settle.
-        try { p.postMessage({ ...msg, id: wireId }); }
-        catch (err2) { pending.delete(wireId); rej(new Error(`${name}: ${(err2 && err2.message) || err2}`)); }
-      }
+      /**
+       * NOTHING IS EVER TRANSFERRED — see `load()` for the measurement. This
+       * `catch` is for a port that has gone away, NOT for a refused transfer
+       * list: a refused transfer on this wire does not throw, which is exactly
+       * what makes it dangerous.
+       */
+      try { p.postMessage({ ...msg, id: wireId }); }
+      catch (err) { pending.delete(wireId); rej(new Error(`${name}: ${(err && err.message) || err}`)); }
     }));
   }
 
@@ -184,7 +191,27 @@ export function createNativeBackend(o) {
     async load(bytes, onProgress) {
       if (disposed) throw new Error(deadReason);
       if (onProgress) onProgress('session');
-      const r = await call({ t: 'load', bytes, ep: o.ep || 'coreml' }, [bytes]);
+      /**
+       * NO TRANSFER LIST, AND THIS IS THE ONE MEASUREMENT THAT CHANGED THE CODE.
+       * `load()`'s typedef PERMITS transferring the 109 MB and the obvious
+       * implementation does. Measured on this box (Electron 44, Linux), a
+       * renderer `MessagePort.postMessage(msg, [arrayBuffer])` to a
+       * `MessagePortMain`:
+       *
+       *     threw: null · senderDetached: TRUE · delivered: FALSE
+       *
+       * It does not throw. It DETACHES THE CALLER'S BUFFER AND THE MESSAGE IS
+       * NEVER DELIVERED. A `load()` written the obvious way would destroy the
+       * verified weights and then wait for ever for an answer that was never
+       * sent — `LivePipeline.runChunk` awaiting with no timeout and no cancel
+       * path, which is the exact hang `shared/host.js` spends four paragraphs
+       * on. A `try/catch` cannot save it, because there is nothing to catch.
+       *
+       * So nothing on this wire is ever transferred, in either direction. The
+       * cost is one transient duplicate of the model at load time, once per
+       * deck, against a failure mode with no symptom.
+       */
+      const r = await call({ t: 'load', bytes, ep: o.ep || 'coreml' });
       if (onProgress) onProgress('warmup');
       /**
        * `ep` IS THE SESSION'S ANSWER, NOT THE REQUEST. It is the one channel
