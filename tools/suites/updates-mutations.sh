@@ -283,6 +283,15 @@ M 23 "the user preference REPLACES the command line instead of being ANDed with 
   '  state.update = createUpdateCheck({ session: ours, enabled: autoUpdate });' \
   '...and the user preference is ANDed with the command line'
 
+# ISSUE #13, IN ITS OWN WORDS: "no check at launch, no check on a timer, no 'one
+# last check' on quit." The runtime half is case 21; this is the SHAPE half, and
+# the failure it catches is a SECOND call site nobody wired to the toggle.
+M 35 "the check grows a timer, which the toggle does not reach" "$MAIN" \
+  '  state.updateCheck = UPDATE_CHECK ? state.update.check().catch(() => null) : null;' \
+  '  state.updateCheck = UPDATE_CHECK ? state.update.check().catch(() => null) : null;
+  setInterval(() => state.update.check().catch(() => null), 3600000);' \
+  'OFF MEANS OFF: the check is asked EXACTLY ONCE'
+
 M 24 "the bridge stops exposing the gesture, so the bar's control is dead" "$PL" \
   "  setAutoUpdate: (on) => ipcRenderer.invoke('chrome:autoUpdate', on === true)," "" \
   'the toggle is wired end to end across the three files'
