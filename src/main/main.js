@@ -70,6 +70,13 @@
  * toggle"). `tools/suites/p1.mjs` is the one gate that opts back IN, and it
  * points the check at a fake host wearing `UPDATE_HOST`'s certificate rather
  * than at a different URL — so the URL under test is the shipping constant.
+ *
+ * THE VISIBLE TOGGLE IS THE OTHER GATE, AND IT IS THE USER'S. It is stored in
+ * the `local` area (`src/main/update.js` AUTO_UPDATE_AREA), defaults ON when
+ * absent, and is ANDed with the flag above rather than replacing it — so a gate
+ * launch cannot be talked onto the network by a preference file left behind in
+ * a profile, and a user who turned it off does not have it turned back on by a
+ * restart. `tools/suites/updates.mjs` drives both halves.
  */
 /**
  * FIRST, AND THE ORDER IS THE POINT — rule P1'. `src/main/netguard.js` installs
@@ -98,7 +105,9 @@ import { createEngineMessages } from './engine-messages.js';
 import { createStorage } from './storage.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
 import { createSessions } from './sessions.js';
-import { createUpdateCheck } from './update.js';
+import {
+  createUpdateCheck, autoUpdateFrom, AUTO_UPDATE_AREA, AUTO_UPDATE_KEY,
+} from './update.js';
 import { report as netGuardReport } from './netguard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -301,6 +310,14 @@ function pushStatus() {
      * before `installDeckHost()` has run.
      */
     armed: !!(state.deckHost && state.deckHost.armed()),
+    /**
+     * THE VISIBLE HALF OF THE VISIBLE TOGGLE. It is pushed rather than asked
+     * for, and it is `state.update`'s answer rather than the bar's last click,
+     * for the same reason `armed` is: the bar must show what the app decided,
+     * not what the user aimed at. `null` before `createUpdateCheck()` has run,
+     * which the bar paints as indeterminate rather than as off.
+     */
+    autoUpdate: state.update ? state.update.isEnabled() : null,
     refusals: state.refusals.slice(-4),
   });
 }
@@ -341,13 +358,36 @@ async function boot() {
   state.protocol = installAppProtocol(ours, ROOTS);
 
   /**
+   * THE DECK'S STORAGE, BEFORE THE UPDATE CHECK RATHER THAN AFTER THE DECK.
+   *
+   * It used to be created beside `installDeckHost()`, which is where its other
+   * consumer is. The auto-update preference lives in it — `local`, because a
+   * preference that does not survive a restart is a preference that silently
+   * returns to its default, and for THIS one that means an app the user switched
+   * off switching itself back on. So the store has to exist before the line
+   * below asks it what the user chose. `installDeckHost()` is handed the same
+   * handle; there is still exactly one store.
+   */
+  state.storage = createStorage({ dir: app.getPath('userData') });
+
+  /**
    * THE ONE HOST THIS APP'S OWN CODE TALKS TO. It is built here, on the `app`
    * session, so it goes through Chromium's network stack and therefore past the
    * observer installed above — a check issued with `node:https` would leave the
    * stack entirely and be invisible to the instrument that exists to see it
    * (`src/main/update.js` says so at the call site).
+   *
+   * TWO GATES, AND THEY ARE DIFFERENT KINDS OF NO. `UPDATE_CHECK` is the
+   * COMMAND LINE — `--gate` implies off so five windowed suites do not need a
+   * network, `--update-check` opts back in — and it is a developer's or a gate's
+   * decision. `autoUpdateFrom(...)` is the USER's, read out of `local` storage,
+   * and it DEFAULTS ON when absent (seed §14, ADR 0001: this app ships a
+   * Chromium that loads youtube.com, so it owns Chromium's security patches).
+   * The conjunction is here rather than inside `createUpdateCheck` so the toggle
+   * can never turn a gate launch's network back on.
    */
-  state.update = createUpdateCheck({ session: ours, enabled: UPDATE_CHECK });
+  const autoUpdate = autoUpdateFrom(state.storage.get(AUTO_UPDATE_AREA, AUTO_UPDATE_KEY));
+  state.update = createUpdateCheck({ session: ours, enabled: UPDATE_CHECK && autoUpdate });
 
   state.bus = createBus();
 
@@ -500,7 +540,6 @@ async function boot() {
    * `DeckTransport` duties and the two `DeckPage` duties a player is the source
    * of. A Host with no player passes `transport: null` — spelled, never omitted.
    */
-  state.storage = createStorage({ dir: app.getPath('userData') });
   state.deckHost = installDeckHost({
     storage: state.storage,
     bus: state.bus,
@@ -558,6 +597,38 @@ async function boot() {
     }
     const r = on === true ? state.deckHost.arm() : state.deckHost.disarm();
     return { ...r, armed: state.deckHost.armed() };
+  });
+
+  /**
+   * THE AUTO-UPDATE TOGGLE — seed §14: *"default ON with a visible toggle"*.
+   *
+   * IT WRITES BEFORE IT ANSWERS, and the order is the point. `storage.set()` on
+   * the `local` area writes the file through a temp-and-rename before it
+   * returns, so the answer the bar paints is the value that is already on disk.
+   * A handler that flipped the runtime flag and persisted afterwards would paint
+   * a preference that a crash in between would have thrown away — and this is
+   * exactly the preference where "it went back on by itself" is the complaint.
+   *
+   * `UPDATE_CHECK` STILL WINS. Under `--gate` the check is off for the whole
+   * launch; the user's preference is recorded and does not put a request on the
+   * wire. So the answer is the effective state, not the stored one, and the two
+   * are both reported so a suite can tell them apart.
+   *
+   * THE SENDER IS CHECKED, like every other channel in this file.
+   */
+  ipcMain.handle('chrome:autoUpdate', (event, on) => {
+    if (!state.chrome || event.sender !== state.chrome.webContents) {
+      return { ok: false, autoUpdate: state.update ? state.update.isEnabled() : null, kind: 'not-the-bar',
+        message: 'only the chrome bar may set the auto-update preference' };
+    }
+    if (!state.storage || !state.update) {
+      return { ok: false, autoUpdate: null, kind: 'no-store', message: 'the Host is not installed yet' };
+    }
+    const want = on === true;
+    state.storage.set(AUTO_UPDATE_AREA, AUTO_UPDATE_KEY, want);
+    const effective = state.update.setEnabled(UPDATE_CHECK && want);
+    pushStatus();
+    return { ok: true, autoUpdate: effective, stored: want };
   });
 
   // ----------------------------------------------------------------- load

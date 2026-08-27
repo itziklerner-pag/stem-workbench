@@ -43,4 +43,22 @@ contextBridge.exposeInMainWorld('__wbChrome', {
    * @returns {Promise<{ok: boolean, armed: boolean, kind?: string, message?: string}>}
    */
   arm: (on) => ipcRenderer.invoke('chrome:arm', on === true),
+
+  /**
+   * THE AUTO-UPDATE TOGGLE — seed §14: *"default ON with a visible toggle"*.
+   *
+   * `invoke`, like `arm`, and for the same reason: the preference is written to
+   * disk by `main` and the effective state can differ from what the checkbox was
+   * clicked to — under `--gate` the command line keeps the check off whatever
+   * the user stored. A control that painted its own click would show the user a
+   * setting the app is not honouring.
+   *
+   * The CURRENT value is not read through here at all: it arrives on the status
+   * push, so there is one direction of truth and the bar cannot disagree with
+   * itself between a push and a poll.
+   *
+   * @param {boolean} on
+   * @returns {Promise<{ok: boolean, autoUpdate: boolean|null, stored?: boolean, kind?: string, message?: string}>}
+   */
+  setAutoUpdate: (on) => ipcRenderer.invoke('chrome:autoUpdate', on === true),
 });

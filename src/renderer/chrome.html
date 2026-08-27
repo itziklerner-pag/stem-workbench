@@ -8,6 +8,14 @@
   <span class="field"><span class="k">source</span><span class="v" id="source">…</span></span>
   <span class="field"><span class="k">deck</span><span class="v" id="deck">…</span></span>
   <span class="field"><span class="k">engine</span><span class="v" id="engine">…</span></span>
+  <!-- Seed §14: auto-update is ON by default and the toggle is VISIBLE. A
+       checkbox in the bar rather than an item two levels down a menu, because
+       "visible" is the whole of the promise PRIVACY.md makes about it. -->
+  <label class="field toggle" id="autoupdate-field"
+         title="Auto-update — check GitHub Releases for a newer pre-release at start-up. This app ships its own Chromium, so it owns Chromium's security patches. One request, to one host, carrying no identifier (PRIVACY.md).">
+    <input type="checkbox" id="autoupdate">
+    <span class="k">auto-update</span>
+  </label>
   <span id="refusal"></span>
   <script type="module" src="./chrome.js"></script>
 </body>

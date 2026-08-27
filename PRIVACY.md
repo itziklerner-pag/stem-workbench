@@ -56,8 +56,8 @@ Releases, for the update check, and nothing else.*
 
 | | |
 |---|---|
-| **what** | a check for a newer release, and the release file itself if you accept an update |
-| **where** | GitHub Releases for this repository. A download follows GitHub's own redirect to its asset host — GitHub's infrastructure, not a second party |
+| **what** | **a check, and only a check.** One `GET` for the list of releases. This app does not download or install an update — see below |
+| **where** | `api.github.com`, and nothing else: `GET /repos/itziklerner-pag/stem-workbench/releases`. It follows the **pre-release** channel, because that is what a beta is |
 | **what it reveals** | what any HTTP request necessarily reveals to the host it is sent to: your IP address and your user agent. GitHub's privacy statement governs what they log |
 | **what it does not carry** | no installation identifier, no machine identifier, no usage counter, no opt-out token. There is nothing in it that distinguishes you from anyone else running the same version |
 | **can you turn it off** | yes — a visible toggle. It is **on by default**, and the reason is below |
@@ -69,8 +69,17 @@ cannot update itself has a *worse* security posture than the extension, where
 Google did this for us. That argument beat the purity argument, deliberately and
 on the record (`docs/adr/0001-the-shape-of-the-desktop-product.md`).
 
-**The model is not downloaded.** It ships inside the installer. Unlike the
-extension, this app never contacts Hugging Face, or anyone else, for weights.
+**Nothing is downloaded — not even the update.** The check tells you a newer
+pre-release exists; fetching it is something you do yourself, in a browser. That
+is not a limitation being dressed up: downloading a release from GitHub means
+`github.com` *and* the asset host it redirects to, and rule P1′ names **one**
+host. Rather than quietly widen the rule, the delivery half is configured and
+left unarmed, and `docs/UPDATES.md` says exactly what would have to change — and
+who would have to decide it — before that stops being true.
+
+**The model is not downloaded either.** It ships inside the installer. Unlike
+the extension, this app never contacts Hugging Face, or anyone else, for
+weights.
 
 ### 2. The YouTube view — your browsing, on your own session
 

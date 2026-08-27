@@ -133,7 +133,7 @@ node tools/verify.mjs --list         # the steps table
 
 | step | file | flags | assertions | what it gates |
 |---|---|---|---|---|
-| `void-canary` | `tools/suites/void-canary.mjs` | — | 35 | the runner's own VOID rule, and the steps table against this document |
+| `void-canary` | `tools/suites/void-canary.mjs` | — | 37 | the runner's own VOID rule, and the steps table against this document |
 | `vendor-intact` | `tools/vendor-unit.sh --check` | — | 6 | **rule V1** — the 50 copied files are byte-identical to the pinned tag, and nothing was added under `vendor/` behind the sums file |
 | `vendor-unit` | *(the vendored runner)* | — | *544, in `vendor/.pin`* | the unit's 12 suites over the exact tag we pinned |
 | `deck-seam` | `tools/suites/deck-seam.mjs` | — | 49 | **the DECK half of the Host seam** — the shipped `ui/host.js` driven over a stubbed preload bridge: the boot check, the envelope, late binding, the two storage lifetimes, the arm chord's vocabulary, and the closed write set |
@@ -143,8 +143,10 @@ node tools/verify.mjs --list         # the steps table
 | `deck-host` | `tools/suites/deck-host.mjs` | window | 27 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
+| `updates` | `tools/suites/updates.mjs` | — | 33 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
 | `smoke` | `tools/suites/smoke.mjs` | window | 21 | boot, the Host seam, the transport, the deck — against a **local fake player** |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
+| `dist-linux` | `tools/suites/dist-linux.mjs` | window | 9 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
 
 <!-- suites:end -->

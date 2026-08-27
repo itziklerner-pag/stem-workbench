@@ -41,7 +41,8 @@ import { execFileSync } from 'node:child_process';
  *                          Chromium has ignored CN-only certificates for years
  *                          and the failure ("ERR_CERT_COMMON_NAME_INVALID") looks
  *                          exactly like a host that was never reached.
- * @param {object} [body]   the JSON every route answers with
+ * @param {object|Array} [body]   the JSON every route answers with — an ARRAY for the
+ *                              releases LIST endpoint `src/main/update.js` asks for
  */
 export async function startP1Host(names, body = { tag_name: 'v0.0.0-fake' }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'p1-cert-'));

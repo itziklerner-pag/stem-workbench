@@ -6,6 +6,7 @@
   "description": "Non-commercial Electron desktop product for stem-splitter-live: six live stems from a YouTube view or a local file. Pre-alpha \u2014 the app runs from a checkout; no installer has ever been built or signed.",
   "license": "MIT",
   "main": "src/main/main.js",
+  "desktopName": "stem-workbench.desktop",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/itziklerner-pag/stem-workbench.git"
@@ -26,12 +27,13 @@
   ],
   "buildNotes": {
     "_": "PROSE FOR `build`, KEPT OUT OF IT. electron-builder validates its configuration against a schema and refuses unknown properties, so a `_` comment inside `build` would be a config that cannot run \u2014 which is the one thing a block labelled CONFIGURED must not be. npm ignores unknown top-level keys, so it lives here instead.",
-    "status": "WRITTEN, NEVER BUILT. No installer has been produced from this configuration on any machine, and nothing has been signed or notarized. The Linux app is proven by `npm start` and by the gate; this block and .github/workflows/package.yml are the macOS and Windows half of the phase's pass condition, and they are configuration rather than evidence. README.md 'What was verified, and what was only configured'.",
+    "status": "WRITTEN, THEN BUILT ON LINUX FOR THE FIRST TIME. `npm run dist:linux` produced dist/stem-workbench-0.0.0.AppImage (197 MB) and dist/stem-workbench_0.0.0_amd64.deb on this box, and `tools/suites/dist-linux.mjs` builds one and LAUNCHES it, asserting the app's own `[main] ready` line. macOS AND WINDOWS ARE STILL CONFIGURATION AND NOT EVIDENCE: no dmg, no zip and no exe has been produced on any machine, and nothing has been signed or notarized. README.md 'What was verified, and what was only configured'.",
     "extraResources": "THE 109 MB OF WEIGHTS GO ON DISK, NOT INSIDE THE ASAR. HOST-DESIGN.md 7.1 chose this over asarUnpack: both put a plain file on disk, but asarUnpack's path is derived by string surgery on app.getAppPath(), and process.resourcesPath is documented and the same shape on all three platforms. src/main/main.js's MODEL_DIR reads exactly this location when app.isPackaged. The unit re-verifies the SHA-256 and the byte count on every load over whatever the Host hands it (rule M1), so a truncated or substituted copy is refused at load rather than trusted because it came out of our own installer.",
     "mac": "NOTARIZATION IS CONFIGURED AND HAS NEVER RUN. It needs an Apple Developer ID, an app-specific password and a Mac; this repository has none of the three. `notarize` is left true so that a build on a machine that HAS them does the right thing, and one that does not fails loudly instead of shipping an unnotarized dmg that Gatekeeper will refuse on the user's machine.",
-    "win": "UNSIGNED. Code signing needs a certificate this project does not have; SmartScreen will warn on first run until one exists. Said here rather than discovered by the first Windows user.",
-    "linux": "The only platform anything has actually run on - as `npm start` from a checkout, which is not the same as an AppImage nobody has built.",
-    "publish": "`publish: null` and `--publish never` on every script. Standing ruling: this project never creates a GitHub Release from automation."
+    "win": "UNSIGNED DURING BETA, ON PURPOSE \u2014 seed \u00a714: testers click through SmartScreen. Azure Trusted Signing is CONFIGURED IN `dist:win:signed` AND NOWHERE ELSE, and that is deliberate: app-builder-lib/out/winPackager.js:35 switches to the Azure signer the moment `win.azureSignOptions` exists, and its `initialize()` runs PowerShell `Install-Module TrustedSigning` unconditionally \u2014 so a block sitting in `build.win` would break every unsigned beta build. Putting it on a script instead leaves `npm run dist:win` producing the unsigned exe the decision asks for, while the four fields and the three Entra environment variables are committed, greppable and asserted by tools/suites/updates.mjs.",
+    "linux": "THE ONE PLATFORM ANYTHING HAS ACTUALLY RUN ON \u2014 and now as an artifact, not only as `npm start`. `maintainer` is REQUIRED for the deb: without it (or a top-level `author` with an email) app-builder-lib/out/targets/FpmTarget.ts:126 fails the build, which is how the first Linux build on this box ended \u2014 the AppImage was written and the deb was not. `syncDesktopName` is the other half: without it electron-builder warned that the installed .desktop filename does not match Electron's app_id / StartupWMClass, so a desktop environment does not link the running window to its launcher entry. `desktopName` itself is NOT set \u2014 it is a TOP-LEVEL package.json key, not a `build.linux` one (the schema rejects it there), and with `syncDesktopName` it falls back to `executableName`, which is already `stem-workbench`.",
+    "publish": "`publish` NAMES THE FEED AND `--publish never` IS ON EVERY SCRIPT. Those are two different things and the standing ruling only forbids the second: electron-builder writes `publish` into `app-update.yml` inside the installer, which is WHERE THE UPDATER READS ITS FEED FROM \u2014 an installer built with `publish: null` can never update itself no matter what the app does. `--publish never` is what stops a build from CREATING a GitHub Release, and it stays on `dist`, `dist:dir`, `dist:mac`, `dist:win`, `dist:win:signed` and `dist:linux`. `releaseType: prerelease` is the beta channel, seed \u00a714; `src/main/update.js`'s UPDATER_FEED carries the same object and `tools/suites/updates.mjs` compares the two both ways.",
+    "updater": "electron-updater IS CONFIGURED AND IS NOT A DEPENDENCY OF THIS APP, and that is a measured decision rather than an omission. Read against electron-updater@6.8.9: out/electronHttpExecutor.js:7 makes its own `session.fromPartition(\"electron-updater\")`, which is a session outside src/main/sessions.js and therefore outside the P1' observer; out/providers/GitHubProvider.js:32,43 talks to `github.com`, not the `api.github.com` that UPDATE_HOST names, so `mayRequest()` cancels every request it makes; and a release asset redirects to `objects.githubusercontent.com`, so the download path is irreducibly two hosts. P1' names ONE. Since this project also never creates a GitHub Release, arming it would buy an unobserved session and three hosts in exchange for a download that cannot happen. docs/UPDATES.md states exactly what would have to change first."
   },
   "scripts": {
     "start": "electron .",
@@ -46,6 +48,7 @@
     "dist:dir": "electron-builder --dir --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:win": "electron-builder --win --publish never",
+    "dist:win:signed": "electron-builder --win --publish never -c.win.azureSignOptions.publisherName=\"stem-workbench\" -c.win.azureSignOptions.endpoint=\"https://weu.codesigning.azure.net\" -c.win.azureSignOptions.codeSigningAccountName=\"stem-workbench\" -c.win.azureSignOptions.certificateProfileName=\"stem-workbench-public-trust\"",
     "dist:linux": "electron-builder --linux --publish never"
   },
   "devDependencies": {
@@ -78,7 +81,13 @@
       }
     ],
     "asar": true,
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "itziklerner-pag",
+      "repo": "stem-workbench",
+      "releaseType": "prerelease",
+      "vPrefixedTagName": true
+    },
     "mac": {
       "category": "public.app-category.music",
       "target": [
@@ -120,6 +129,10 @@
     },
     "linux": {
       "category": "AudioVideo",
+      "maintainer": "Claudia Isaacs <claudia@progforce.com>",
+      "syncDesktopName": true,
+      "synopsis": "Six live stems from a YouTube view or a local file, on-device",
+      "description": "stem-workbench separates audio into six stems on your own machine, from a YouTube view it embeds or from a local file. The model runs on-device; nothing is uploaded. Non-commercial: the bundled htdemucs_6s weights are CC BY-NC 4.0 (NOTICE.md).",
       "target": [
         {
           "target": "AppImage",
