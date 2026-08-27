@@ -83,7 +83,7 @@
  */
 import './netguard.js';
 
-import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu } from 'electron';
+import { app, BaseWindow, BrowserWindow, WebContentsView, ipcMain, Menu, utilityProcess, MessageChannelMain } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -99,6 +99,7 @@ import { createStorage } from './storage.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
 import { createSessions } from './sessions.js';
 import { createUpdateCheck } from './update.js';
+import { installBackend, UTILITY_ENTRY } from './backend.js';
 import { report as netGuardReport } from './netguard.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -243,6 +244,7 @@ const state = {
   source: null,          // the object createSourceView() returns
   deck: null,
   engineWin: null,
+  backend: null,        // which inference backend, and the utility processes behind it (§16)
   bus: null,
   protocol: null,
   capture: null,
@@ -430,6 +432,29 @@ async function boot() {
   });
   forwardConsole(state.engineWin.webContents, 'engine');
 
+  /**
+   * WHICH INFERENCE BACKEND — seed §16, step 7. `src/main/backend.js` probes
+   * (only on Apple Silicon; on anything else it forks nothing) and decides, and
+   * the engine's preload asks for the answer with a `sendSync`. So `ready` MUST
+   * be awaited before `engineWin.loadURL`, for the same reason the deck's Host
+   * is installed before the deck loads: a handler registered after `loadURL`
+   * leaves that `sendSync` unanswered.
+   *
+   * ON THIS PLATFORM THE ANSWER IS ALWAYS THE WORKER. That is not a fallback
+   * that happens to fire — it is the platform gate in `chooseBackend()`, above
+   * the probe, and `tools/suites/backend.mjs` is what proves it.
+   */
+  state.backend = installBackend({
+    ipcMain,
+    fork: (entry) => utilityProcess.fork(entry, [], { stdio: 'inherit' }),
+    makeChannel: () => new MessageChannelMain(),
+    utilityEntry: UTILITY_ENTRY(APP_ROOT),
+    argv: process.argv,
+    env: process.env,
+    engine: () => (state.engineWin && !state.engineWin.isDestroyed() ? state.engineWin.webContents : null),
+    log: (line) => console.log(`[backend] ${line}`),
+  });
+
   // ------------------------------------------------------- the capture grant
   // Installed on OUR session, not the source view's: the handler answers the
   // renderer that ASKS, and the only renderer allowed to ask is the engine.
@@ -562,6 +587,8 @@ async function boot() {
 
   // ----------------------------------------------------------------- load
   const deckUrl = deckVendored() ? appUrl(DECK_ENTRY) : appUrl('deck-placeholder.html');
+  // The backend answer must exist before the engine's preload asks for it.
+  await state.backend.ready;
   await Promise.all([
     state.chrome.webContents.loadURL(appUrl('chrome.html')),
     state.deck.webContents.loadURL(deckUrl),
@@ -629,6 +656,10 @@ app.on('before-quit', (e) => {
   if (!eng || eng.isDestroyed()) return;
   state.quitting = true;
   e.preventDefault();
+  // The utility processes are ours and nothing else will reap them. Killing
+  // them here is the main-process half of `Backend.dispose()`'s "give the
+  // machine back"; the renderer half already settled the callers.
+  if (state.backend) state.backend.dispose();
   eng.once('closed', () => app.quit());
   eng.close();
 });

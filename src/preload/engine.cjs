@@ -19,7 +19,12 @@
  *   modelCached           handler main already installed. 109 MB over ipc would
  *                         be one structured clone per load, twice per session
  *   clearModel            an honest no-op over an immutable bundled file
- *   createBackend         `new WorkerBackend(...)` — unit code, in this renderer
+ *   createBackend         `new WorkerBackend(...)` — unit code, in this renderer,
+ *                         UNLESS `main` chose seed §16's native backend, which
+ *                         needs a utility process and therefore needs main. That
+ *                         is the one duty in this list whose answer changed, and
+ *                         the three members below are why the count is no longer
+ *                         two. On Linux the answer is always the worker.
  *
  * Every channel added here is a channel a compromised renderer can call, so the
  * two that ARE here are the two that could not be anywhere else.
@@ -56,7 +61,60 @@ ipcRenderer.on(CHANNEL, (_event, msg) => {
   }
 });
 
+/**
+ * WHICH BACKEND THIS LAUNCH IS ON — READ SYNCHRONOUSLY, AND IT IS THE SECOND
+ * `sendSync` IN THIS APP FOR THE SAME REASON THE FIRST ONE EXISTS.
+ *
+ * `EngineHost.createBackend` is SYNCHRONOUS — `shared/host.js`: "it returns the
+ * Backend rather than a promise to one … called from `Deck.ensureBackend()`,
+ * which runs at engine module scope" — so "which backend" has to be answerable
+ * before the unit's first line, and there is no promise the unit would await.
+ * `deck:profile` in `deck.cjs` carries the identical constraint and states it at
+ * length. `main` must therefore have `installBackend()` ready BEFORE the engine
+ * window loads, exactly as it does for the deck's profile.
+ *
+ * The default here is the WORKER, and defaults matter on this channel: an
+ * unanswered ask must degrade to the backend that always exists rather than to
+ * one this machine may not have.
+ */
+const backend = (() => {
+  try {
+    const b = ipcRenderer.sendSync('engine:backend');
+    return b && typeof b.kind === 'string' ? b : { kind: 'worker', ep: null, why: 'main gave no backend answer' };
+  } catch (err) {
+    return { kind: 'worker', ep: null, why: `the backend question could not be asked (${(err && err.message) || err})` };
+  }
+})();
+
+/**
+ * THE UTILITY PROCESS'S PORT, FORWARDED INTO THE MAIN WORLD.
+ *
+ * `contextBridge` cannot carry a `MessagePort`, so a port that arrived here
+ * would be stranded in the isolated world — and the backend that needs it is
+ * `src/renderer/native-backend.js`, in the page. `window.postMessage` with the
+ * port in the transfer list is Electron's documented route across that boundary,
+ * and it is the only one.
+ *
+ * THE PORT GOES RENDERER↔UTILITY DIRECTLY. Routing 16.5 MB of stems through
+ * `main` would be a second structured clone on every hop, for nothing.
+ */
+ipcRenderer.on('engine:backend:port', (event, msg) => {
+  const port = event.ports && event.ports[0];
+  if (!port || !msg || typeof msg.id !== 'string') return;
+  window.postMessage({ t: 'wb-backend-port', id: msg.id }, '*', [port]);
+});
+
 contextBridge.exposeInMainWorld('__wbEngine', {
+  /**
+   * `{kind, ep, why}`, decided by `src/main/backend.js` before this window
+   * loaded. `why` travels with it so a deck that fell back to the worker can say
+   * why without anyone reading a log.
+   */
+  backend,
+  /** Ask `main` to fork one utility process for this backend id. */
+  openNativeBackend: (id) => ipcRenderer.invoke('engine:backend:open', id),
+  /** Give it back. Fire-and-forget: `dispose()` does not await. */
+  closeNativeBackend: (id) => ipcRenderer.send('engine:backend:close', id),
   /** Fire-and-forget, addressed by `msg.to`. The envelope is the caller's. */
   send: (msg) => ipcRenderer.send(CHANNEL, msg),
   /** @returns an unsubscribe function. */
