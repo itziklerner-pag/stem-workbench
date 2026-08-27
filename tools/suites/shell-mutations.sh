@@ -664,6 +664,84 @@ mutate_case 41 "report the matched cookies rather than their names — the crede
     .filter((c) => c && SESSION_COOKIES.includes(c.name) && isGoogles(c.domain));"
 
 # ==========================================================================
+# 42-48  THE `/file/` ROOT — slice S2, "file bytes over app://"
+#
+# 42 is the one the slice was gated on and it is the only one worth arguing
+# about: it makes a spent handle spendable again, and what has to go red is a
+# SECOND `fetch()` COMING BACK 200 WITH THE FILE IN IT. A gate that read a flag,
+# or a counter, or `inspect().live`, would go red here too — and would go red
+# just the same over a handler that cheerfully served the bytes twice while the
+# bookkeeping said otherwise. The live assertion compares the second response's
+# SHA-256 against the first's, so under 42 the transcript says the file came
+# back a second time.
+#
+# 45 and 46 are the two mistakes this root is easiest to make. 45 serves a
+# picked file through the EXTENSION table, which has no audio in it at all, so
+# the renderer gets `application/octet-stream` and has to sniff. 46 builds a
+# SECOND token registry in `boot()` — the intake mints into one and the scheme
+# spends from the other, so every handle the user ever gets is unknown.
+#
+# 47 IS THE INSTRUMENT, ONE LEVEL OUT: with no fixture there is nothing to
+# fetch, and the three live assertions must FAIL rather than pass over an empty
+# report. `docs/TESTING.md` §3 rule 7 — a suite that cannot look FAILS.
+#
+# 48 IS THE DYNAMIC RANGE. A truncated body still answers 200, still carries the
+# right `content-length`, and still has the right content type; only the hash
+# and the byte count can tell. It is aimed at the `/file/` branch alone, because
+# truncating every `app://` response would break the pages the rest of this
+# suite is about and prove nothing about this one.
+# ==========================================================================
+mutate_case 42 "a spent handle stays spendable — the second fetch gets the file again" \
+  "src/main/files.js" \
+  "a \`/file/\` handle resolves to its absolute path and the ALLOWLIST's MIME|...and a \`/file/\` request is refused unless it is ONE live handle|...and the SECOND fetch of that same handle is refused BY NAME" \
+  -- src/main/files.js \
+"      if (!rec) return refuse('unknown-token', 'that path token was never minted, or has already been spent');
+      live.delete(token);" \
+"      if (!rec) return refuse('unknown-token', 'that path token was never minted, or has already been spent');"
+
+mutate_case 43 "a \`/file/\` tail may contain a separator again — a traversal reaches the token store" \
+  "src/main/assets.js" \
+  "...and a \`/file/\` request is refused unless it is ONE live handle|...and over the wire a handle for a file the allowlist does not admit" \
+  -- src/main/assets.js \
+"  if (!tail || tail.includes('/')) {" \
+"  if (!tail) {"
+
+mutate_case 44 "the allowlist rule goes — a file whose type we cannot name is served anyway" \
+  "src/main/assets.js" \
+  "...and a \`/file/\` request is refused unless it is ONE live handle|...and over the wire a handle for a file the allowlist does not admit" \
+  -- src/main/assets.js \
+"  if (!r.mime) {" \
+"  if (false) {"
+
+mutate_case 45 "a picked file is typed by the EXTENSION table, which has no audio in it" \
+  "src/main/protocol.js" \
+  "a one-shot handle serves its file's EXACT bytes over app://" \
+  -- src/main/protocol.js \
+"'content-type': hit.mime || contentType(hit.file)," \
+"'content-type': contentType(hit.file),"
+
+mutate_case 46 "a SECOND token registry in boot() — the intake mints into one and the scheme spends from the other" \
+  "src/main/main.js" \
+  "a one-shot handle serves its file's EXACT bytes over app://|...and the SECOND fetch of that same handle is refused BY NAME|...and over the wire a handle for a file the allowlist does not admit" \
+  -- src/main/main.js \
+"  state.pathTokens = PATH_TOKENS;" \
+"  state.pathTokens = createPathTokens();"
+
+mutate_case 47 "the probe is handed no fixture, so it fetches nothing — the suite must FAIL, not pass" \
+  "tools/gate/probe.mjs" \
+  "a one-shot handle serves its file's EXACT bytes over app://|...and the SECOND fetch of that same handle is refused BY NAME|...and over the wire a handle for a file the allowlist does not admit" \
+  -- tools/gate/probe.mjs \
+"  const fileFixture = process.env.WB_SHELL_FILE_FIXTURE || '';" \
+"  const fileFixture = '';"
+
+mutate_case 48 "the served file is truncated to 1000 bytes — 200, right content-length, wrong body" \
+  "src/main/protocol.js" \
+  "a one-shot handle serves its file's EXACT bytes over app://" \
+  -- src/main/protocol.js \
+"return new Response(Readable.toWeb(fs.createReadStream(hit.file)), { headers: full });" \
+"return new Response(Readable.toWeb(fs.createReadStream(hit.file, hit.mime ? { end: 999 } : {})), { headers: full });"
+
+# ==========================================================================
 # THE COVERAGE CHECK, and it is the point of the whole file.
 #
 # "32 mutations were caught" is not the claim worth making. The claim is that

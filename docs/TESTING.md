@@ -654,17 +654,26 @@ reason, and `FAQ.md` says it to the user in the user's words.
 
 ### What it asserts
 
-**Eleven** of them are pure functions with no launch at all — the two navigation
-tables, the user-agent and its owners, and the sign-in verdict. The rest read a
-report: assertions 12–43 the first launch's, 44–45 a SECOND launch's over the
-same profile.
+**Thirteen** of them are pure functions with no launch at all — the two
+navigation tables, the user-agent and its owners, the sign-in verdict, and **the
+`/file/` ROOT's two rows**, which drive the shipped `createPathTokens()` over a
+clock this suite holds. The rest read a report: assertions 14–48 the first
+launch's, 49–50 a SECOND launch's over the same profile.
 
 **The numbering below moved when seed §9 landed (35 assertions became 45), and
 one row is new to the document rather than to the suite.** The bus recorder's INSTRUMENT CHECK
-(assertion **27** today) has been in `shell.mjs` since the deck was vendored and
+(assertion **32** today) has been in `shell.mjs` since the deck was vendored and
 was never listed here — so this table said 34 where the suite printed 35. It is
 listed now, and every number below is the suite's own print order, checked
 against a green run.
+
+**It moved again when the `/file/` ROOT landed (45 became 50), and the shift is
+recorded here so the old numbers in anybody's notes can be converted rather than
+guessed at:** positions 1–11 are unchanged; the old 12–26 are **+2** (the two
+pure `/file/` rows went in at 12–13); the old 27–45 are **+5** (the three live
+ones went in at 29–31). The bracket references in the mutation table below were
+moved by the same rule, and the whole column was re-derived from a green run's
+print order rather than counted by hand.
 
 | # | assertion | detail must carry |
 |---|---|---|
@@ -675,44 +684,46 @@ against a green run.
 | 7 | **the sign-in verdict reads a Google session cookie on a Google domain and nothing else** — anonymous YouTube's own `YSC`/`PREF`/`VISITOR_INFO1_LIVE`, somebody else's host, and the `includes()` trap (`google.com.evil.test`) all read signed OUT | which jar got the wrong verdict |
 | 8 | …and its answer **never carries a cookie VALUE**. `PRIVACY.md`'s promise, driven with one and searched for in what comes back — the value of a Google session cookie is not a fact about the session, it IS the session | the string fed in, and the whole answer |
 | 9–11 | the `app://` path table maps our two roots, and refuses a percent-encoded traversal, a NUL byte, a sibling directory sharing a root's prefix, and an unknown host | the counts, and what was let through |
-| 12 | the app launches from its real entry point and writes a report | exit code, electron/chromium versions |
-| 13–14 | one `BaseWindow`, three child views in the fixed order; the engine is a **hidden `BrowserWindow`** | the class names, the three URLs |
-| 15–17 | all four renderers have `contextIsolation` on, `sandbox` on, `nodeIntegration` off; none can see `require`/`process`/`module`; **the source view's page sees no bridge of ours** | the three flags per renderer; what `window` actually carries |
-| 18 | the source view is alone on `persist:youtube`; chrome, deck and engine are on the default session | the partition's storage directory |
-| 19 | **the source partition really presents the stock Chrome user-agent** — on the wire (`Session.getUserAgent`), on its `WebContents`, and to the DOCUMENT (`navigator.userAgent`), all three the same string, with the factory recorded as where it came from | the string, whether the three agree, the running Chromium, and the client hints (**recorded, not asserted** — see below) |
-| 20 | …and **NOTHING of ours wears it**: our own session, the deck renderer and `app.userAgentFallback` all still say `Electron/`, and the factory set no UA on an app-owned label | our session's string, the fallback, the deck's, and which labels got one |
-| 21–24 | the engine document is cross-origin isolated, `SharedArrayBuffer` constructs, **a module worker inherits it and `Atomics` round-trips a posted SAB**, and the deck slot is isolated too | `coi`, `sab`, the worker's reply |
-| 25–26 | every `app://` response carries COOP, COEP and CORP; a `HEAD` answers with a `content-length` and no body; the live handler returns 403 for a traversal and 404 for a missing file | the header values, the statuses |
-| 27 | **INSTRUMENT CHECK** — the gate's bus recorder installed on the deck, through the deck's own `__wbDeck.onMessage`. A recorder that never installed makes a WORKING bus report `0 of 1 arrived`, which is what the placeholder's old global did for a whole wave | whether it installed, and why not |
-| 28–31 | a **detached** `send()` reaches the deck's address, the envelope arrives deep-equal to what was sent, a wrong `v` is dropped as malformed, an address with no listener is dropped — both counted | the envelopes, the drop counters |
-| 32–35 | the capture grant answers the engine with the **source view's frame** (`deviceId` names its `processId:routingId`), one stereo 44 100 track with AGC/EC/NS all `false`; the deck may not capture; a page **inside** the source view may not capture | the `deviceId`, both frames, the settings |
-| 36 | the source view is muted **before it loads anything**, and no navigation ever starts unmuted | `mutedAtCreate`, the per-load samples, the unmuted-navigation count |
-| 37–39 | a renderer-initiated navigation off the allowlist is refused and the view does not move; `window.open` is denied; **the refusal is visible in the chrome bar** | the refused URLs, the bar's text |
-| 40 | **every sign-in host really goes ON THE WIRE** from the source view, and the `includes()` trap — `accounts.google.com.evil.test` — never does | which of the four were requested, and what happened to the trap |
-| 41–42 | the chrome bar painted with its Arm control present, **ENABLED**, labelled `Arm`, and wired to a `__wbChrome.arm` bridge; all three views drew more than one distinct colour | the bar's fields; per-view size and colour count. *(This row used to assert the `disabled` attribute, and was green for a whole wave while the product's own refusal text told the user to press that button. A gate that pins a defect in place makes fixing it look like a regression — `smoke` clicks the real element now.)* |
-| 43 | the deck slot loads the vendored deck when it is present and our placeholder when it is not | which branch ran, and the URL |
-| 44 | **a cookie written into `persist:youtube` is still there after the app has quit and started again** — read back by name and domain over a SECOND launch on the same `--user-data`, never inferred from the partition string (stem-workbench#8 asks for exactly this and refuses the string) | whether the seed itself succeeded, and every cookie the second launch found |
-| 45 | …and the app makes the right thing of it on that second boot: the jar that read ANONYMOUS the first time reads **SIGNED IN** the second, and names the cookie it found. **The only path any gate anywhere takes through the signed-in branch** — no suite can sign in to Google | both launches' verdicts in full |
+| 12–13 | **the `/file/` ROOT as a pure function** — a one-shot handle resolves to its absolute path and the File source ALLOWLIST's MIME, `/file/` wins the longest-prefix comparison against `/`, and a SECOND resolution of the same handle is refused; a tail that is not ONE component (a percent-encoded traversal, `a/b`, empty) is refused **without the token store ever being consulted**, a handle nobody minted is refused word for word the same as a replay, and a handle whose file the allowlist cannot type is 403 | the resolution, both refusals, the store's spent/refused counters before and after, and the `.txt` handle's status |
+| 14 | the app launches from its real entry point and writes a report | exit code, electron/chromium versions |
+| 15–16 | one `BaseWindow`, three child views in the fixed order; the engine is a **hidden `BrowserWindow`** | the class names, the three URLs |
+| 17–19 | all four renderers have `contextIsolation` on, `sandbox` on, `nodeIntegration` off; none can see `require`/`process`/`module`; **the source view's page sees no bridge of ours** | the three flags per renderer; what `window` actually carries |
+| 20 | the source view is alone on `persist:youtube`; chrome, deck and engine are on the default session | the partition's storage directory |
+| 21 | **the source partition really presents the stock Chrome user-agent** — on the wire (`Session.getUserAgent`), on its `WebContents`, and to the DOCUMENT (`navigator.userAgent`), all three the same string, with the factory recorded as where it came from | the string, whether the three agree, the running Chromium, and the client hints (**recorded, not asserted** — see below) |
+| 22 | …and **NOTHING of ours wears it**: our own session, the deck renderer and `app.userAgentFallback` all still say `Electron/`, and the factory set no UA on an app-owned label | our session's string, the fallback, the deck's, and which labels got one |
+| 23–26 | the engine document is cross-origin isolated, `SharedArrayBuffer` constructs, **a module worker inherits it and `Atomics` round-trips a posted SAB**, and the deck slot is isolated too | `coi`, `sab`, the worker's reply |
+| 27–28 | every `app://` response carries COOP, COEP and CORP; a `HEAD` answers with a `content-length` and no body; the live handler returns 403 for a traversal and 404 for a missing file | the header values, the statuses |
+| 29–31 | **file bytes reach the engine renderer over `app://`** — a handle minted over the app's own registry serves the file's EXACT bytes (SHA-256, compared against a >1 MB WAV the SUITE wrote in another process), with the allowlist's MIME and this origin's COOP/COEP/CORP; the SECOND `fetch()` of that handle carries the refusal instead of the file; and over the wire an unadmitted file is 403 while a `/file/` URL that is not one handle is 404 and never becomes a path | both hashes, the byte counts, the content types, the refusal bodies, and the token counters |
+| 32 | **INSTRUMENT CHECK** — the gate's bus recorder installed on the deck, through the deck's own `__wbDeck.onMessage`. A recorder that never installed makes a WORKING bus report `0 of 1 arrived`, which is what the placeholder's old global did for a whole wave | whether it installed, and why not |
+| 33–36 | a **detached** `send()` reaches the deck's address, the envelope arrives deep-equal to what was sent, a wrong `v` is dropped as malformed, an address with no listener is dropped — both counted | the envelopes, the drop counters |
+| 37–40 | the capture grant answers the engine with the **source view's frame** (`deviceId` names its `processId:routingId`), one stereo 44 100 track with AGC/EC/NS all `false`; the deck may not capture; a page **inside** the source view may not capture | the `deviceId`, both frames, the settings |
+| 41 | the source view is muted **before it loads anything**, and no navigation ever starts unmuted | `mutedAtCreate`, the per-load samples, the unmuted-navigation count |
+| 42–44 | a renderer-initiated navigation off the allowlist is refused and the view does not move; `window.open` is denied; **the refusal is visible in the chrome bar** | the refused URLs, the bar's text |
+| 45 | **every sign-in host really goes ON THE WIRE** from the source view, and the `includes()` trap — `accounts.google.com.evil.test` — never does | which of the four were requested, and what happened to the trap |
+| 46–47 | the chrome bar painted with its Arm control present, **ENABLED**, labelled `Arm`, and wired to a `__wbChrome.arm` bridge; all three views drew more than one distinct colour | the bar's fields; per-view size and colour count. *(This row used to assert the `disabled` attribute, and was green for a whole wave while the product's own refusal text told the user to press that button. A gate that pins a defect in place makes fixing it look like a regression — `smoke` clicks the real element now.)* |
+| 48 | the deck slot loads the vendored deck when it is present and our placeholder when it is not | which branch ran, and the URL |
+| 49 | **a cookie written into `persist:youtube` is still there after the app has quit and started again** — read back by name and domain over a SECOND launch on the same `--user-data`, never inferred from the partition string (stem-workbench#8 asks for exactly this and refuses the string) | whether the seed itself succeeded, and every cookie the second launch found |
+| 50 | …and the app makes the right thing of it on that second boot: the jar that read ANONYMOUS the first time reads **SIGNED IN** the second, and names the cookie it found. **The only path any gate anywhere takes through the signed-in branch** — no suite can sign in to Google | both launches' verdicts in full |
 
-**Assertion 42 is not decoration.** A blank view and a painted one are both a
+**Assertion 47 is not decoration.** A blank view and a painted one are both a
 PNG, and a byte count cannot tell them apart — a solid-colour 1280×600 PNG
 compresses to a few hundred bytes and so does a broken one. The distinct-colour
 **count** can: 1 for anything uniform, more for anything with text on it.
 
-**Assertion 35 is the one that would undo the product.** A page inside the source
+**Assertion 40 is the one that would undo the product.** A page inside the source
 view that could call `getDisplayMedia` itself would not need us at all. It is
 refused twice — at the permission layer on `persist:youtube`, and by the fact
 that the display-media handler is installed on our session only.
 
-**Assertions 19 and 20 are a pair and neither is the other's restatement.** 19 is
+**Assertions 21 and 22 are a pair and neither is the other's restatement.** 21 is
 the FEATURE — without it Google refuses sign-in outright and YouTube Premium is
-unreachable inside the product. 20 is the LIMIT, and it is the one worth having:
+unreachable inside the product. 22 is the LIMIT, and it is the one worth having:
 `app.userAgentFallback` is a single line that disguises EVERY session at once,
 the update check included, and a gate written only against the source view's
 user-agent is green over it. The battery drives both directions (cases 33 and
 34), one assertion red each.
 
-**Assertion 40's first witness was wrong, and the assertion caught it rather than
+**Assertion 45's first witness was wrong, and the assertion caught it rather than
 a review.** "Not in the refusal ledger" will not do — that is also what a
 navigation nobody attempted looks like — so the obvious positive witness was
 `did-start-navigation`. It is not one: **measured on Electron 44.0.0, it fires
@@ -724,7 +735,7 @@ instead; a cancelled navigation never becomes a request at all.
 **This suite does not touch Google, and that is a flag rather than a hope.** The
 four sign-in hosts are mapped to a closed loopback port with
 `--host-resolver-rules`, and both the guard and `onBeforeRequest` run before the
-connection — so assertion 40's verdict is unchanged and the suite does not depend
+connection — so assertion 45's verdict is unchanged and the suite does not depend
 on being online. **Nothing here proves Google ACCEPTS the user-agent**, and
 nothing can: that test would need somebody's real credentials. `FAQ.md` says so
 in the user's words.
@@ -739,7 +750,7 @@ discloses it.
 
 ### Deliberately not asserted here
 
-- **Whether the sign-in FLOW works.** Assertions 4 and 40 say the four hosts are
+- **Whether the sign-in FLOW works.** Assertions 4 and 45 say the four hosts are
   reachable and the trap is not; nothing here follows a redirect chain, fills a
   form, or meets a challenge. That is stem-workbench#8's `ready-for-human` half.
 - **Refusal DETECTION.** stem-workbench#9 asks the app to recognise Google's
@@ -749,7 +760,7 @@ discloses it.
   sequencing fact rather than a shortcut. What IS gated is that the app works
   without a session at all — `smoke` assertion 8a.
 - **The unit.** `vendor/stem-splitter-live/` is not on this tree. Nothing here
-  proves the vendored engine or deck loads, runs, or produces audio. Assertion 43
+  proves the vendored engine or deck loads, runs, or produces audio. Assertion 48
   reads the placeholder branch when nothing is vendored and the vendored branch
   when it is — the same assertion, both ways.
 - **The 32 duties.** There is no Host yet, so `assertHost` has nothing to check.
@@ -792,48 +803,77 @@ assertion's position today, for reading alongside the table above.
 
 | # | mutation | file | must turn red |
 |---|---|---|---|
-| 1 | drop COOP + COEP from `ISOLATION_HEADERS` | `src/main/assets.js` | the engine document is cross-origin isolated \[21]; SharedArrayBuffer constructs \[22]; a module worker inherits it \[23]; the deck slot is isolated too \[24]; every `app://` response carries COOP, COEP and CORP \[25] |
-| 2 | drop the containment test from `resolveAppPath` | `src/main/assets.js` | refuses a traversal, a NUL byte and a sibling directory \[10]; the live handler refuses a percent-encoded traversal \[26] |
+| 1 | drop COOP + COEP from `ISOLATION_HEADERS` | `src/main/assets.js` | the engine document is cross-origin isolated \[23]; SharedArrayBuffer constructs \[24]; a module worker inherits it \[25]; the deck slot is isolated too \[26]; every `app://` response carries COOP, COEP and CORP \[27] |
+| 2 | drop the containment test from `resolveAppPath` | `src/main/assets.js` | refuses a traversal, a NUL byte and a sibling directory \[10]; the live handler refuses a percent-encoded traversal \[28] |
 | 3 | suffix match → `host.includes('youtube.com') \|\| NAV_ALLOW.includes(host)` | `src/main/navigation.js` | every off-list host is refused, including the `includes()` trap \[2] |
-| 4 | `setAudioMuted(true)` **after** the first load | `src/main/youtube.js` | the source view is muted BEFORE it loads anything \[36] |
-| 5 | delete the `will-navigate` guard | `src/main/youtube.js` | a renderer-initiated navigation off the allowlist is refused \[37] — **and, re-measured today, the sign-in row \[40]: with no guard the `includes()` trap goes on the wire too** |
-| 6 | window-open handler → `{ action: 'allow' }` | `src/main/youtube.js` | `window.open` is denied \[38] |
-| 7 | grant the **chrome** frame instead of the source's | `src/main/main.js` | the capture grant answers the engine with the SOURCE view's frame \[32] |
-| 8 | do not `addChildView(deck)` | `src/main/main.js` | one `BaseWindow` with the three views attached \[13] — and all three views drew \[42] |
-| 9 | stamp `hostSaw: true` onto a routed envelope | `src/main/bus.js` | the envelope arrives exactly as sent \[29] |
-| 10 | delete the `v !== 1` guard | `src/main/bus.js` | a wrong `v` is dropped as malformed \[30] |
-| 11 | `mayCapture` → `(wc) => !!wc \|\| isCaptor(wc)` | `src/main/capture.js` | the deck may not open a capture \[34] |
-| 12 | `nodeIntegration: true` | `src/main/main.js` | every renderer runs with `contextIsolation` on, `sandbox` on, `nodeIntegration` off \[15] |
-| 13 | delete the Arm button | `src/renderer/chrome.html` | the chrome bar painted, Arm present, ENABLED, wired \[41] |
-| 13b | put the Arm control back to `disabled` — the state it SHIPPED in | `src/renderer/chrome.html` | the same row \[41] |
-| 14 | do not write `report.json` | `tools/gate/probe.mjs` | the app launches and writes a gate report \[12] — and the suite **fails** rather than exiting 0 |
-| 15 | ask for `getDisplayMedia({ audio: true })` | `tools/gate/probe.mjs` | the track is one stereo 44 100 track \[33] |
-| 16 | `noteRefusal` stops calling `pushStatus()` | `src/main/main.js` | the refusal is visible in the chrome bar \[39] |
+| 4 | `setAudioMuted(true)` **after** the first load | `src/main/youtube.js` | the source view is muted BEFORE it loads anything \[41] |
+| 5 | delete the `will-navigate` guard | `src/main/youtube.js` | a renderer-initiated navigation off the allowlist is refused \[42] — **and, re-measured today, the sign-in row \[45]: with no guard the `includes()` trap goes on the wire too** |
+| 6 | window-open handler → `{ action: 'allow' }` | `src/main/youtube.js` | `window.open` is denied \[43] |
+| 7 | grant the **chrome** frame instead of the source's | `src/main/main.js` | the capture grant answers the engine with the SOURCE view's frame \[37] |
+| 8 | do not `addChildView(deck)` | `src/main/main.js` | one `BaseWindow` with the three views attached \[15] — and all three views drew \[47] |
+| 9 | stamp `hostSaw: true` onto a routed envelope | `src/main/bus.js` | the envelope arrives exactly as sent \[34] |
+| 10 | delete the `v !== 1` guard | `src/main/bus.js` | a wrong `v` is dropped as malformed \[35] |
+| 11 | `mayCapture` → `(wc) => !!wc \|\| isCaptor(wc)` | `src/main/capture.js` | the deck may not open a capture \[39] |
+| 12 | `nodeIntegration: true` | `src/main/main.js` | every renderer runs with `contextIsolation` on, `sandbox` on, `nodeIntegration` off \[17] |
+| 13 | delete the Arm button | `src/renderer/chrome.html` | the chrome bar painted, Arm present, ENABLED, wired \[46] |
+| 13b | put the Arm control back to `disabled` — the state it SHIPPED in | `src/renderer/chrome.html` | the same row \[46] |
+| 14 | do not write `report.json` | `tools/gate/probe.mjs` | the app launches and writes a gate report \[14] — and the suite **fails** rather than exiting 0 |
+| 15 | ask for `getDisplayMedia({ audio: true })` | `tools/gate/probe.mjs` | the track is one stereo 44 100 track \[38] |
+| 16 | `noteRefusal` stops calling `pushStatus()` | `src/main/main.js` | the refusal is visible in the chrome bar \[44] |
 | 17 | allow only the exact hosts, dropping `*.youtube.com` | `src/main/navigation.js` | every host on the navigation allowlist is admitted \[1] |
 | 18 | stop requiring `https:` | `src/main/navigation.js` | every scheme that is not https is refused \[3] |
 | 19 | match the **shortest** root prefix, not the longest | `src/main/assets.js` | the `app://` path table maps our pages and the vendored tree \[9] |
 | 20 | serve any `app://` host, not only `workbench` | `src/main/assets.js` | a host that is not `workbench` is not served at all \[11] |
-| 21 | `show: true` on the engine window | `src/main/main.js` | the engine is a hidden `BrowserWindow` of its own \[14] |
-| 22 | `exposeInMainWorld` in the source view's preload | `src/preload/youtube.cjs` | the source view's page sees no bridge of ours \[17] |
-| 23 | put the source view on **our** session | `src/main/main.js` | the source view is alone on `persist:youtube` \[18] |
-| 24 | never `register(BUS.deck, …)` | `src/main/bus.js`, `src/main/main.js` | a DETACHED `send()` reaches the deck's address \[28] |
-| 25 | count a no-listener drop as a malformed one | `src/main/bus.js` | an address with no listener is dropped and counted \[31] |
-| 26 | give the source view every permission it asks for | `src/main/youtube.js` | neither may a page inside the source view \[35] |
-| 27 | point the deck slot at the wrong page | `src/main/main.js` | the deck slot loads the vendored deck when it is present \[43] |
-| 28 | `contextIsolation: false`, `sandbox: false`, `nodeIntegration: true` | `src/main/main.js` | the app launches and writes a gate report \[12] — **the app cannot start at all**, which is the point of the case |
-| 29 | no `onMessage` on the deck's bridge | `src/preload/deck.cjs` | INSTRUMENT CHECK: the recorder installed \[27]; the detached send \[28]; the envelope \[29] |
-| 30 | the probe reads the placeholder's old bus log | `tools/gate/probe.mjs` | the detached send \[28]; the envelope \[29] |
-| 31 | the probe asks the deck page for the placeholder's isolation global | `tools/gate/probe.mjs` | the deck slot is isolated too \[24] |
-| 32 | turn off the **source** view's own isolation | `src/main/youtube.js` | every renderer is locked down \[15]; no renderer can see `require` \[16] |
-| 33 | **never `setUserAgent` on the partition** | `src/main/sessions.js` | the source partition presents a stock Chrome user-agent \[19] |
-| 34 | **`app.userAgentFallback` = the stock UA** — disguise every session at once | `src/main/main.js` | NOTHING of ours wears it \[20] |
-| 35 | **drop `accounts.google.com` from the allowlist** | `src/main/navigation.js` | the four sign-in hosts BY NAME \[4]; every sign-in host goes ON THE WIRE \[40] |
-| 36 | **report the full Chromium build number**, which no stock Chrome does | `src/main/useragent.js` | the UA is Chrome-shaped on every platform \[5]; the source partition presents it \[19] |
+| 21 | `show: true` on the engine window | `src/main/main.js` | the engine is a hidden `BrowserWindow` of its own \[16] |
+| 22 | `exposeInMainWorld` in the source view's preload | `src/preload/youtube.cjs` | the source view's page sees no bridge of ours \[19] |
+| 23 | put the source view on **our** session | `src/main/main.js` | the source view is alone on `persist:youtube` \[20] |
+| 24 | never `register(BUS.deck, …)` | `src/main/bus.js`, `src/main/main.js` | a DETACHED `send()` reaches the deck's address \[33] |
+| 25 | count a no-listener drop as a malformed one | `src/main/bus.js` | an address with no listener is dropped and counted \[36] |
+| 26 | give the source view every permission it asks for | `src/main/youtube.js` | neither may a page inside the source view \[40] |
+| 27 | point the deck slot at the wrong page | `src/main/main.js` | the deck slot loads the vendored deck when it is present \[48] |
+| 28 | `contextIsolation: false`, `sandbox: false`, `nodeIntegration: true` | `src/main/main.js` | the app launches and writes a gate report \[14] — **the app cannot start at all**, which is the point of the case |
+| 29 | no `onMessage` on the deck's bridge | `src/preload/deck.cjs` | INSTRUMENT CHECK: the recorder installed \[32]; the detached send \[33]; the envelope \[34] |
+| 30 | the probe reads the placeholder's old bus log | `tools/gate/probe.mjs` | the detached send \[33]; the envelope \[34] |
+| 31 | the probe asks the deck page for the placeholder's isolation global | `tools/gate/probe.mjs` | the deck slot is isolated too \[26] |
+| 32 | turn off the **source** view's own isolation | `src/main/youtube.js` | every renderer is locked down \[17]; no renderer can see `require` \[18] |
+| 33 | **never `setUserAgent` on the partition** | `src/main/sessions.js` | the source partition presents a stock Chrome user-agent \[21] |
+| 34 | **`app.userAgentFallback` = the stock UA** — disguise every session at once | `src/main/main.js` | NOTHING of ours wears it \[22] |
+| 35 | **drop `accounts.google.com` from the allowlist** | `src/main/navigation.js` | the four sign-in hosts BY NAME \[4]; every sign-in host goes ON THE WIRE \[45] |
+| 36 | **report the full Chromium build number**, which no stock Chrome does | `src/main/useragent.js` | the UA is Chrome-shaped on every platform \[5]; the source partition presents it \[21] |
 | 37 | **`UA_SESSIONS` gains `'app'`** | `src/main/useragent.js` | only USER-owned sessions present the disguise \[6] — and the app refuses to boot, which is the intended shape |
-| 38 | **the partition is `'youtube'`, not `'persist:youtube'`** — an in-memory jar, indistinguishable from a persistent one for a whole run | `src/main/main.js` | the cookie is still there after a restart \[44] |
-| 39 | **drop `__Secure-3PSID` from `SESSION_COOKIES`** — the profile is intact and the app no longer knows what is in it | `src/main/signin.js` | the second boot reads SIGNED IN \[45] |
+| 38 | **the partition is `'youtube'`, not `'persist:youtube'`** — an in-memory jar, indistinguishable from a persistent one for a whole run | `src/main/main.js` | the cookie is still there after a restart \[49] |
+| 39 | **drop `__Secure-3PSID` from `SESSION_COOKIES`** — the profile is intact and the app no longer knows what is in it | `src/main/signin.js` | the second boot reads SIGNED IN \[50] |
 | 40 | **the cookie-domain test becomes `d.includes(base)`** — somebody else's host reads as Google's | `src/main/signin.js` | the sign-in verdict reads a Google session cookie on a Google domain \[7] |
 | 41 | **report the matched cookies rather than their names** — the credential goes into the answer | `src/main/signin.js` | its answer never carries a cookie VALUE \[8] |
+| 42 | **a spent path token stays spendable** — `live.delete(token)` removed from `spend()` | `src/main/files.js` | ONE handle buys ONE resolution \[12]; a `/file/` request is refused unless it is ONE live handle \[13]; the SECOND fetch is refused BY NAME \[30]. **Measured: `first 200 audio/wav 1600044 bytes, then 200 audio/wav 1600044 bytes`** — a SECOND FETCH REALLY RETURNING THE FILE, which is the whole reason this case is written against a fetch and not against a counter |
+| 43 | drop the `tail.includes('/')` shape check from `resolveHandle` — a `/file/` tail may be a path again | `src/main/assets.js` | refused unless ONE live handle \[13]; over the wire, a `/file/` URL that is not one handle \[31]. The status stays 404 either way — what changes is that the traversal now REACHES the token store, which is why \[13] counts the store's spends and does not only read a status |
+| 44 | drop the `if (!r.mime)` rule — serve a file whose type the allowlist cannot name | `src/main/assets.js` | refused unless ONE live handle \[13]; over the wire \[31] — the `.txt` handle goes from 403 to 200 |
+| 45 | type a picked file with `contentType()` instead of the handle's MIME | `src/main/protocol.js` | the EXACT bytes \[29] — **measured `200 application/octet-stream`**, a byte stream the renderer would have to sniff |
+| 46 | **a SECOND `createPathTokens()` in `boot()`** — the intake mints into one registry and the scheme spends from the other | `src/main/main.js` | \[29]; \[30]; \[31] — every handle a user ever gets is unknown to the scheme, and all three live rows go red at once |
+| 47 | the probe is handed no fixture, so it fetches nothing | `tools/gate/probe.mjs` | \[29]; \[30]; \[31] — the suite must **FAIL**, not pass over an empty report. §3 rule 7, one level out |
+| 48 | truncate the served `/file/` body to 1000 bytes | `src/main/protocol.js` | the EXACT bytes \[29] — 200, the right content type, the right `content-length`, and only the hash and the byte count can tell. This is the case that says \[29]'s estimator has the range its claim needs |
+
+**Cases 42–48 are the `/file/` ROOT (slice S2), and they are declared TWICE.**
+They live here, in `shell-mutations.sh`, because `coverage.py` reads its baseline
+log and refuses any assertion that never appeared on a `FAIL` line — an S2 case
+kept anywhere else would make this battery report five assertions as never
+watched red. One set of anchors, one place. But `shell-mutations.sh` requires
+every NAMED assertion to go red and then merely PRINTS the rest, and
+`INTEGRATION.md` §25 measured that instrument going blind: an aggregate is a
+claim about the UNION of all mutations, so coverage MIGRATING between two of
+them leaves it unchanged. So `tools/suites/s2-file-bytes-mutations.sh` drives
+these seven and fails a case whose red set differs **in either direction** —
+an assertion going red under an unexpected mutation is as much a finding as one
+going red under none. It reports the two halves separately (§24): whether the
+ANCHOR still matches the source, and whether the mutation still produces exactly
+the declared RED set.
+
+**Its anchors are stamped, and two of the seven are stamped differently.** Case
+42 patches `src/main/files.js`, which was already on `main` at `6c35580`; cases
+43–48 patch lines the S2 slice itself writes, so there is no landed commit that
+contains them yet and the battery's header says exactly that rather than naming
+a SHA nobody could resolve (`INTEGRATION.md` §22). They are re-pointed at the
+landing commit, and re-run, when the slice lands.
 
 **What was re-measured today, and what was not.** Cases **3, 5, 17 and 33–41**
 were run against the current suite, each battery over its own green baseline
@@ -842,14 +882,14 @@ in opposite directions — that pair is the point of the two rows. 35 and 36 tur
 two each; 37 turns two (its own, plus the launch, because the app then refuses to
 boot); 38 turns three (its own two, plus the partition's storage path, which is
 `null` for an in-memory jar); 40 turns exactly one; 41 turns two (its own, and
-\[45], because the second boot's `session` list is then cookie OBJECTS and no
-longer contains the seed's NAME); and 5 gained \[40], which it did not have
+\[50], because the second boot's `session` list is then cookie OBJECTS and no
+longer contains the seed's NAME); and 5 gained \[45], which it did not have
 before the sign-in row existed.
 
 **One of those runs was lost to the machine, and it is worth reading how it
 said so.** On a box with six agents queueing, case 39's second launch sat behind
 a sibling's wedged Electron for the full 900 s bound and the suite reported
-`NEVER TOOK THE SHARED BROWSER MUTEX after 900000 ms` — so \[44] went red about
+`NEVER TOOK THE SHARED BROWSER MUTEX after 900000 ms` — so \[49] went red about
 a mutex rather than about a cookie, alongside the three reds that were really the
 mutation's. That is `run()`'s queue/measurement split doing its job: the red
 NAMES the queue instead of claiming the app did not start. It is also why the two
@@ -868,7 +908,7 @@ a full battery it compares every assertion name in the baseline log against ever
 name that ever appeared on a `FAIL` line, and the script exits non-zero if any
 assertion has never been seen red. **The last full battery: 33 of 33 mutations
 caught, 35 of 35 assertions watched red.** Seed §9 then added five cases and six
-assertions; every one of the 41 has a case in the table above, and 33–37 were
+assertions; every one of the 41 had a case in the table above, and 33–37 were
 watched red, but **`coverage.py` has not been re-run over a full battery since**
 — it refuses to make the claim from a subset, and neither does this sentence.
 
@@ -885,7 +925,7 @@ one that mutation was written to turn red. A suite that crashes has not reported
 a red; it has stopped looking. Every read of the report now goes through two
 one-line guards, and the crash is the reason they are there.
 
-**Mutation 1 also takes the chrome-bar row \[41]** because the bar prints the
+**Mutation 1 also takes the chrome-bar row \[46]** because the bar prints the
 engine's `coi`/`sab`, so "the bar painted" and "what it says is true" go red
 together.
 That is information, not a defect in either assertion — and it is why the runner
@@ -899,7 +939,7 @@ navigations, so with `noteRefusal`'s push deleted the bar was repainted anyway,
 from the same `state.refusals`, by a different caller. Measured: `0 assertion(s)
 red · shell: 45 passed, 0 failed`, against the same case turning the same
 assertion red on the tree without that section. **Coverage did not notice** —
-other mutations still redden \[39], so `coverage.py` printed *"all 45
+other mutations still redden \[44], so `coverage.py` printed *"all 45
 assertions have been watched red"* over it. The per-case declaration is what
 caught it, which is the whole reason each case names the assertions it must turn
 red instead of just requiring a non-zero exit. The fix is ordering, in
@@ -907,25 +947,25 @@ red instead of just requiring a non-zero exit. The fix is ordering, in
 at the only moment when `noteRefusal` is the only thing that could have painted
 the line.
 
-**Mutation 5 does NOT take the chrome-bar refusal row \[39].** The `window.open`
+**Mutation 5 does NOT take the chrome-bar refusal row \[44].** The `window.open`
 denial writes the refusal line too, so the bar stays populated with the
 navigation guard gone. Mutation 16 is the one that empties it. Two mutations that look interchangeable and are not is
 exactly what a mutation table is for.
 
-**Mutation 12 takes the preferences row \[15] and not the reach row \[16].**
+**Mutation 12 takes the preferences row \[17] and not the reach row \[18].**
 `sandbox: true` keeps `require` out of the main world even with
 `nodeIntegration: true`, so the *preference* assertion catches it and the *reach*
 assertion is a second layer this mutation cannot reach. Mutation 32 is what
-turns \[16] red on a RUNNING app; mutation 28 turns all three preferences off
+turns \[18] red on a RUNNING app; mutation 28 turns all three preferences off
 and the app then cannot start at all.
 
 **Mutation 15 is the Limitation-6 run**, and it is the reason the capture-track
-row \[33] lists every field instead of checking that a track exists. Measured under the
+row \[38] lists every field instead of checking that a track exists. Measured under the
 mutation: **`ch=1 sr=48000 agc=true ec=true ns=true`** — mono, 48 kHz, with
 automatic gain control whose level decays 17× over 8 s. The spike's original
 four-assertion gate called that a PASS. The constraints belong to the *engine*,
 not to `main`, so today they live in the gate probe; when `offscreen/host.js`
-lands they move there and \[33] moves with them.
+lands they move there and \[38] moves with them.
 
 ---
 
