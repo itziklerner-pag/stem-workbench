@@ -341,7 +341,52 @@ this Host as the one it was written against.
 | `onStorageChanged` | `chrome.storage.onChanged` + area/key filter; `assertArea` up front | `ipcRenderer.on('storage:changed', …)` + the same filter; `assertArea` up front, because a listener that can never fire is a subscription covering nothing | `bus`-like | no |
 | `armShortcut` | `chrome.commands.getAll()` → the raw accelerator, `null` if unbound, **rejects** if the API is absent | `invoke('host:armShortcut')` → the menu accelerator **in the unit's token vocabulary**, or `null` if the accelerator could not be taken. §6 | `ipc↔` | **YES — see §6** |
 | `page` | always present; `postMessage` to `content.js` across the iframe | always present; ipc to `main`, which owns the layout | — | no |
-| `transport` | `FRAMED ? {...} : null` | `sourceKind === 'live' ? {...} : null` — spelled, never omitted. A File source (step 4) makes the deck the transport master and this becomes `null` | — | no |
+| `transport` | `FRAMED ? {...} : null` | a **real six-duty transport for every source kind**, spelled and never omitted. A File source drives the engine's playback clock instead of a `<video>`; it does **NOT** get `null`. **See §3.3b — this row used to say the opposite, and that was a defect.** | — | no |
+
+### 3.3b `transport: null` for a File source was **wrong**, and it was a defect rather than a wording
+
+The row above used to read `sourceKind === 'live' ? {...} : null`, and to say
+*"A File source (step 4) makes the deck the transport master and this becomes
+`null`"*. **That instruction ships a bug.** It is recorded here rather than
+quietly deleted because it was ratified three separate times — in this document,
+in a phase-4 host plan, and in a phase-4 contract — before anybody ran it against
+the deck's own boot path. A wrong answer that three readers nodded at is worth
+more on the page than off it.
+
+**The mechanism.** `null` does not mean *"the deck is in charge now"*. It means
+*"this Host has no player and never will"*, and the deck acts on that at boot:
+
+```
+ui/embed.js:769        const HOSTED = transport != null;
+ui/embed.js:250        let videoPlaying = null;   // tri-state: null = nobody told us
+ui/embed-state.js:105  if (s.videoPlaying == null) return running || s.hosted ? 'hold' : 'start';
+```
+
+A File source has no `<video>`, so nothing ever moves `videoPlaying` off `null`.
+With `hosted` false and the deck armed, `follow()` returns **`'start'`** on the
+first 10 Hz status tick, and `reconcile()` (`ui/embed.js:771`) opens a capture and
+pulls the 109 MB of weights — work nobody asked for, before the user has touched
+anything.
+
+`ui/embed.js:122-127` names this exact trap as the reason the hosted-test stopped
+being `window.parent !== window`: *"a Host that draws this deck as a top-level
+document still reports its player, and `follow()` reads 'nobody will ever tell me'
+as licence to start the pipeline on boot."* The frame test was replaced **because
+it got this question wrong**. This row then got it wrong again, one layer up.
+
+**What is right.** A File source presents a **full six-duty `DeckTransport`**
+backed by the engine's playback clock — the shape
+[#5](https://github.com/itziklerner-pag/stem-workbench/issues/5) specified
+correctly before this document did. `null` stays reserved for a Host with
+genuinely no player. `assertHostOption` (`ui/embed.js:130`) enforces the other
+half: the key must be *spelled*, so an absent key and a decided absence cannot
+read alike.
+
+**The gate this earns.** Assert that a File source gets a full transport **and
+that the deck does not start the pipeline on boot** — carried by a count of
+capture and model-load attempts before the user's first gesture (expect 0), never
+by waiting on a clock. Its watched-red mutation is `transport: null`, which is
+what this row used to instruct.
 
 ### 3.4 `DeckPage` — 6 duties, deck renderer ↔ `main`
 
