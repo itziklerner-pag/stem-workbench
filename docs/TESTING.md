@@ -2738,7 +2738,7 @@ updater feed, and therefore the release channel — exists only inside an artifa
 | 6 | `tools/` is NOT in the asar, so the module `--gate-probe` names is not on disk in a shipped build |
 | 7 | **the packaged AppImage launches and reaches the app's own `[main] ready` line** — one match, COUNTED, and the process group is killed the moment it arrives. Nothing sleeps |
 | 8 | ...and the vendored deck came out of the asar over `app://` with the engine cross-origin isolated and SAB available |
-| 9 | ...and the bundled weights were hash-verified by the unit through `process.resourcesPath` — **rule M1 over the installer's own copy**, a branch no other suite reaches |
+| 9 | ...and they are the RIGHT file, not merely the right length — **SHA-256 against `MODEL.sha256`**, the same pin the unit re-verifies at load. A file of the right length is not the same claim as the right file |
 | 10 | ...and `--gate=DIR` passed to the SHIPPED binary did nothing. Two independent reasons: `GATE` is `app.isPackaged ? '' : …`, and row 6 says the module it would import is not in the bundle either |
 
 **And it is the only evidence the macOS and Windows blocks have.** Not that they
@@ -2765,7 +2765,23 @@ narrow: nothing produced AND a resolver error in the transcript, because a first
 build fetches the Electron zip, `appimagetool` and `fpm` from the network. A
 build that RAN and rejected our configuration is a FAIL.
 
-**What it does not prove:** the sandbox (the launch passes `--no-sandbox`,
+**What it does not prove — and the first draft got this wrong.** It does NOT
+prove the engine ever READS the weights, and that is correct rather than a gap in
+the app. A draft waited for the unit's `weights … hash verified` line to make
+rule M1 a runtime claim here. It never came: measured over a full 900 s bound,
+the packaged app printed `offscreen up`, `deck A backend ready`, `[main] ready` —
+and then nothing, at **0.6% CPU on a box at load average 2**. `ensureBackend()`
+(`offscreen/engine.js:1711`) builds the ORT *backend* at boot and stops;
+`modelBytes()` is reached through `MODEL_LOAD`, which `ui/embed.js:2215` sends
+from a **click** on the deck's `mdl-go` button, and
+`docs/evidence/step3-youtube/youtube-suite.log:19` records the weights loading
+during a capture rather than at boot. So the assertion required an action the
+gate never performs and no timeout could have made it true — a **gate defect,
+not a product defect**, fixed by changing the assertion rather than the bound.
+Driving the weights through the seam is `engine-host`'s claim, over a real
+capture.
+
+Also not proved: the sandbox (the launch passes `--no-sandbox`,
 because `chrome-sandbox` in a freshly built tree is not setuid root and nothing
 here runs as root — renderer isolation is `shell`'s claim); any audio; and
 anything at all about macOS or Windows.

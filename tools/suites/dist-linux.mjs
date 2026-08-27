@@ -55,6 +55,14 @@
  * neither is ever asserted on: they only decide when to stop waiting.
  *
  * WHAT IT DOES NOT PROVE, stated rather than left to be discovered:
+ *   · THAT THE ENGINE EVER READS THE WEIGHTS. It does not, and that is correct
+ *     rather than a gap in the app: `modelBytes()` is reached through
+ *     `MODEL_LOAD`, which `ui/embed.js:2215` sends from a CLICK on the deck's
+ *     `mdl-go` button. A boot-and-idle launch has nobody to click it. What is
+ *     asserted here is the FILE — its size and its SHA-256 against the unit's
+ *     own pin. Driving it through the seam is `engine-host`'s claim, over a real
+ *     capture, and `docs/evidence/step3-youtube/youtube-suite.log:19` is the
+ *     recorded measurement of the same thing from the other side.
  *   · THE SANDBOX. The launch passes `--no-sandbox`, because `chrome-sandbox`
  *     inside a freshly built tree is not setuid root (it cannot be — nothing
  *     here runs as root) and Electron refuses to start without either. `shell`
@@ -77,11 +85,12 @@
  * | 6 | `tools/` is not in the asar                | add a `tools/` glob to `build.files`                               |
  * | 7 | THE PACKAGED APP LAUNCHES                  | `build.files` -> drop the `src/` glob                               |
  * | 8 | ...and the vendored deck is in the bundle  | drop the vendored `extension/` glob from `files`   |
- * | 9 | ...and the bundled weights hash-verified   | truncate `models/htdemucs_6s.onnx` before the build (rule M1)  |
+ * | 9 | ...and they are the RIGHT file (SHA-256)   | truncate `models/htdemucs_6s.onnx` before the build (rule M1)  |
  * |10 | ...and `--gate=DIR` did nothing            | drop `app.isPackaged ?` from `const GATE` in src/main/main.js  |
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -135,25 +144,38 @@ const LOCK_MARK = '__WB_LOCKED__';
  * rather than an instrument the app was modified to satisfy.
  */
 const READY = /^\[main\] ready · source=(\S+) · deck=(\S+) · engine coi=(\w+) sab=(\w+)/m;
-/** The unit's own line when it has verified the bundled weights. Rule M1. */
-const WEIGHTS = /weights downloaded \+ hash verified/;
 /**
- * BOTH LINES, AND THE ORDER BETWEEN THEM IS NOT GUARANTEED — which is why this
- * is a predicate over the whole transcript rather than one regex.
+ * THE RUN ENDS ON THE READY LINE, AND ONCE IT WAITED FOR A SECOND ONE THAT
+ * CANNOT COME. That is worth writing down, because the second marker looked
+ * obviously right.
  *
- * The first draft killed the process on `[main] ready` alone and the weights row
- * went red on a working app: `main` prints its ready line when the window, the
- * deck and the engine's boot probe are up, and the engine loads the 109 MB
- * asynchronously after that. Once it happened to arrive first (669 ms) and once
- * it did not. A suite that races an event it is asserting about reports the
- * machine, not the code.
+ * A draft of this suite also waited for the unit's `weights … hash verified`
+ * line, to make rule M1 a runtime claim over the installer's own copy. It never
+ * arrived, and the app was not stuck: MEASURED over a full 900 s bound, the
+ * transcript ends
  *
- * It is still a COUNT and not a clock: the run ends on the LATER of two matched
- * lines, whichever way round they come, and the only bound is the kill-it-anyway
- * timeout — which is never asserted on. If the weights line never arrives, that
- * timeout fires and assertion 9 is red for the reason it exists to be red for.
+ *     [engine] offscreen up · SAB true · crossOriginIsolated true
+ *     [engine] deck A backend ready · wasm threads 4
+ *     [main] ready · source=file://…/player.html · deck=app://… · coi=true sab=true
+ *
+ * and then nothing, at 0.6% CPU on a box at load average 2. `ensureBackend()` at
+ * `offscreen/engine.js:1711` builds the ORT BACKEND at boot and stops there; the
+ * 109 MB is pulled by `modelBytes()`, which is reached through `MODEL_LOAD` —
+ * and `ui/embed.js:2215` sends that from a CLICK on the deck's `mdl-go` button.
+ * `docs/evidence/step3-youtube/youtube-suite.log:19` records the same thing from
+ * the other side: the weights load during a CAPTURE, not at boot.
+ *
+ * So the assertion was asking for a property that requires an action this suite
+ * never performs, and no timeout could have made it true. The engine was doing
+ * exactly the right thing — nothing had asked it to separate. A gate defect, not
+ * a product defect, and the fix is the assertion rather than the bound.
+ *
+ * What this suite asserts about the weights is now what a boot-and-idle launch
+ * can honestly prove: the bundled file's SIZE and its SHA-256, both against the
+ * unit's own pin. Driving them THROUGH the seam is `engine-host`'s job and it
+ * already does it, over a real capture.
  */
-const LAUNCH_DONE = (out) => READY.test(out) && WEIGHTS.test(out);
+const LAUNCH_DONE = (out) => READY.test(out);
 
 // ------------------------------------------------------------------ harness
 let pass = 0; let fail = 0;
@@ -318,7 +340,7 @@ if (!appImage.length || !debs.length) done();
    * at load. `src/main/main.js`'s MODEL_DIR reads exactly this location when
    * `app.isPackaged`, and §4 below proves the engine really read it.
    */
-  const packedModel = path.join(UNPACKED, 'resources', 'model', 'htdemucs_6s.onnx');
+  const packedModel = packedModelPath();
   ok('the 109 MB of weights are on disk INSIDE the installer, at the exact byte count the unit pins  '
     + '[entry point: build.extraResources in package.json, MODEL.bytes in the vendored shared/config.js]',
     sizeOf(packedModel) === MODEL.bytes,
@@ -412,19 +434,24 @@ ok('...and the vendored deck came out of the ASAR over `app://`, with the engine
   `deck=${m[2]} coi=${m[3]} sab=${m[4]}`);
 
 /**
- * RULE M1, OVER THE INSTALLER'S OWN COPY. §3 weighed the file; this is the unit
- * verifying the SHA-256 and the byte count of whatever the Host handed it, at
- * runtime, in a packaged build — where the Host hands it
- * `process.resourcesPath/model/`, a branch no other suite reaches. A truncated
- * or substituted copy is refused at load rather than trusted because it came out
- * of our own installer.
+ * RULE M1'S IDENTITY HALF, OVER THE INSTALLER'S OWN COPY. §3 weighed the file
+ * against `MODEL.bytes`; this hashes it against `MODEL.sha256` — the same two
+ * fields `shared/config.js` carries, and the same two the unit re-verifies at
+ * load. A file of the right LENGTH is not the same claim as the right FILE, and
+ * `vendor/.pin`'s whole design is that a size check alone is not a pin.
+ *
+ * IT IS A CLAIM ABOUT THE ARTIFACT, NOT ABOUT THE RUNNING APP, and the header
+ * says why: nothing in a boot-and-idle launch asks the engine for the weights,
+ * so a runtime M1 assertion here would be waiting on a click. `engine-host`
+ * drives them through the seam over a real capture; that is the runtime claim
+ * and it is not this suite's.
  */
-ok('...and the BUNDLED weights were read through `process.resourcesPath` and hash-verified by the unit — rule M1 '
-  + 'over the installer\'s own copy  [entry point: modelcache.js in the vendored unit, via MODEL_DIR when app.isPackaged]',
-  WEIGHTS.test(launch.out),
-  (launch.out.match(/\[engine\].*weights[^\n]*/)
-    || [`NO WEIGHTS LINE — killed by ${launch.killedBy}; the run ends on this line AND the ready line, so a `
-        + 'timeout here means the unit never verified the installer\'s own copy'])[0].trim().slice(0, 190));
+const digest = createHash('sha256').update(fs.readFileSync(packedModelPath())).digest('hex');
+ok('...and the BUNDLED weights are the RIGHT FILE, not merely the right length — SHA-256 against the unit\'s own '
+  + 'pin  [entry point: MODEL.sha256 in the vendored shared/config.js, over resources/model/htdemucs_6s.onnx]',
+  digest === MODEL.sha256,
+  `${digest.slice(0, 16)}… vs pin ${MODEL.sha256.slice(0, 16)}… (${MODEL.label}) — a truncated or substituted copy `
+  + 'has the wrong digest even when somebody has fixed up its size');
 
 /**
  * `--gate=` WAS PASSED AND DID NOTHING. `GATE` is `app.isPackaged ? '' : …`, so
@@ -445,6 +472,8 @@ console.log(`\n${ID}: built ${path.basename(appImage[0])} (${MB(sizeOf(appImage[
 done();
 
 // ------------------------------------------------------------------ helpers
+/** The installer's own copy of the weights. Named once; §3 weighs it and §4 hashes it. */
+function packedModelPath() { return path.join(UNPACKED, 'resources', 'model', 'htdemucs_6s.onnx'); }
 function sh(s) { return `'${String(s).replace(/'/g, `'\\''`)}'`; }
 function lastLine(s) { const l = String(s).trimEnd().split('\n'); return l[l.length - 1] || '(no output)'; }
 /**
