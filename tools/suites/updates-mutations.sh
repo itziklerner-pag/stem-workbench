@@ -207,10 +207,14 @@ M 9 "the pre-release channel behaves like the stable one" "$U" \
   "      && (r.prerelease !== true));" \
   '...and the `prerelease` channel OFFERS the newest pre-release'
 
+# ONE EDIT, THREE REDS, and the third is the one Ruling 17 asked for: a MIXED
+# fixture cannot tell a predicate that is right for the wrong reason from one
+# that is right, because the beta it wants is in the list either way. Only a
+# HOMOGENEOUS list separates them.
 M 10 "both channels become prereleases-only" "$U" \
   "      && (channel === 'prerelease' || r.prerelease !== true));" \
   "      && (r.prerelease === true));" \
-  '...and it offers a STABLE release when that is the newest|...while the `stable` channel SKIPS a newer pre-release'
+  '...and it offers a STABLE release when that is the newest|...while the `stable` channel SKIPS a newer pre-release|...and a HOMOGENEOUS list answers on both channels'
 
 M 12 "the newest is whatever GitHub sent first" "$U" \
   '  usable.sort((a, b) => (at(b.r) - at(a.r)) || (a.i - b.i));' \

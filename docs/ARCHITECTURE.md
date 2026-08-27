@@ -498,6 +498,29 @@ extension, where Google did this.
 partition, and it is not the app's code talking. `PRIVACY.md` says so in those
 words; saying it any other way would be a lie by omission.
 
+### What P1′ costs, and the one capability it refuses
+
+**The runtime auto-updater is deliberately NOT armed, and that is this rule's
+doing.** Seed §14 and ADR 0001 decision 6 say *"via electron-updater"*; the app
+performs the update CHECK itself, on this one host, and does not download or
+install anything. That is not an omission and it is not a limitation of the
+implementation — it is the price of P1′, and the price is written down here so
+an owner can decide later with the full cost visible instead of rediscovering it.
+
+Arming it needs THREE things, and all three are decisions rather than work:
+
+| | |
+|---|---|
+| **P1′ would have to permit two more hosts** | `github.com` — electron-updater's public GitHub provider talks to it, not to `api.github.com` (`electron-updater@6.8.9`, `out/providers/GitHubProvider.js:32,43`: the `.atom` feed and the channel `.yml` under `/releases/download/`). `api.github.com` is the PRIVATE provider's host. And `objects.githubusercontent.com`, which a release asset redirects to. Neither can be avoided; the download path is irreducibly two hosts |
+| **the updater's session would have to come under the factory** | `out/electronHttpExecutor.js:7` calls `session.fromPartition("electron-updater", {cache: false})` — a third session created OUTSIDE `src/main/sessions.js`, and therefore outside the one observer. `src/main/p1.js`'s scan covers `src/` only, so it would not see it either: an unobserved session that also evades the gate built to catch unobserved sessions. `sessions.js` would have to create that partition itself, before anything imports the updater, and `SESSION_OWNERS` would have to declare whose traffic it is |
+| **`p1` would have to be RE-MEASURED, not re-pinned** | its assertion is a SET over origins. A second host is a change to what the app does, and the transcript has to say so |
+
+Until those are taken, the app tells the user a newer pre-release exists and the
+user fetches it themselves. There is no code path that tries and is cancelled:
+**a path that exists and is always refused is dead code that looks alive**, and
+the next reader would have to re-derive why it never fires.
+[`docs/UPDATES.md`](UPDATES.md) §2 is the long form, with the measurements.
+
 **Held by an acceptance test** ported from the extension's P1 test —
 `tools/suites/p1.mjs`, step `p1`, 24 assertions over one real launch. It boots
 the app behind a local TLS server wearing `api.github.com`'s certificate, drives

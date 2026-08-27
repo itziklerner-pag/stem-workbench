@@ -53,6 +53,21 @@ The YouTube view's traffic is the user's own browsing, on its own persistent
 partition, and it is excluded from the rule *by name* rather than by silence.
 [`PRIVACY.md`](PRIVACY.md) states both halves in the user's words.
 
+**What this rule refuses, so nobody has to rediscover it.** The runtime
+auto-updater is deliberately not armed. The app performs the update CHECK on this
+one host and does not download or install anything, because electron-updater's
+own code — read at 6.8.9, not assumed — needs `github.com` for its feed
+(`out/providers/GitHubProvider.js:32`, NOT the `api.github.com` this rule names)
+and `objects.githubusercontent.com` for the asset it redirects to, and it makes
+its own `session.fromPartition("electron-updater")`
+(`out/electronHttpExecutor.js:7`) — a session outside `src/main/sessions.js` and
+therefore outside the observer, which the `src/`-only scan below would not catch
+either. **Arming it means permitting those two hosts AND bringing that session
+under the factory**, and both are the owner's decision, not a refactor.
+`docs/ARCHITECTURE.md` §6 and [`docs/UPDATES.md`](docs/UPDATES.md) §2 carry the
+full cost. There is deliberately no wired-and-cancelled path: dead code that
+looks alive is worse than an absence somebody documented.
+
 **It is an acceptance test, not a rule enforced by review**, ported from the
 extension's P1 test: `node tools/verify.mjs --only p1` boots the real app behind
 a local TLS server wearing the update host's certificate, drives a full session —

@@ -442,6 +442,12 @@ built artifact's `app-update.yml` rather than out of `package.json`, and where t
 bundled 109 MB is hash-verified through `process.resourcesPath` — a branch no
 other suite reaches. It SKIPS, with a machine-readable reason, without
 electron-builder, the weights, the ONNX Runtime drop, `xvfb-run` or `flock`.
+
+**It SKIPs in this checkout today**, because `electron-builder` is declared in
+`devDependencies` and has never been installed here — `npm ci` is the fix, and it
+is deliberately deferred because it deletes `node_modules` and every concurrent
+worktree is hardlinked to it. The artifact itself is not deferred: both were
+built and the AppImage was launched, in a worktree, on 2026-08-26.
 [`docs/UPDATES.md`](docs/UPDATES.md) is the long form.
 
 **`youtube` is never on a default plan**, and the runner names it under *WHAT DID
