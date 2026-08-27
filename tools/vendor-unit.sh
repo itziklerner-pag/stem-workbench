@@ -7,7 +7,14 @@
 #   bash tools/vendor-unit.sh --model         # ...and seed models/htdemucs_6s.onnx (109 MB)
 #   bash tools/vendor-unit.sh --check         # offline: is vendor/ still what the pin says?
 #   bash tools/vendor-unit.sh --model-only    # only the weights; do not touch vendor/
-#   bash tools/vendor-unit.sh --tag v0.3.0 --steps 13 --assertions 1204
+#   bash tools/vendor-unit.sh --tag <TAG> --steps <N> --assertions <M>
+#
+# `<N>` AND `<M>` ARE MEASURED, NEVER COPIED FROM THIS LINE. Run
+# `node tools/verify.mjs --unit` inside the vendored copy and use the suite
+# count and assertion sum it prints. This example carried `13` and `1204` for a
+# while; both were guesses — today's plan is 12 suites — and a plausible number
+# in a usage line is the one people paste. The pin is machine-checked in both
+# directions precisely so that a wrong figure here cannot survive a run.
 #
 # This is `stem-splitter-live/docs/VENDORING.md` §1-§7 with nothing added to the
 # mechanism and four things added around it — the sums file for the copied paths
