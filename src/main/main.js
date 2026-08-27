@@ -595,6 +595,41 @@ async function boot() {
     return state.claims.spend(token);
   });
 
+  // ------------------------------------------------------- the export sink
+  // THE FOUR CHANNELS THE ENGINE'S `exportSink` DUTY WRITES THROUGH. The duty
+  // holds one WritableStream per file in the engine renderer, but bytes can
+  // only land on disk HERE — where the folder dialog, the ask-once rule and
+  // the collision policy live (`src/main/files.js` §5). Same sender check as
+  // `capture:claim`, for the same reason: a channel is reachable from every
+  // renderer with a preload that names it, and ours is exposed to the engine
+  // alone — a fact about a file, not a guarantee.
+  //
+  // The intake answers every channel with `{ok, ...}` or
+  // `{ok: false, code, message}`; the duty converts a refused OPEN into a
+  // thrown Error before any stream is handed out — an empty map would export
+  // five of six files and call it done. Writes that arrive for a name this
+  // session never opened are refused too, so a chunk cannot invent a file.
+  const isEngineSender = (event) =>
+    !!state.engineWin && !state.engineWin.isDestroyed() && event.sender === state.engineWin.webContents;
+  const engineRefusal = { ok: false, code: 'not-the-engine', message: 'only the engine renderer may drive an export sink' };
+
+  ipcMain.handle('export:sink', (event, plan) => {
+    if (!isEngineSender(event)) return engineRefusal;
+    return state.files.openSink(plan);
+  });
+  ipcMain.handle('export:write', (event, name, chunk) => {
+    if (!isEngineSender(event)) return engineRefusal;
+    return state.files.writeSink(name, chunk);
+  });
+  ipcMain.handle('export:close', (event, name) => {
+    if (!isEngineSender(event)) return engineRefusal;
+    return state.files.closeSink(name);
+  });
+  ipcMain.handle('export:abort', (event, name) => {
+    if (!isEngineSender(event)) return engineRefusal;
+    return state.files.abortSink(name);
+  });
+
   /**
    * THE THREE MESSAGES THE HOST ORIGINATES TO THE ENGINE. `source` is read at
    * CALL time — a captured `WebContents` would be a stale one the first time the

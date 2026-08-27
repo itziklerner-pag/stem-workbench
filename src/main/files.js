@@ -20,7 +20,7 @@
  * real one was called twice, never, or with the wrong options.
  *
  * ---------------------------------------------------------------------------
- * THE FOUR THINGS
+ * THE FIVE THINGS
  * ---------------------------------------------------------------------------
  *   THE ALLOWLIST     which files the File source will take, by extension, with
  *                     the MIME type that extension is served as. Both halves
@@ -37,15 +37,17 @@
  *                     `src/main/claims.js` exactly, including its refusal codes.
  *   THE INTAKE        the two native pickers, and the ASK-ONCE rule that makes
  *                     the export folder a thing the user chooses once.
+ *   THE WRITER        `exportStems()` — six 32-bit-float WAVs in `STEMS` order,
+ *                     at unity, through the vendored `shared/wav.js` encoder,
+ *                     under `<folder>/<title>/` — and the EXPORT SINK, the
+ *                     engine-facing seam that opens every file of a deliverable
+ *                     with the same one ask and streams the unit's chunks into
+ *                     them. The writer is the slice this file has been
+ *                     announcing since before it existed.
  *
  * ---------------------------------------------------------------------------
  * WHAT IS NOT HERE
  * ---------------------------------------------------------------------------
- * THE EXPORT WRITER. Six 32-bit-float WAVs in `STEMS` order, at unity, through
- * the vendored `shared/wav.js` encoder — that is a separate slice, and it
- * consumes `ensureExportFolder()` and `deriveTitle()` from here. Nothing in this
- * file writes audio.
- *
  * THE `/file/` ROOT. `createPathTokens()` is the half that decides whether a
  * token names anything; putting a `/file/` prefix on the protocol handler and
  * answering with the bytes is the next slice's, and it is why `spend()` returns
@@ -61,6 +63,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { encodeWav } from '../../vendor/stem-splitter-live/extension/shared/wav.js';
+import { STEMS, SR } from '../../vendor/stem-splitter-live/extension/shared/config.js';
 
 // ============================================================================
 // 1. THE ALLOWLIST
@@ -385,6 +390,18 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
     unreadable: 0,          // the `local` area could not be read (see below)
     refused: 0,
     lastRefusal: null,
+    // THE WRITER AND THE EXPORT SINK — section 5. Counts, never stopwatches:
+    // each one is a number a gate can watch red for the thing it names.
+    exports: 0,             // writer gestures that completed
+    exportFiles: 0,         // WAV files those gestures wrote
+    exportBytes: 0,         // ...and their total size in bytes
+    sinkOpens: 0,           // sink sessions opened (one gesture, all files at once)
+    sinkFiles: 0,           // files opened within those sessions
+    sinkWrites: 0,          // chunks written into them
+    sinkBytes: 0,           // ...and their total size in bytes
+    sinkClosed: 0,          // files closed cleanly
+    sinkAborted: 0,         // files aborted (closed and unlinked)
+    sinkRefusals: 0,        // sink calls refused: bad plan, bad name, already open
     /**
      * WHY the last export had to ask: `absent`, `gone` or `unreadable`. It is a
      * counter's worth of diagnosis rather than a decision — the surface that
@@ -471,8 +488,268 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
     return { ok: true, dir, asked: true };
   }
 
+  // ==========================================================================
+  // 5. THE EXPORT WRITER AND THE EXPORT SINK
+  // ==========================================================================
+  // Two faces of one gesture, and the difference is who is driving.
+  //
+  // `exportStems()` is the writer the gate drives: a `{title, stems}` plan, six
+  // WAV files in `STEMS` order under `<folder>/<title>/`, written synchronously
+  // end to end. The E1 surface calls it after separating and hands the user a
+  // folder of files.
+  //
+  // The sink is the seam the ENGINE drives through the duty in
+  // `extension/offscreen/host.js` — `exportSink({title, files})` — whose files
+  // can only be written HERE, in main, over this app's own dialog and its own
+  // filesystem. The renderer holds one WritableStream per name; this session
+  // holds the open descriptors. Every chunk crosses the preload bridge
+  // (`src/preload/engine.cjs`) as bytes and lands on a descriptor here.
+  //
+  // APPEND-ONLY IS ENOUGH, and the session is built on that. The frame count is
+  // known before the first chunk is written — the unit separated a finite track
+  // — so a WAV header written correctly once is correct forever and is never
+  // patched, and there is no seekable handle anywhere in the path. The header
+  // itself is the vendored encoder's, exactly as in `exportStems()`; s7a's
+  // `createPassSink` writes raw interleaved 32f frames with no header, and the
+  // WAV header is this file's job, never duplicated.
+  //
+  // ONE SESSION AT A TIME. The duty opens all of a deliverable's files with one
+  // gesture, and this session is the only caller, so a second open while one is
+  // live is a caller bug and is refused rather than silently replacing the
+  // first. The descriptors of a session that never closes are closed by the
+  // process at exit; within one run the leak is bounded by the session.
+  //
+  // A REFUSAL IS A THROW — at the seam. Here every refusal is a
+  // `{ok: false, code, message}`; the duty converts a refused OPEN into a
+  // thrown Error before any stream is handed out, so the unit cannot receive an
+  // empty map and call it done. The user cancelling the folder picker is the
+  // ordinary refusal and it is an ERROR, not an empty result — "exported
+  // nothing" and "exported zero files" must not be the same sentence. Sink
+  // protocol refusals (a bad plan, a bad name, a second session) count under
+  // `stats.sinkRefusals` only — they are malformed calls, not moments where the
+  // app asked a person something; `stats.refused` stays a count of refusals the
+  // USER met.
+  //
+  // THE HOST OWNS THE DIRECTORY, THE DIALOG AND THE COLLISION POLICY. The
+  // plan's `files` are BASE NAMES the unit chose; a name that is not a plain
+  // file name (a path, `.`, `..`) is refused before any file is opened — a
+  // refusal leaves no partial files behind. A name that is already on disk is
+  // overwritten: a re-export replaces, and it does so one file at a time, so a
+  // failed re-export cannot look like a completed one.
+
+  /**
+   * THE WRITER — six 32-bit-float WAVs in `STEMS` order, at unity.
+   *
+   * THE FORMAT IS THE VENDORED ENCODER'S, NOT OURS. `encodeWav` comes from
+   * `extension/shared/wav.js`, the file the vendored test suite pins to 32-bit
+   * IEEE float (fmt tag 3, 44100 Hz, stereo, `fact` present); the
+   * `{ bitDepth: 16 }` mutation the export gate watches is exactly at the call
+   * below. No scaling, no dither, no normalisation: each plane's Float32
+   * samples are written as they are, which is what lets the gate compare the
+   * file against the plane byte-for-byte.
+   *
+   * THE TITLE IS SANITISED HERE, NOT TRUSTED FROM A CALLER. A title that can be
+   * a path is a write outside the folder the user chose; the names are
+   * `<title>/<title> - <stem>.wav`, one component each.
+   *
+   * @param {{title: string, stems: Record<string, [Float32Array, Float32Array]>}} plan
+   *   `stems` must name EVERY stem of `STEMS` and each value must be a stereo
+   *   Float32Array pair. A partial map would export five of six files and call
+   *   it done; the check is the refusal the gate watches for it.
+   * @returns {Promise<{ok: true, dir: string, folder: string, asked: boolean,
+   *   title: string, files: {stem: string, name: string, file: string, bytes: number}[],
+   *   bytes: number}>}
+   * @throws {Error} when the folder is refused or a stem is missing or not a
+   *   stereo Float32Array pair.
+   */
+  async function exportStems({ title, stems } = {}) {
+    if (!stems || typeof stems !== 'object') {
+      throw new Error('export refused: no stems were provided — a writer with nothing to write was asked to export');
+    }
+    for (const stem of STEMS) {
+      const chans = stems[stem];
+      if (!Array.isArray(chans) || chans.length !== 2
+          || !(chans[0] instanceof Float32Array) || !(chans[1] instanceof Float32Array)) {
+        throw new Error(`export refused: the ${stem} stem is not a stereo Float32Array pair`);
+      }
+    }
+    const folder = await ensureExportFolder();
+    if (!folder.ok) throw new Error(`export refused: ${folder.code} — ${folder.message}`);
+    const safeTitle = sanitiseTitle(title);
+    const outDir = path.join(folder.dir, safeTitle);
+    fs.mkdirSync(outDir, { recursive: true });
+    const files = [];
+    let bytes = 0;
+    for (const stem of STEMS) {
+      const chans = stems[stem];
+      const wav = encodeWav(chans, { sampleRate: SR, bitDepth: 32, float: true });
+      const name = `${safeTitle} - ${stem}.wav`;
+      const file = path.join(outDir, name);
+      fs.writeFileSync(file, Buffer.from(wav));
+      files.push({ stem, name, file, bytes: wav.byteLength });
+      bytes += wav.byteLength;
+    }
+    stats.exports++;
+    stats.exportFiles += files.length;
+    stats.exportBytes += bytes;
+    // `dir` is where the files ARE; `folder` is the folder the user chose —
+    // two different facts, and a gate that conflates them cannot tell "the
+    // export escaped the chosen folder" from "the export landed in it".
+    return { ok: true, dir: outDir, folder: folder.dir, asked: folder.asked, title: safeTitle, files, bytes };
+  }
+
+  /** The live sink session, or null. One at a time — see the section header. */
+  const sink = { open: null, dir: null, title: null };
+
+  const sinkRefuse = (code, message) => {
+    stats.sinkRefusals++;
+    return { ok: false, code, message };
+  };
+
+  /**
+   * Every name must be a plain file name — a single component, not `.` or `..`.
+   * Refused names are caught before ANY file is opened, so a refusal leaves no
+   * partial files behind. Returns a message, or null when all names are good.
+   */
+  function sinkBadName(files) {
+    for (const name of files) {
+      if (typeof name !== 'string' || !name) {
+        return 'an export plan named a file with an empty or non-string name';
+      }
+      if (name === '.' || name === '..' || name !== path.basename(name)) {
+        return `${JSON.stringify(name)} is not a plain file name — the Host owns the directory, not the plan`;
+      }
+    }
+    return null;
+  }
+
+  /** Whatever crossed the bridge is bytes, or the write refuses. */
+  const toBytes = (c) => {
+    if (c instanceof Uint8Array) return c;
+    if (c instanceof ArrayBuffer) return new Uint8Array(c);
+    if (ArrayBuffer.isView(c)) return new Uint8Array(c.buffer, c.byteOffset, c.byteLength);
+    throw new TypeError('an export sink accepts bytes — an ArrayBuffer or a typed-array view');
+  };
+
+  /**
+   * OPEN ONE SESSION — every file of a deliverable, all at once, behind the
+   * same ask-once folder rule the writer uses.
+   *
+   * @param {{title: string, files: string[]}} plan
+   * @returns {Promise<{ok: true, dir: string, folder: string, asked: boolean,
+   *   title: string, files: {name: string, file: string}[]} |
+   *   {ok: false, code: string, message: string}>}
+   */
+  async function openSink(plan) {
+    if (!plan || typeof plan !== 'object' || typeof plan.title !== 'string'
+        || !Array.isArray(plan.files) || plan.files.length === 0) {
+      return sinkRefuse('bad-plan', 'an export plan is a title and at least one file name');
+    }
+    if (sink.open) {
+      return sinkRefuse('already-open', 'one export sink is already open — a deliverable is one gesture, all at once');
+    }
+    const bad = sinkBadName(plan.files);
+    if (bad) return sinkRefuse('bad-name', bad);
+    const folder = await ensureExportFolder();
+    if (!folder.ok) return folder;
+    const safeTitle = sanitiseTitle(plan.title);
+    const outDir = path.join(folder.dir, safeTitle);
+    fs.mkdirSync(outDir, { recursive: true });
+    const open = new Map();
+    for (const name of plan.files) {
+      // 'w': a re-export replaces, one file at a time, never a partial look.
+      open.set(name, { file: path.join(outDir, name), fd: fs.openSync(path.join(outDir, name), 'w'), bytes: 0 });
+    }
+    sink.open = open;
+    sink.dir = outDir;
+    sink.title = safeTitle;
+    stats.sinkOpens++;
+    stats.sinkFiles += open.size;
+    return {
+      ok: true,
+      dir: outDir,
+      folder: folder.dir,
+      asked: folder.asked,
+      title: safeTitle,
+      files: plan.files.map((name) => ({ name, file: path.join(outDir, name) })),
+    };
+  }
+
+  /** Append one chunk to one open file of the session. */
+  function writeSink(name, chunk) {
+    const rec = sink.open && sink.open.get(name);
+    if (!rec) return sinkRefuse('unknown-file', `no open sink file named ${JSON.stringify(name)}`);
+    const bytes = toBytes(chunk);
+    fs.writeSync(rec.fd, bytes);
+    rec.bytes += bytes.length;
+    stats.sinkWrites++;
+    stats.sinkBytes += bytes.length;
+    return { ok: true, bytes: bytes.length };
+  }
+
+  /** Close one file of the session. The session ends when the last one closes. */
+  function closeSink(name) {
+    const rec = sink.open && sink.open.get(name);
+    if (!rec) return sinkRefuse('unknown-file', `no open sink file named ${JSON.stringify(name)}`);
+    sink.open.delete(name);
+    if (sink.open.size === 0) sink.open = null;
+    fs.closeSync(rec.fd);
+    stats.sinkClosed++;
+    return { ok: true, file: rec.file, bytes: rec.bytes };
+  }
+
+  /** Close one file of the session and unlink it — a dropped stem leaves nothing. */
+  function abortSink(name) {
+    const rec = sink.open && sink.open.get(name);
+    if (!rec) return sinkRefuse('unknown-file', `no open sink file named ${JSON.stringify(name)}`);
+    sink.open.delete(name);
+    if (sink.open.size === 0) sink.open = null;
+    try { fs.closeSync(rec.fd); } catch { /* an already-closed descriptor is not a failure here */ }
+    fs.rmSync(rec.file, { force: true });
+    stats.sinkAborted++;
+    return { ok: true, file: rec.file, unlinked: true };
+  }
+
+  /**
+   * THE FOLDER IS ASKED FOR EXACTLY ONCE, and "once" has two halves.
+   *
+   * ACROSS RUNS: the answer is written to the `local` area, so the second
+   * export — and every export after a restart — reads it back and opens no
+   * picker at all. Deleting the read below is how this becomes "once per
+   * export", which is the defect the gate's count catches.
+   *
+   * WITHIN ONE RUN: a second request that arrives while a picker is already up
+   * JOINS it rather than opening a second one. Two stacked native modals is
+   * not a cosmetic bug — the second one is answered by a user who thinks they
+   * are answering the first, and the export they answered for is not the one
+   * that gets the folder.
+   *
+   * In the closure, not on the returned object, because the writer and the sink
+   * of section 5 stand behind the SAME one ask — a shared closure variable is
+   * what "once" means.
+   *
+   * @returns {Promise<{ok: true, dir: string, asked: boolean} | {ok: false, code: string, message: string}>}
+   */
+  const ensureExportFolder = async () => {
+    const dir = rememberedFolder();
+    if (dir) { stats.folderFromMemory++; return { ok: true, dir, asked: false }; }
+    if (pending) { stats.joinedPending++; return pending; }
+    const p = askForFolder();
+    // Cleared on BOTH settlements, and by assignment rather than by `finally`,
+    // so a refused pick leaves no picker "in flight" for the next export to
+    // join — which would be an export that never asks and never resolves.
+    pending = p.then(
+      (r) => { pending = null; return r; },
+      (e) => { pending = null; throw e; },
+    );
+    return pending;
+  };
+
   return {
     stats,
+
+    /** THE ASK-ONCE FOLDER — the closure above, exported. */
+    ensureExportFolder,
 
     /**
      * INSTRUMENT, not behaviour. Answers whether this intake is holding the
@@ -481,37 +758,6 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
      * below is therefore a count of real native pickers. It decides nothing.
      */
     usesDialog: (d) => d === dialog,
-
-    /**
-     * THE FOLDER IS ASKED FOR EXACTLY ONCE, and "once" has two halves.
-     *
-     * ACROSS RUNS: the answer is written to the `local` area, so the second
-     * export — and every export after a restart — reads it back and opens no
-     * picker at all. Deleting the read below is how this becomes "once per
-     * export", which is the defect the gate's count catches.
-     *
-     * WITHIN ONE RUN: a second request that arrives while a picker is already up
-     * JOINS it rather than opening a second one. Two stacked native modals is
-     * not a cosmetic bug — the second one is answered by a user who thinks they
-     * are answering the first, and the export they answered for is not the one
-     * that gets the folder.
-     *
-     * @returns {Promise<{ok: true, dir: string, asked: boolean} | {ok: false, code: string, message: string}>}
-     */
-    async ensureExportFolder() {
-      const dir = rememberedFolder();
-      if (dir) { stats.folderFromMemory++; return { ok: true, dir, asked: false }; }
-      if (pending) { stats.joinedPending++; return pending; }
-      const p = askForFolder();
-      // Cleared on BOTH settlements, and by assignment rather than by `finally`,
-      // so a refused pick leaves no picker "in flight" for the next export to
-      // join — which would be an export that never asks and never resolves.
-      pending = p.then(
-        (r) => { pending = null; return r; },
-        (e) => { pending = null; throw e; },
-      );
-      return pending;
-    },
 
     /**
      * The File source's own picker.
@@ -544,7 +790,21 @@ export function createFileIntake({ dialog, window: windowOf, storage, tokens }) 
       };
     },
 
+    /** THE WRITER — see section 5. Throws on refusal; returns the file list. */
+    exportStems,
+
+    /** THE EXPORT SINK — see section 5. One session, all files at once. */
+    openSink,
+    writeSink,
+    closeSink,
+    abortSink,
+
     /** For the gate and for a person reading a console. Never a decision. */
-    inspect: () => ({ remembered: rememberedFolder(), asking: pending !== null, tokens: tokens.inspect() }),
+    inspect: () => ({
+      remembered: rememberedFolder(),
+      asking: pending !== null,
+      sink: sink.open ? { files: sink.open.size, dir: sink.dir } : null,
+      tokens: tokens.inspect(),
+    }),
   };
 }
