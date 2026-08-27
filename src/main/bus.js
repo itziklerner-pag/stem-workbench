@@ -73,10 +73,19 @@ export function createBus() {
    *
    * It is deliberately NOT a hook: nothing here awaits, and a tap that throws is
    * swallowed, because an observer that can break delivery is not an observer.
+   *
+   * A TAP IS TOLD WHO SENT THE MESSAGE, AND THAT IS THE HALF THAT MAKES IT
+   * TRUSTWORTHY. `from` is a field in an envelope a renderer wrote, so a tap
+   * that believed it would believe the deck when it says it is the engine.
+   * `sender` is the `WebContents` the router actually received it on, which no
+   * renderer can spell; `null` for a message `main` ORIGINATED, because there is
+   * no renderer behind that one. `src/main/main.js`'s progress relay is the
+   * consumer: the chrome bar reports what the ENGINE said about a separation,
+   * and a STATE from anywhere else is not that.
    */
   const taps = new Set();
-  const observe = (msg, verdict) => {
-    for (const fn of taps) { try { fn(msg, verdict); } catch { /* an observer may not break delivery */ } }
+  const observe = (msg, verdict, sender = null) => {
+    for (const fn of taps) { try { fn(msg, verdict, sender); } catch { /* an observer may not break delivery */ } }
   };
 
   const knows = (wc) => [...REG.values()].some((set) => set.has(wc));
@@ -84,21 +93,21 @@ export function createBus() {
 
   ipcMain.on(BUS_CHANNEL, (event, msg) => {
     stats.received++;
-    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') { drop('malformed'); return void observe(msg, 'malformed'); }
-    if (!knows(event.sender)) { drop('unknown-sender'); return void observe(msg, 'unknown-sender'); }
+    if (!msg || msg.v !== 1 || typeof msg.to !== 'string') { drop('malformed'); return void observe(msg, 'malformed', event.sender); }
+    if (!knows(event.sender)) { drop('unknown-sender'); return void observe(msg, 'unknown-sender', event.sender); }
     if (msg.to === BUS.host) {
       stats.host++;
       if (!hostListeners.size) {
         // Loud, once per message, and on purpose: this is finding F1 arriving.
         console.warn(`[bus] no host inbox — ${String(msg.type)} from ${String(msg.from)} went unanswered`);
       }
-      observe(msg, 'host');
+      observe(msg, 'host', event.sender);
       for (const fn of hostListeners) fn(msg, event.sender);
       return;
     }
     const targets = REG.get(msg.to);
-    if (!targets || !targets.size) { drop('no-listener'); return void observe(msg, 'no-listener'); }
-    observe(msg, 'delivered');
+    if (!targets || !targets.size) { drop('no-listener'); return void observe(msg, 'no-listener', event.sender); }
+    observe(msg, 'delivered', event.sender);
     for (const wc of targets) {
       if (wc.isDestroyed()) continue;
       wc.send(BUS_CHANNEL, msg);     // the SAME object. Not a copy with a field added.

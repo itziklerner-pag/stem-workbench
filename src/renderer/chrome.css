@@ -10,14 +10,27 @@ body {
   user-select: none;
 }
 #brand { font-weight: 600; color: #9fd0ff; letter-spacing: .02em; white-space: nowrap; }
-#arm {
+#arm, #source-file, #export {
   font: inherit; font-weight: 600; padding: 6px 12px; border-radius: 5px;
   border: 1px solid #2f6f4f; background: #1d3a2c; color: #a9e5c3; cursor: pointer;
+  white-space: nowrap; flex: none;
 }
-#arm[disabled] { opacity: .45; cursor: not-allowed; border-color: #313d4a; background: #1a222c; color: #8595a6; }
+#arm[disabled], #source-file[disabled], #export[disabled] {
+  opacity: .45; cursor: not-allowed; border-color: #313d4a; background: #1a222c; color: #8595a6;
+}
 /* ARMED IS A DIFFERENT BUTTON, not a different colour on the same word: the
    control toggles, so the label has to say which way it goes next. */
 #arm[data-armed="1"] { border-color: #7a4a2f; background: #3a271d; color: #f0c39a; }
+/* THE TWO FILE GESTURES ARE NOT THE ARM GESTURE, and the colour says so — arming
+   opens a capture on somebody else's player, choosing a file and writing six
+   WAVs do not. A bar where every control looks like the dangerous one teaches
+   people to stop reading it. */
+#source-file, #export { border-color: #35506e; background: #1c2939; color: #b8d2ef; }
+/* THE LAST ANSWER, DRAWN ON THE CONTROL THAT PRODUCED IT. `data-outcome` is set
+   by src/renderer/chrome.js from what `main` answered — never from the click —
+   so a refused gesture cannot look like one that worked. */
+#source-file[data-outcome]:not([data-outcome="ok"]),
+#export[data-outcome]:not([data-outcome="ok"]) { border-color: #7a3a33; color: #f0a99a; }
 .field { display: flex; gap: 5px; align-items: baseline; min-width: 0; }
 /* THE TOGGLE IS A LABEL, so the word is part of the hit target — a 13 px
    checkbox alone is a control that is visible and not usable. `align-items:
@@ -27,7 +40,14 @@ body {
 .toggle input { margin: 0; accent-color: #4f9ad8; cursor: pointer; }
 .toggle input:indeterminate { opacity: .5; }
 .toggle:hover .k { color: #9fb4c8; }
-.k { color: #6f8296; }
+.k { color: #6f8296; white-space: nowrap; }
 .v { color: #cfe0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch; }
+/* THE BAR IS ONE ROW AND IT NEVER WRAPS. Nine fields and four controls do not
+   fit at 900 px (the window's `minWidth`), so the FIELDS give way — each one
+   ellipsises rather than pushing a control off the end. A gesture that is off
+   the edge of the bar is the dead control this file is about, one layout bug
+   removed, so the buttons carry `flex: none` above and these do not. */
+#source .v, #file, #progress, #dest, #deck, #engine, #account { min-width: 3ch; }
+#file, #dest { max-width: 22ch; }
 #refusal { margin-left: auto; color: #ff9a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
 #refusal:empty { display: none; }

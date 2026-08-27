@@ -5,7 +5,17 @@
 <body>
   <span id="brand">stem-workbench</span>
   <button id="arm" title="Arm this Source — the same gesture as Source → Arm this Source">Arm</button>
+  <!-- THE FILE SOURCE'S TWO GESTURES. Both are LIVE, both draw their answer, and
+       neither ships `disabled`: an Arm button that shipped `disabled` with a
+       "not built yet" tooltip is the defect src/renderer/chrome.js's header is
+       about, and a second control that repeated it would be the same defect
+       twice. What a gesture cannot do yet, it REFUSES, by name, on #refusal. -->
+  <button id="source-file" title="Choose an audio file to work on — opens your desktop's file chooser">Open file…</button>
+  <button id="export" title="Export stems — six raw model outputs at unity, into the folder you choose once">Export stems…</button>
   <span class="field"><span class="k">source</span><span class="v" id="source">…</span></span>
+  <span class="field"><span class="k">file</span><span class="v" id="file">—</span></span>
+  <span class="field"><span class="k">separation</span><span class="v" id="progress">—</span></span>
+  <span class="field"><span class="k">stems to</span><span class="v" id="dest">—</span></span>
   <span class="field"><span class="k">deck</span><span class="v" id="deck">…</span></span>
   <span class="field"><span class="k">engine</span><span class="v" id="engine">…</span></span>
   <span class="field"><span class="k">youtube</span><span class="v" id="account">…</span></span>

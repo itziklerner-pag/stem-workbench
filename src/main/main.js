@@ -103,7 +103,7 @@ import { createBus, BUS } from './bus.js';
 import { createTransport } from './transport.js';
 import { createEngineMessages } from './engine-messages.js';
 import { createStorage } from './storage.js';
-import { createFileIntake, createPathTokens } from './files.js';
+import { createFileIntake, createPathTokens, EXPORT_FOLDER_AREA, EXPORT_FOLDER_KEY } from './files.js';
 import { installDeckHost, clampDeckHeight } from './deck-host.js';
 import { createSessions } from './sessions.js';
 import {
@@ -298,6 +298,32 @@ const state = {
   storage: null,         // the deck's two storage areas (src/main/storage.js)
   pathTokens: null,      // one-shot handles on absolute paths (src/main/files.js)
   files: null,           // the File source's intake: the two pickers, the ask-once folder
+  /**
+   * THE CHOSEN FILE, AND THE PATH AND THE TOKEN STAY IN THIS PROCESS.
+   * `{file, title, mime, token, at}` or null. The chrome bar is answered with
+   * the title and the MIME only: `src/main/files.js` mints a one-shot token so
+   * that a renderer cannot name a path, and a bar that was handed the record
+   * whole would put the path — and a live capability — on a renderer that has
+   * no use for either.
+   */
+  file: null,
+  /**
+   * WHAT THE ENGINE LAST SAID ABOUT A SEPARATION — `{job, model, live}`, lifted
+   * off the bus by a read-only tap and pushed to the bar. `null` until the
+   * engine has said anything at all, which the bar draws as `—` rather than as
+   * "idle": a relay that stopped running must not read as an engine with
+   * nothing to do.
+   */
+  progress: null,
+  /**
+   * WHERE STEMS GO, FOR THE BAR TO SHOW. Seeded at boot from the same `local`
+   * key the intake owns and updated from each export's answer. READ, NEVER
+   * DECIDED ON: `ensureExportFolder()` is the only thing that decides whether a
+   * folder is usable, and it is the only thing that checks the directory is
+   * still there — doing that here would move the very counters the export gate
+   * reads, on every status push.
+   */
+  exportFolder: null,
   deckHost: null,        // the deck's Host, main-process half (src/main/deck-host.js)
   deckH: DECK_H,         // what the deck last measured itself to be, already clamped
   deckClosed: false,     // `page.close()` — the surface goes, the audio does not
@@ -371,7 +397,22 @@ function pushStatus() {
      * `tools/suites/smoke.mjs` watches the app arm and play with an empty jar.
      */
     account: state.account,
+    /**
+     * THE FILE SOURCE, WITHOUT ITS PATH AND WITHOUT ITS TOKEN. See `state.file`.
+     */
+    file: state.file ? { title: state.file.title, mime: state.file.mime } : null,
+    /** The engine's own `state.job` / `state.model`, relayed. See `state.progress`. */
+    progress: state.progress,
+    exportFolder: state.exportFolder,
     refusals: state.refusals.slice(-4),
+    /**
+     * A MONOTONE COUNT BESIDE A CAPPED ARRAY, and the bar needs both. The array
+     * is the last four, so its length saturates and cannot say whether a push
+     * brought a refusal the bar has not drawn yet. Without that the bar cannot
+     * tell a new refusal from the same one arriving on an unrelated push, and it
+     * erased the answers its own gestures had just drawn (src/renderer/chrome.js).
+     */
+    refusalCount: state.refusals.length,
   });
 }
 
@@ -647,6 +688,45 @@ async function boot() {
   state.bus.register(BUS.deck, state.deck.webContents);
 
   /**
+   * SEPARATION PROGRESS, FOR THE BAR — a READ-ONLY TAP, and the sender is what
+   * makes it worth showing.
+   *
+   * The engine already computes every number here: `state.job` (chunk, chunks,
+   * pct, eta, error, stage) and `state.model` (status, phase, got, total) in
+   * `vendor/…/offscreen/engine.js`, pushed to the deck as `STATE` on every
+   * change. Nothing in this Host recomputes any of it, and nothing here
+   * estimates: a progress bar this app invented would be a number with no
+   * measurement behind it, which is the one thing a progress bar must not be.
+   *
+   * IT IS KEYED ON THE SENDER, NOT ON `from`. `from` is a field in an envelope a
+   * renderer wrote, so a tap that trusted it would let the DECK tell the bar
+   * that a separation was 90 % done. `sender` is the `WebContents` the router
+   * received the message on, which no renderer can spell.
+   *
+   * A TAP CANNOT INJECT, REFUSE OR CHANGE AN ENVELOPE (`src/main/bus.js`), so
+   * this can only be wrong about what it draws — never about what the deck gets.
+   *
+   * AND IT PUSHES ONLY ON A CHANGE. A model download pushes `STATE` every
+   * 120 ms; forwarding every one of them would put an ipc message on the wire
+   * for a bar whose text did not move.
+   */
+  let lastProgress = '';
+  state.bus.tap((msg, verdict, sender) => {
+    if (!msg || msg.type !== 'STATE' || verdict !== 'delivered') return;
+    const eng = state.engineWin && !state.engineWin.isDestroyed() ? state.engineWin.webContents : null;
+    if (!eng || sender !== eng) return;
+    const st = msg.state;
+    if (!st || typeof st !== 'object') return;
+    const A = st.decks && st.decks.A;
+    const next = { job: st.job || null, model: st.model || null, live: A ? A.live : null };
+    const line = JSON.stringify(next);
+    if (line === lastProgress) return;
+    lastProgress = line;
+    state.progress = next;
+    pushStatus();
+  });
+
+  /**
    * THE DECK'S HOST, main-process half. It owes the deck fourteen members
    * through `vendor/…/ui/host.js`, three messages nothing can check for it
    * (SESSION, ARM_ERROR, ARM_ERROR_CLEARED), an answer to each of the six
@@ -714,12 +794,14 @@ async function boot() {
    * export folder is a preference and lives in the `local` area, which is the
    * half of `src/main/storage.js` that survives a restart.
    *
-   * NOTHING A USER CAN PRESS REACHES IT YET. The chrome bar's File controls and
-   * the export writer are both later slices. That absence is named here rather
-   * than left to be discovered, because this file has shipped the opposite
-   * mistake — an Arm button that was `disabled` for a whole wave after arming
-   * worked (`src/renderer/chrome.js`'s header). An intake with no control is
-   * incomplete; a control with no outcome is a defect.
+   * TWO REAL CONTROLS REACH IT NOW — `Open file…` and `Export stems…` on the
+   * chrome bar, through the two `ipcMain.handle`s below. That sentence used to
+   * read "nothing a user can press reaches it yet", and the note explaining the
+   * absence was there because this file has shipped the opposite mistake: an Arm
+   * button that was `disabled` for a whole wave after arming worked
+   * (`src/renderer/chrome.js`'s header). Neither of the two below ships
+   * disabled, and both draw their answer — including the refusals this build
+   * still owes, which are named rather than swallowed.
    */
   // THE SAME REGISTRY THE `/file/` ROOT SPENDS FROM — see `PATH_TOKENS` above.
   // Not a second `createPathTokens()`: the intake mints and the ROOT spends, and
@@ -731,6 +813,30 @@ async function boot() {
     storage: state.storage,
     tokens: state.pathTokens,
   });
+
+  /**
+   * WHERE STEMS WENT LAST TIME, FOR THE BAR TO SAY SO ON A COLD START.
+   *
+   * READ FOR DISPLAY, AND IT DECIDES NOTHING. `ensureExportFolder()` owns the
+   * decision and owns the check that the directory is still there; this is the
+   * bar being able to answer "where do my stems go?" before the first export of
+   * a run rather than after it. It deliberately does NOT `statSync` the path —
+   * `rememberedFolder()` does that, and it increments the counters the export
+   * gate reads, so doing it on every status push would make those counts a
+   * fact about how often the bar repainted.
+   *
+   * The key and the area are imported from `src/main/files.js` rather than
+   * spelled again: a second copy of a storage key is a preference that silently
+   * splits in two.
+   */
+  try {
+    const remembered = state.storage.get(EXPORT_FOLDER_AREA, EXPORT_FOLDER_KEY);
+    state.exportFolder = typeof remembered === 'string' && remembered ? remembered : null;
+  } catch {
+    // An unreadable `local` area is `storage.js`'s to shout about and
+    // `ensureExportFolder()`'s to act on. The bar simply has nothing to show.
+    state.exportFolder = null;
+  }
 
   // Only the chrome view may ask for a status push. Nothing else has the
   // channel, and an address is not something a renderer gets to claim.
@@ -761,6 +867,95 @@ async function boot() {
     }
     const r = on === true ? state.deckHost.arm() : state.deckHost.disarm();
     return { ...r, armed: state.deckHost.armed() };
+  });
+
+  /**
+   * THE SOURCE PICKER — the File source's own gesture.
+   *
+   * IT IS THE SAME `chooseSourceFile()` THE EXPORT GATE ALREADY DROVE, reached
+   * now by a control instead of from inside this process. The intake opens
+   * electron's own `dialog`; nothing here or anywhere replaces it.
+   *
+   * WHAT GOES BACK TO THE BAR IS A TITLE AND A MIME. The absolute path and the
+   * one-shot token stay in `state.file`, because `src/main/files.js` mints that
+   * token precisely so that a renderer cannot name a path — and the chrome bar
+   * is the renderer with the least reason to hold either.
+   *
+   * EVERY LIVE TOKEN IS REVOKED BEFORE THE PICKER OPENS, which is `files.js`'s
+   * own rule (*"a token must not outlive the gesture that made it... choosing a
+   * different file... ends the gesture that named this path"*). The cost, stated:
+   * a CANCELLED pick also ends the previous file's token. That is the right way
+   * round — the token is one-shot and lives ten seconds, so what is lost is a
+   * handle nobody was about to spend, and what is prevented is a path staying
+   * fetchable after the user went looking for a different one.
+   *
+   * THE SENDER IS CHECKED, like every other channel in this file.
+   */
+  ipcMain.handle('chrome:chooseFile', async (event) => {
+    if (!state.chrome || event.sender !== state.chrome.webContents) {
+      return { ok: false, code: 'not-the-bar', message: 'only the chrome bar may choose a Source file' };
+    }
+    if (!state.files) {
+      return { ok: false, code: 'no-intake', message: 'the file intake is not installed yet' };
+    }
+    state.pathTokens.revokeAll('a different file was chosen');
+    const r = await state.files.chooseSourceFile();
+    if (!r.ok) {
+      pushStatus();
+      return { ok: false, code: r.code, message: r.message };
+    }
+    state.file = { file: r.file, title: r.title, mime: r.mime, token: r.token, at: Date.now() };
+    pushStatus();
+    return { ok: true, title: r.title, mime: r.mime };
+  });
+
+  /**
+   * THE EXPORT GESTURE, AND ITS THREE PRECONDITIONS IN THE ORDER THEY ARE MET.
+   *
+   *   1. A SOURCE. With none, this refuses and ASKS NOTHING: opening a folder
+   *      chooser for an export that cannot happen is asking a person a question
+   *      whose answer cannot be used.
+   *   2. A DESTINATION — `ensureExportFolder()`, asked once ever and remembered
+   *      in the `local` area.
+   *   3. THE STEMS. There are none in this build: the separation runner for a
+   *      File source is upstream. So this refuses BY NAME, and the bar draws it.
+   *
+   * WHY 2 COMES BEFORE 3, WHICH IS THE ONE DECISION HERE WORTH ARGUING WITH.
+   * It costs a person who presses Export with nothing separated one folder
+   * question they did not need — once, ever, because the answer is remembered.
+   * What it buys is `src/main/files.js`'s own rule about the other order:
+   * discovering the destination problem *"while writing the fourth of six stems
+   * is a failure at the END of a long operation, half a track on disk, rather
+   * than a question at the start of one."* Settling where before touching what
+   * is that rule, and in the finished product step 3 succeeds whenever step 1
+   * does, so the case that pays for it is this build's, not a user's.
+   *
+   * IT REFUSES WITH THE FOLDER IT SETTLED. `ok: false` with a `dir` is not a
+   * contradiction: the destination question really was answered and really is
+   * remembered, and the bar shows it — the export is what did not happen.
+   *
+   * THE SENDER IS CHECKED, like every other channel in this file.
+   */
+  ipcMain.handle('chrome:export', async (event) => {
+    if (!state.chrome || event.sender !== state.chrome.webContents) {
+      return { ok: false, code: 'not-the-bar', message: 'only the chrome bar may export stems' };
+    }
+    if (!state.files) {
+      return { ok: false, code: 'no-intake', message: 'the file intake is not installed yet' };
+    }
+    if (!state.file) {
+      return { ok: false, code: 'no-source',
+        message: 'nothing is loaded to export — choose an audio file first' };
+    }
+    const folder = await state.files.ensureExportFolder();
+    if (!folder.ok) {
+      pushStatus();
+      return { ok: false, code: folder.code, message: folder.message };
+    }
+    state.exportFolder = folder.dir;
+    pushStatus();
+    return { ok: false, code: 'no-stems', dir: folder.dir, asked: folder.asked,
+      message: `${state.file.title} has not been separated yet, so there are no stems to write` };
   });
 
   /**
