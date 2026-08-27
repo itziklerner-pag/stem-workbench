@@ -1295,6 +1295,14 @@ ok('separation progress on the bar is the ENGINE\'s own report, relayed — chun
  * than "the readout did not change": the real engine may push a STATE of its own
  * at any moment, and an assertion that required stillness would be about the
  * machine's timing rather than about the tap.
+ *
+ * AND IT IS KEYED ON THE FIELD, NOT ON THE DIGITS. This row first went red on a
+ * correct build, with `!/999/` over the whole tooltip — which carries the
+ * engine's ENTIRE report, including a model load time in milliseconds. Three
+ * innocent digits are not evidence of a spoof, and an assertion that can go red
+ * for a reason unrelated to its claim is worse than no assertion. The tooltip is
+ * parsed and the FIELD is read; the parse having succeeded is a conjunct,
+ * because an assertion that cannot look must FAIL rather than pass.
  */
 const spoofed = await safe('a STATE spoofed by the deck', () => pages.deck.evaluate(
   ({ to, from, state }) => { window.__wbDeck.send({ v: 1, to, from, type: 'STATE', state }); return true; },
@@ -1310,13 +1318,19 @@ const spoofArrived = await until('the spoofed STATE to reach the deck through th
   async () => pages.deck.evaluate(() => window.__smokeDeckBus.some((m) => m && m.type === 'STATE'
     && m.state && m.state.job && m.state.job.chunks === 999)), 8000);
 const afterSpoof = O(await safe('bar', readProgress));
+let relayed = null;
+try { relayed = JSON.parse(String(afterSpoof.title)); } catch { /* asserted on */ }
+const relayedJob = O(O(relayed).job);
 ok('...and a STATE that did not come from the ENGINE\'s own renderer is ignored — `from` is not evidence  '
   + '[entry point: the bus tap in src/main/main.js, keyed on the sender from src/main/bus.js]',
   spoofed === true && spoofArrived === true
-  && !/999/.test(String(afterSpoof.text)) && !/999/.test(String(afterSpoof.title)),
+  && relayed !== null && Number.isFinite(relayedJob.chunks)
+  && relayedJob.chunks !== 999 && relayedJob.pct !== 90
+  && !/999/.test(String(afterSpoof.text)),
   `the deck sent {chunks:999, pct:90} stamped from='${BUS.engine}', the router delivered it `
-  + `(the deck has it: ${spoofArrived === true}), and the bar still reads `
-  + `${JSON.stringify(afterSpoof.text)} — the tap read the WebContents, not the envelope`);
+  + `(the deck has it: ${spoofArrived === true}), and what the bar is relaying is still `
+  + `chunks=${JSON.stringify(relayedJob.chunks)} pct=${JSON.stringify(relayedJob.pct)} `
+  + `(#progress ${JSON.stringify(afterSpoof.text)}) — the tap read the WebContents, not the envelope`);
 
 console.log(`\n${ID}: app console ${path.relative(ROOT, path.join(OUT, 'app-console.log'))}`);
 await done(app);

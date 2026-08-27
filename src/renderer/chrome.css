@@ -31,7 +31,12 @@ body {
    so a refused gesture cannot look like one that worked. */
 #source-file[data-outcome]:not([data-outcome="ok"]),
 #export[data-outcome]:not([data-outcome="ok"]) { border-color: #7a3a33; color: #f0a99a; }
-.field { display: flex; gap: 5px; align-items: baseline; min-width: 0; }
+/* A FIELD GIVES WAY BEFORE A CONTROL DOES. `overflow: hidden` with `min-width: 0`
+   is what lets a squeezed field clip instead of pushing the row wider — and the
+   row getting wider is how the refusal line, which sits at the far end, ends up
+   off the edge of a 900 px window (`minWidth` in src/main/main.js). A refusal
+   nobody can see is the defect this file's script is about. */
+.field { display: flex; gap: 5px; align-items: baseline; min-width: 0; overflow: hidden; }
 /* THE TOGGLE IS A LABEL, so the word is part of the hit target — a 13 px
    checkbox alone is a control that is visible and not usable. `align-items:
    center` rather than the row's `baseline`: a checkbox has no baseline and
@@ -47,7 +52,10 @@ body {
    ellipsises rather than pushing a control off the end. A gesture that is off
    the edge of the bar is the dead control this file is about, one layout bug
    removed, so the buttons carry `flex: none` above and these do not. */
-#source .v, #file, #progress, #dest, #deck, #engine, #account { min-width: 3ch; }
+#source, #file, #progress, #dest, #deck, #engine, #account { min-width: 3ch; }
 #file, #dest { max-width: 22ch; }
-#refusal { margin-left: auto; color: #ff9a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch; }
+#refusal {
+  margin-left: auto; flex: 0 1 auto; min-width: 8ch; text-align: right;
+  color: #ff9a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40ch;
+}
 #refusal:empty { display: none; }
