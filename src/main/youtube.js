@@ -101,6 +101,10 @@ export function createSourceView({ session: ses, preload, onRefusal = () => {} }
    * from a cancelled one, and `tools/suites/shell.mjs` asks the session's
    * request log instead, which only ever sees a navigation that really reached
    * the network stack. It is recorded here so that nobody re-derives it.
+   *
+   * The same finding, with the reasoning about why a NEGATIVE witness will not
+   * do either, is `docs/HOST-DESIGN.md` §1.6 — where somebody writing the next
+   * navigation gate will look, rather than in the file it happened to bite.
    */
   wc.on('did-start-navigation', () => {
     witness.navigations++;
