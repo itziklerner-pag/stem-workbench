@@ -314,7 +314,7 @@ mutate_case S15 static "a throwing write is swallowed and the half-file kept" "$
 # about itself; the page's own `aria-checked` is the state issue #7 asks for —
 # "a Host that writes the preference and never drives the view passes a weaker
 # assertion and ships the bug".
-mutate_case S16 live "the recording's hold is ignored" "$A" "14 16" -- \
+mutate_case S16 live "the recording's hold is ignored" "$A" "14 16 17" -- \
   "$A" "  const effective = () => suppress || held;" \
        "  const effective = () => suppress;"
 
@@ -333,7 +333,7 @@ mutate_case S18 live "the transport never tells the pass what it saw" "$T" "18" 
   "$T" "      if (pass) pass.observe(lastState);" \
        "      // mutation: the boundary never reaches the pass"
 
-mutate_case S19 live "our own corrective seek stops ending the pass" "$T" "19" -- \
+mutate_case S19 live "our own corrective seek stops ending the pass" "$T" "18 19" -- \
   "$T" "      if (pass && cmd.seekTo !== undefined) pass.end('seek');" \
        "      // mutation: the self-seek exemption becomes a hole in the rule"
 

@@ -130,10 +130,10 @@
  *   S13   drive.js:327                 the chunk is written but not let go         11
  *   S14   drive.js:280                 a refusal is returned but not recorded      12
  *   S15   drive.js:334                 a throwing write is swallowed               13
- *   S16   autonav.js:252   (live)      the recording's hold is ignored             14, 5.10/1
+ *   S16   autonav.js:252   (live)      the recording's hold is ignored             14, 5.10/1, 5.10/2
  *   S17   drive.js:402     (live)      the hold is not released on abort           13, 15, 5.10/2
  *   S18   transport.js:216 (live)      the boundary never reaches the pass         5.10/3
- *   S19   transport.js:306 (live)      our own seek stops ending the pass          5.10/4
+ *   S19   transport.js:306 (live)      our own seek stops ending the pass          5.10/3, 5.10/4
  *
  * S1 IS THE ONE THE SLICE BRIEF NAMES, and its red is the file rather than a
  * flag: §4b/6 prints *"66150 frames of 44100 fed before the seek, values
