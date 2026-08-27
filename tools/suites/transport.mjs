@@ -65,20 +65,92 @@
  * a blacklist inside the brackets loses to `el[['current','Src'].join('')]`.
  *
  * ---------------------------------------------------------------------------
- * WATCHED RED BY MUTATION — `tools/suites/transport-mutations.sh`
+ * S7a — THE LIVE EXPORT'S CONTIGUITY, HOST HALF (§4b and §11)
  * ---------------------------------------------------------------------------
- * Every row is in that script with the edit that produced it. It runs the suite
- * UNMUTATED FIRST and requires green, refuses to continue if an anchor moved,
- * and requires the named assertions on `FAIL` lines — a non-zero exit proves
- * something went red, not that the intended thing did.
+ * A live export is ONE CONTIGUOUS REAL-TIME PASS from where it started
+ * (`CONTEXT.md:311-314`); a seek ends it; RULING 29 makes a DROP end it the same
+ * way; and autoplay-next is suspended for its duration or the next video records
+ * into the same file.
+ *
+ * THE UNIT OWNS THE VOCABULARY AND NEVER THE DETECTION. `shared/stemcache.js`
+ * upstream holds `PASS_END`, `recordingRefusal()` and `passEndNote()` — the four
+ * members, what each SAYS to a user, and whether a pass may be delivered. This
+ * Host owns WHEN a recording stops being contiguous, and nothing else. §4b is
+ * where that boundary is asserted rather than described: the member names are
+ * pinned against the vendored unit in both directions, and `src/` is scanned to
+ * prove no sentence of ours exists anywhere.
+ *
+ * §4b ASSERTS ON THE FILE, NOT ON A FLAG. `pass.endedBy === 'seek'` is
+ * bookkeeping about bookkeeping; what a user is left holding is the bytes, so
+ * the seek and drop rows read a real file off disk and compare its CONTENT
+ * against the frames that were fed before the boundary. Dropping the seek edge
+ * has to show the file running past the seek, and it does.
+ *
+ * §11 IS THE SAME RULE OVER THE REAL PAGE, and it is there because issue #7 says
+ * so in as many words: *"Assert the state the preload is actually in, both
+ * times. A Host that writes the preference and never drives the view passes a
+ * weaker assertion and ships the bug."* The pure rows cannot see a preference
+ * that was recorded and never applied; the page's own `aria-checked` can.
+ *
+ * ---------------------------------------------------------------------------
+ * WATCHED RED BY MUTATION — `tools/suites/transport-mutations.sh` (1-25),
+ * `tools/suites/transport-s7a-mutations.sh` (S1-S19)
+ * ---------------------------------------------------------------------------
+ * Every row is in one of those scripts with the edit that produced it. Both run
+ * the suite UNMUTATED FIRST and require green, refuse to continue if an anchor
+ * moved, and require the named assertions on `FAIL` lines — a non-zero exit
+ * proves something went red, not that the intended thing did. The S7a battery
+ * additionally FAILS A CASE WHOSE RED SET DIFFERS IN EITHER DIRECTION: an
+ * assertion going red under an unexpected mutation is as much a finding as one
+ * going red under none, and an aggregate cannot see coverage migrating between
+ * two mutations (INTEGRATION.md §25).
+ *
+ * S7a's table — the mutation, the file:line it was applied to, and the reds it
+ * produced. MEASURED, not predicted: the sets below are what the battery
+ * printed, and the battery FAILS a case whose set differs in either direction,
+ * so a stale row here cannot survive a run. Anchors cut against this branch's
+ * `feat(transport): decide when a live export stops being contiguous`, over
+ * base `6c35580`. INTEGRATION.md §18/§26: re-run the battery and RE-DERIVE THIS
+ * TABLE before any tag — the coordinates decay silently, and the red counts
+ * decay with them.
+ *
+ *   case  where                        mutation                                    reds (§4b/n, §5.10/n)
+ *   S1    drive.js:188                 a seek stops being a boundary               1, 3, 6, 7, 10
+ *   S2    drive.js:185                 `emptied` stops being one                   1
+ *   S3    drive.js:185                 the source ending is recorded as a seek     1, 3
+ *   S4    drive.js:155                 a fifth member this Host made up            2, 3, 4
+ *   S5    drive.js:374                 end() stops checking the name               2
+ *   S6    drive.js:155                 `drop` is not a member at all               4, 8, 9, 10
+ *   S7    drive.js:155                 a PASS_END sentence written into this Host  5
+ *   S8    drive.js:359                 observe() no longer ends the pass           3, 6, 7, 10
+ *   S9    drive.js:378                 end() does not close the sink               7
+ *   S10   drive.js:348                 a drop does not end the pass                3, 8, 9, 10
+ *   S11   drive.js:373                 endPass is LAST-writer-wins                 9
+ *   S12   drive.js:348                 a drop is recorded as a seek                3, 8, 9, 10
+ *   S13   drive.js:327                 the chunk is written but not let go         11
+ *   S14   drive.js:280                 a refusal is returned but not recorded      12
+ *   S15   drive.js:334                 a throwing write is swallowed               13
+ *   S16   autonav.js:252   (live)      the recording's hold is ignored             14, 5.10/1
+ *   S17   drive.js:402     (live)      the hold is not released on abort           13, 15, 5.10/2
+ *   S18   transport.js:216 (live)      the boundary never reaches the pass         5.10/3
+ *   S19   transport.js:306 (live)      our own seek stops ending the pass          5.10/4
+ *
+ * S1 IS THE ONE THE SLICE BRIEF NAMES, and its red is the file rather than a
+ * flag: §4b/6 prints *"66150 frames of 44100 fed before the seek, values
+ * [0.25,0.5,0.75]"* — the recording running past the seek, in the bytes.
+ * S12 is the other: a drop worded like a seek, which is where two different
+ * facts collapse into one sentence on a shared code path.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { filterDrive, DRIVE_FIELDS, speedReasonFor } from '../../src/main/drive.js';
-import { autonavPlan, resolveSuppress, PREFS_KEY, AUTONAV_TOGGLE_SEL } from '../../src/main/autonav.js';
+import {
+  filterDrive, DRIVE_FIELDS, speedReasonFor,
+  PASS_END_NAMES, passEndFor, createPass, createPassSink,
+} from '../../src/main/drive.js';
+import { autonavPlan, resolveSuppress, PREFS_KEY, AUTONAV_TOGGLE_SEL, createAutonav } from '../../src/main/autonav.js';
 import { SPEED_JS, SPEED_MIN, SPEED_MAX, SPEED_KEY_LOCK, resolveSpeed, speedPlan } from '../../src/main/speed.js';
 import { BROWSER_LOCK, announceLock } from '../lib/locks.mjs';
 import { refuseIfCompromised } from '../lib/tree-guard.mjs';
@@ -447,6 +519,311 @@ function strippedPreload() {
 }
 
 // ==========================================================================
+// 4b. THE CONTIGUOUS PASS — S7a. No launch, and the claims are on a REAL FILE
+// ==========================================================================
+{
+  const PASSDIR = path.join(ROOT, 'out', 'transport-pass');
+  fs.rmSync(PASSDIR, { recursive: true, force: true });
+  fs.mkdirSync(PASSDIR, { recursive: true });
+  const SR = 44100;
+  /** One chunk of interleaved stereo 32f, every sample the same value, so the FILE says which chunk. */
+  const chunk = (v, secs = 1) => {
+    const frames = Math.round(SR * secs);
+    return { samples: new Float32Array(frames * 2).fill(v), frames };
+  };
+  /** Every distinct value in a pass file, in first-seen order, and its frame count. */
+  const readPass = (file) => {
+    if (!fs.existsSync(file)) return { there: false, frames: 0, values: [] };
+    const b = fs.readFileSync(file);
+    const f = new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+    const values = [];
+    for (const x of f) if (!values.includes(x)) values.push(x);
+    return { there: true, frames: f.length / 2, bytes: b.byteLength, values };
+  };
+  const newPass = (name, hold) => {
+    const file = path.join(PASSDIR, `${name}.f32`);
+    return { file, pass: createPass({ sink: createPassSink({ path: file }), hold }) };
+  };
+
+  // ---------------------------------------------------------- the boundary
+  ok('the observations that END a contiguous pass are the unit\'s members, and nothing else is a boundary  '
+    + '[entry point: src/main/drive.js passEndFor()]',
+    passEndFor({ seeking: true }) === 'seek' && passEndFor({ event: 'emptied' }) === 'seek'
+    && passEndFor({ event: 'ended' }) === 'ended'
+    && ['play', 'pause', 'timeupdate', 'ratechange', 'loadedmetadata', 'tick', 'seeked', 'drive']
+      .every((e) => passEndFor({ event: e }) === null)
+    // A member name off `Object.prototype` is a reason the unit has no wording
+    // for, arriving from the one direction nobody tests.
+    && passEndFor({ event: 'constructor' }) === null && passEndFor({ event: 'toString' }) === null
+    && passEndFor(null) === null && passEndFor(undefined) === null && passEndFor({}) === null,
+    'seeking->seek, emptied->seek, ended->ended; 8 other events, a prototype key, and no state at all -> null');
+
+  ok('...and a reason the unit has no wording for is REFUSED, so a fifth member cannot be recorded  '
+    + '[entry point: src/main/drive.js createPass().end()]',
+    (() => {
+      const { pass } = newPass('unnamed');
+      pass.start();
+      const bad = ['boredom', 'Stopped', 'STOP', '', null, undefined, 0, {}]
+        .map((r) => pass.end(r));
+      return bad.every((r) => r === 'unnamed-reason') && pass.recording() === true
+        && pass.record().endedBy === null && pass.end('stopped') === null;
+    })(),
+    '8 invented reasons refused with `unnamed-reason`, the pass still open, and `stopped` then accepted');
+
+  ok('...and all four of the unit\'s members are REACHABLE from this Host, so the list has no dead entry  '
+    + '[entry point: src/main/drive.js PASS_END_NAMES]',
+    (() => {
+      const reached = new Set();
+      for (const [name, drive] of [
+        ['seek', (p) => p.observe({ seeking: true })],
+        ['ended', (p) => p.observe({ event: 'ended' })],
+        ['drop', (p) => p.drop(1)],
+        ['stopped', (p) => p.end('stopped')],
+      ]) {
+        const { pass } = newPass(`reach-${name}`);
+        pass.start(); pass.chunk(chunk(0.1, 0.05)); drive(pass);
+        if (pass.record().endedBy === name) reached.add(name);
+      }
+      return reached.size === PASS_END_NAMES.length
+        && PASS_END_NAMES.every((n) => reached.has(n));
+    })(),
+    `${PASS_END_NAMES.join(', ')} — each driven to, and each recorded`);
+
+  /**
+   * THE PIN, AND IT IS TWO-WAY. `PASS_END` is upstream's and arrives with the
+   * tag that carries U7; the pinned tag has no pass-end vocabulary at all. So
+   * this row asserts the ABSENCE — and goes RED the day the pin bumps, which is
+   * the day these four names must become an equality pin against the unit's own
+   * keys instead of a list this Host wrote down. A copy nobody re-checks is what
+   * `PREFS_KEY` one file over exists to prevent, and the same trap is here.
+   */
+  {
+    const cache = path.join(VENDOR, 'shared', 'stemcache.js');
+    const text = fs.existsSync(cache) ? fs.readFileSync(cache, 'utf8') : `unreadable: ${cache} is not there`;
+    const exported = /export const PASS_END\s*=/.test(text);
+    ok('the pinned unit exports NO pass-end vocabulary yet, so this Host\'s four member names are UNPINNED and say so  '
+      + '[entry point: vendor/.../shared/stemcache.js vs src/main/drive.js PASS_END_NAMES]',
+      exported === false && text.length > 1000
+      && PASS_END_NAMES.length === 4 && Object.isFrozen(PASS_END_NAMES),
+      exported
+        ? 'PASS_END IS NOW VENDORED — replace this row with `PASS_END_NAMES equals Object.keys(PASS_END)`, both ways'
+        : `${path.relative(ROOT, cache)} (${text.length} bytes) exports no PASS_END at the pinned tag; `
+          + `ours: ${PASS_END_NAMES.join(', ')} — upstream phase4/u7-live-recording`);
+  }
+
+  /**
+   * AND NOBODY WROTE THE WORDS DOWN HERE. `PASS_END`'s values are what a user is
+   * TOLD, and `passEndNote()` is the one place a sentence is built. A second copy
+   * under `src/` is a Host that decides what a seek means, which is exactly the
+   * half the unit reserved — and it would be invisible from a green run.
+   */
+  {
+    const ours = [];
+    const walk = (dir) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        const q = path.join(dir, e.name);
+        if (e.isDirectory()) walk(q);
+        else if (/\.(js|cjs|mjs)$/.test(e.name)) ours.push(q);
+      }
+    };
+    walk(path.join(ROOT, 'src'));
+    const strip = (x) => x.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+    const PHRASES = ['you stopped the recording', 'the source reached its end',
+      'the playhead moved', 'could not keep up', 'dropped chunk', 's recorded'];
+    const guilty = ours
+      .map((f) => [f, strip(fs.readFileSync(f, 'utf8'))])
+      .filter(([, x]) => PHRASES.some((ph) => x.includes(ph)))
+      .map(([f]) => path.relative(ROOT, f));
+    ok('...and no file under src/ spells a pass-end SENTENCE of its own — the wording is the unit\'s  '
+      + '[entry point: the src/ tree, comments stripped]',
+      guilty.length === 0,
+      guilty.length ? `A SECOND WORDING IN ${guilty.join(', ')}`
+        : `${ours.length} files scanned for ${PHRASES.length} phrases, 0 hits — passEndNote() builds the sentence`);
+  }
+
+  // ------------------------------------------------- the seek, ON THE FILE
+  /**
+   * THE HEADLINE, AND IT IS ASSERTED ON THE BYTES. Two chunks go in before the
+   * seek and one is offered after it. A flag saying `endedBy: 'seek'` would be
+   * satisfied by a machine that recorded the boundary and went on writing; the
+   * FILE cannot be.
+   */
+  {
+    const { file, pass } = newPass('seek');
+    pass.start();
+    pass.chunk(chunk(0.25, 0.5));
+    pass.chunk(chunk(0.5, 0.5));
+    const ended = pass.observe({ seeking: true });
+    const after = pass.chunk(chunk(0.75, 0.5));
+    const f = readPass(file);
+    ok('a SEEK ends the contiguous pass, and the file stops where the seek did  '
+      + '[entry point: src/main/drive.js createPass().observe()]',
+      ended === 'seek' && after === 'not-recording'
+      && f.there && f.frames === SR && eq(f.values, [0.25, 0.5]),
+      `${f.frames} frames of ${SR} fed before the seek, values ${JSON.stringify(f.values)} — `
+      + `the 0.75 chunk offered after it was ${JSON.stringify(after)}`);
+
+    ok('...and what was captured stays EXPORTABLE — the file is closed, complete, and byte-identical to what was fed  '
+      + '[entry point: createPass().end() -> createPassSink().close()]',
+      pass.record().endedBy === 'seek' && pass.record().frames === SR && pass.record().drops === 0
+      && O(pass.file()).written === true && N(O(pass.file()).bytes) === SR * 2 * 4
+      && f.bytes === SR * 2 * 4,
+      `record ${JSON.stringify(pass.record())}, sink closed at ${N(O(pass.file()).bytes)} bytes, `
+      + `file ${f.bytes} bytes = ${SR} frames x 2ch x 4B — ending is not discarding`);
+  }
+
+  // ------------------------------------------------- the drop, RULING 29
+  {
+    const { file, pass } = newPass('drop');
+    pass.start();
+    pass.chunk(chunk(0.25, 0.5));
+    const ended = pass.drop(2);
+    const after = pass.chunk(chunk(0.75, 0.5));
+    const f = readPass(file);
+    ok('a DROP ends the pass exactly as a seek does, so no delivered file contains a GAP  '
+      + '[entry point: src/main/drive.js createPass().drop(), RULING 29]',
+      ended === null && after === 'not-recording'
+      && pass.record().endedBy === 'drop' && pass.record().drops === 2
+      && f.there && f.frames === SR / 2 && eq(f.values, [0.25]),
+      `${f.frames} frames, values ${JSON.stringify(f.values)}, drops ${pass.record().drops} — `
+      + 'a boundary, not a tolerance: the file is shorter AND correct');
+
+    ok('...and the reason is FIRST-WRITER-WINS, so the stop() that follows a drop does not overwrite it  '
+      + '[entry point: createPass().end()]',
+      pass.end('stopped') === 'already-ended' && pass.record().endedBy === 'drop'
+      && pass.record().drops === 2 && readPass(file).frames === SR / 2,
+      'stop() after drop -> `already-ended`, endedBy stays `drop`, and the file is untouched');
+  }
+
+  ok('a seek and a drop stay DISTINGUISHABLE through the one shared end() — they are different facts to a user  '
+    + '[entry point: createPass().end()]',
+    (() => {
+      const a = newPass('distinct-seek'); a.pass.start(); a.pass.chunk(chunk(0.1, 0.05));
+      a.pass.observe({ seeking: true });
+      const b = newPass('distinct-drop'); b.pass.start(); b.pass.chunk(chunk(0.1, 0.05));
+      b.pass.drop(3);
+      const ra = a.pass.record(); const rb = b.pass.record();
+      // Same path, same frames, same file length. ONLY the member may differ,
+      // and it must — a shared code path is where the difference gets lost.
+      return ra.endedBy === 'seek' && rb.endedBy === 'drop' && ra.endedBy !== rb.endedBy
+        && ra.frames === rb.frames && ra.drops === 0 && rb.drops === 3
+        && new Set(PASS_END_NAMES).size === PASS_END_NAMES.length;
+    })(),
+    'two passes, identical in every field the unit reads except the one that says what happened');
+
+  /**
+   * RAM DOES NOT GROW WITH DURATION, CARRIED BY A COUNT. Issue #7: assert the
+   * NUMBER OF BUFFERS RETAINED at 10 s and at 60 s and require it constant, and
+   * never assert a memory reading — a memory reading measures the machine.
+   */
+  {
+    const { file, pass } = newPass('ram');
+    pass.start();
+    let at10 = null; let at60 = null;
+    for (let sec = 1; sec <= 60; sec++) {
+      pass.chunk(chunk(0.01 * sec, 1));
+      if (sec === 10) at10 = pass.retained();
+      if (sec === 60) at60 = pass.retained();
+    }
+    pass.end('stopped');
+    const f = readPass(file);
+    ok('the buffers RETAINED after 60 s of recording is the number retained after 10 s  '
+      + '[entry point: src/main/drive.js createPass().retained()]',
+      at10 === at60 && at10 === 0 && pass.chunks() === 60 && pass.record().frames === SR * 60
+      && f.frames === SR * 60,
+      `retained ${at10} at 10 s and ${at60} at 60 s over ${pass.chunks()} chunks, `
+      + `while the file grew to ${f.frames} frames (${f.bytes} bytes) — the count is the claim, never a memory reading`);
+  }
+
+  ok('every way a recording can refuse produces a NAMED code and a count, never a silent early return  '
+    + '[entry point: src/main/drive.js createPass().start()/chunk()]',
+    (() => {
+      const { pass } = newPass('refusals');
+      const seen = [];
+      seen.push(pass.chunk(chunk(0.1, 0.05)));             // not started yet
+      seen.push(pass.start());                             // null — it opened
+      seen.push(pass.start());                             // already recording
+      seen.push(pass.chunk({ samples: [1, 2], frames: 4 })); // not a Float32Array
+      seen.push(pass.chunk({ samples: new Float32Array(2), frames: 0 }));
+      seen.push(pass.end('stopped'));                      // null — it ended
+      seen.push(pass.start());                             // a pass ends once
+      const noSink = createPass({});
+      seen.push(noSink.start());
+      return eq(seen, ['not-recording', null, 'already-recording', 'unreadable-chunk',
+        'unreadable-chunk', null, 'pass-already-ended', 'no-sink'])
+        && pass.refusals() === 5 && eq(pass.stats.refusals,
+          ['not-recording', 'already-recording', 'unreadable-chunk', 'unreadable-chunk', 'pass-already-ended']);
+    })(),
+    'not-recording / already-recording / unreadable-chunk x2 / pass-already-ended / no-sink, all counted');
+
+  /**
+   * THE FAILING PATH, and issue #7 asks for it by name: a write that throws
+   * halfway must not leave half a recording that reads like a whole one.
+   */
+  ok('a write that THROWS aborts the pass and removes the partial file — half a recording is not a short one  '
+    + '[entry point: createPass().chunk() -> createPassSink().abort()]',
+    (() => {
+      const file = path.join(PASSDIR, 'thrower.f32');
+      let n = 0;
+      const sink = {
+        write() { n++; if (n === 2) throw new Error('disk full'); fs.appendFileSync(file, 'x'); },
+        close() { return { file, bytes: 1, written: true }; },
+        abort() { fs.rmSync(file, { force: true }); return { file, bytes: 0, written: false }; },
+      };
+      const holds = [];
+      const pass = createPass({ sink, hold: (on) => holds.push(on) });
+      pass.start();
+      const first = pass.chunk(chunk(0.1, 0.05));
+      const boom = pass.chunk(chunk(0.2, 0.05));
+      return first === null && boom === 'write-failed' && !fs.existsSync(file)
+        && pass.recording() === false && pass.record().endedBy === null
+        && eq(holds, [true, false]);
+    })(),
+    'the throw aborts, the file is unlinked, `endedBy` stays null so nothing claims a reason, and the hold is released');
+
+  // -------------------------------------------------- autoplay-next, held
+  /**
+   * THE SUSPENSION IS LAYERED OVER THE USER'S PREFERENCE, NEVER WRITTEN INTO IT.
+   * The control is the second half: the user turns autoplay ON mid-recording, and
+   * what comes back at the end must be THEIR value, not the one we captured when
+   * the recording started.
+   */
+  ok('autoplay-next is HELD for the length of a recording, and the USER\'S own value is what comes back  '
+    + '[entry point: src/main/autonav.js holdSuppress()]',
+    (() => {
+      const asked = [];
+      const nav = createAutonav({ ask: (c) => asked.push(c.act), report: () => {} });
+      nav.reassert(true, { look: false });
+      nav.setPrefs({ autoplayNext: true });                 // the user wants autoplay ON
+      const before = [nav.suppressed(), nav.suppressing(), nav.heldNow()];
+      nav.holdSuppress(true);
+      const during = [nav.suppressed(), nav.suppressing(), nav.heldNow()];
+      nav.setPrefs({ autoplayNext: false });                // they change their mind mid-recording
+      const midway = [nav.suppressed(), nav.suppressing()];
+      nav.holdSuppress(false);
+      const after = [nav.suppressed(), nav.suppressing(), nav.heldNow()];
+      return eq(before, [false, false, false]) && eq(during, [false, true, true])
+        && eq(midway, [true, true]) && eq(after, [true, true, false]);
+    })(),
+    'user ON -> not suppressed; recording -> suppressed with the preference untouched; '
+    + 'user changes to OFF mid-recording -> that is what is in force when the hold lifts');
+
+  ok('...and an ABORTED recording releases the hold too — the path this obligation is normally shipped dead on  '
+    + '[entry point: src/main/drive.js createPass().abort()]',
+    (() => {
+      const holds = [];
+      const { file, pass } = newPass('abort', (on) => holds.push(on));
+      pass.start();
+      pass.chunk(chunk(0.4, 0.25));
+      const during = pass.holding();
+      pass.abort('gate');
+      return during === true && pass.holding() === false && eq(holds, [true, false])
+        && !fs.existsSync(file) && pass.recording() === false && pass.stats.aborts === 1;
+    })(),
+    'hold true -> abort -> hold false, and the partial file is gone with it');
+}
+
+// ==========================================================================
 // 5. ONE REAL LAUNCH
 // ==========================================================================
 if (STATIC_ONLY) { console.log('(--static: sections 1-4 only; the launch was skipped)'); done(); }
@@ -743,10 +1120,19 @@ ok('...and the gate was actually listening to the transport while it drove it  [
     && N(O(O(S.silent).page).navigations) === 2,
     `${N(O(S.silent).jumps)} jump, changes ${JSON.stringify(A(O(S.silent).changes))}, states ${JSON.stringify(A(O(S.silent).states))}`);
 
+  /**
+   * THE DENOMINATOR IS THE JUMP TOTAL AS §7 LEFT IT, not as the run ended.
+   * This read `R.transportStats.jumps` — captured after everything — which was
+   * the same number only while nothing after §7 ever jumped. §11 now ends a live
+   * export on a seek the PAGE made, which is one. `R.spa.jumpsAtEnd` is the
+   * number this arithmetic was always about; the value is unchanged, and the
+   * detail prints both so a divergence is visible rather than inferred.
+   */
   ok('...and the element ARRIVING is not a jump — only a replacement is  [entry point: preload watchVideo() -> afterChange()]',
-    A(O(S.silent).changes).includes('arrived') === A(O(S.silent).changes).includes('arrived')
-    && N(O(R.transportStats).jumps) === A(O(S.silent).changes).filter((c) => c !== 'arrived').length + 2,
-    `${N(O(R.transportStats).jumps)} jumps over the run vs ${JSON.stringify(A(O(S.silent).changes))} element changes`);
+    A(O(S.silent).changes).includes('arrived')
+    && N(O(R.spa).jumpsAtEnd) === A(O(S.silent).changes).filter((c) => c !== 'arrived').length + 2,
+    `${N(O(R.spa).jumpsAtEnd)} jumps as §7 left it (${N(O(R.transportStats).jumps)} over the whole run) `
+    + `vs ${JSON.stringify(A(O(S.silent).changes))} element changes`);
 }
 
 // ------------------------------------------------------------- 5.8 resend
@@ -794,6 +1180,77 @@ ok('...and the gate was actually listening to the transport while it drove it  [
   ok('...and every `on*()` returns an unsubscribe that really removes the listener  [entry point: transport.js channel()]',
     N(u.withExtra) === N(u.before) + 1 && N(u.after) === N(u.before),
     `onState ${u.before} -> ${u.withExtra} -> ${u.after}`);
+}
+
+// ------------------------------------- 5.10 the live export's contiguous pass
+/**
+ * THE SAME RULE, OVER THE REAL PAGE. §4b proves the machine; this proves the
+ * WIRE — that a seek on somebody else's `<video>` reaches it, and that the
+ * suspension is a click on the page's own control rather than a preference
+ * written into a variable. Issue #7: *"A Host that writes the preference and
+ * never drives the view passes a weaker assertion and ships the bug."*
+ */
+{
+  const RC = O(R.rec);
+  /** Every distinct value in a pass file the probe wrote, and its frame count. */
+  const readPass = (file) => {
+    if (!file || !fs.existsSync(file)) return { there: false, frames: 0, values: [] };
+    const b = fs.readFileSync(file);
+    const f = new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
+    const values = [];
+    for (const x of f) if (!values.includes(x)) values.push(x);
+    return { there: true, frames: f.length / 2, values };
+  };
+
+  const held = A(O(RC.duringHold).samples);
+  ok('a live export SUSPENDS the page\'s own autoplay-next control for the whole of its duration  '
+    + '[entry point: transport.startRecording() -> autonav.holdSuppress()]',
+    // THE CONTROL, and without it this cannot lose: suppression is the DEFAULT,
+    // so the user's preference is turned ON first and the page is witnessed at
+    // `true` with nothing recording. `false` afterwards can only be the hold.
+    O(RC.repair).moves === true
+    && O(O(RC.control).page).autonav === 'true' && O(RC.control).held === false
+    && RC.started === null && O(RC.afterStart).held === true
+    && held.length === 8 && held.every((v) => v === 'false'),
+    `the page's own handler moves (${JSON.stringify(O(RC.repair).was)} -> ${JSON.stringify(O(RC.repair).mid)}); `
+    + `autoplay ON and nothing recording reads ${JSON.stringify(O(O(RC.control).page).autonav)}; `
+    + `${held.filter((v) => v === 'false').length}/${held.length} samples across the recording read `
+    + `${JSON.stringify([...new Set(held)])}`);
+
+  const AA = O(RC.afterAbort);
+  ok('...and an ABORTED recording puts it back to the USER\'S value — the path this obligation ships dead on  '
+    + '[entry point: transport.abortRecording() -> createPass().abort()]',
+    O(O(RC.beforeAbort).page).autonav === 'false' && O(RC.beforeAbort).held === true
+    && RC.aborted === 'gate' && AA.held === false
+    && O(AA.page).autonav === 'true' && AA.suppressed === false && AA.fileGone === true,
+    `held with the page at ${JSON.stringify(O(O(RC.beforeAbort).page).autonav)}, aborted, `
+    + `and the page is back at ${JSON.stringify(O(AA.page).autonav)} — the user's own setting, `
+    + `not the one the recording imposed; the partial file is ${AA.fileGone ? 'gone' : 'STILL THERE'}`);
+
+  const ps = O(RC.pageSeek);
+  const psFile = readPass(ps.file);
+  ok('a seek the PAGE made ends the real recording, and the file stops where the seek did  '
+    + '[entry point: preload sendJump() -> transport `state` -> pass.observe()]',
+    RC.started2 === null && N(ps.jumps) === 1
+    && O(ps.after).endedBy === 'seek' && O(ps.after).open === false
+    && ps.afterEndChunk === 'not-recording'
+    && psFile.there && psFile.frames === 2 * N(RC.chunkFrames) && eq(psFile.values, [0.5]),
+    `${N(ps.jumps)} jump, endedBy ${JSON.stringify(O(ps.after).endedBy)}, `
+    + `${psFile.frames} frames of ${JSON.stringify(psFile.values)} on disk, and the chunk offered after the seek was `
+    + `${JSON.stringify(ps.afterEndChunk)}`);
+
+  const ss = O(RC.selfSeek);
+  const ssFile = readPass(ss.file);
+  ok('...and OUR OWN corrective seek ends it too, though the jump channel deliberately hides it  '
+    + '[entry point: transport.drive() -> filterDrive() seekTo]',
+    N(ss.jumps) === 0 && O(ss.before).open === true
+    && O(ss.after).endedBy === 'seek' && O(ss.after).open === false
+    && ss.afterEndChunk === 'not-recording'
+    && ssFile.there && ssFile.frames === N(O(ss.after).frames) && eq(ssFile.values, [0.25])
+    && O(RC.afterSelfSeek).held === false && O(O(RC.afterSelfSeek).page).autonav === 'true',
+    `${N(ss.jumps)} jumps reported for our own seek (stem-splitter-live #15 is about CONSENT, not contiguity); `
+    + `endedBy ${JSON.stringify(O(ss.after).endedBy)} over ${ssFile.frames} frames of `
+    + `${JSON.stringify(ssFile.values)}, and the hold released with it`);
 }
 
 } catch (err) {

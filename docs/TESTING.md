@@ -140,7 +140,7 @@ node tools/verify.mjs --list         # the steps table
 | `backend` | `tools/suites/backend.mjs` | — | 55 | **which inference backend, and the wire to the second one** — `chooseBackend()` over all twenty platform/probe/preference rows; `createNativeBackend` against `serveInference` over a `worker_threads` `MessageChannel` with a FAKE engine (the frozen layout, both buffers back undetached, `dispose()` settling by name); and the negative control — on this platform the shipped hole builds the unit's own `WorkerBackend`. **No CoreML anywhere in it** |
 | `shell` | `tools/suites/shell.mjs` | window | 45 | **the app skeleton** — two real launches: the window and its three views, every renderer's isolation, `app://` + COOP/COEP, the capture grant, the mute, the allowlist, and **seed §9's sign-in disguise** — the stock Chrome user-agent on `persist:youtube` and on nothing of ours, and the four Google sign-in hosts really reaching the wire; then a SECOND launch on the same profile, because *the session persists across restarts* is the one claim a single launch cannot make |
 | `engine-host` | `tools/suites/engine-host.mjs` | window | 37 | **the ENGINE half of the Host seam** — the vendored engine boots under our `EngineHost`, all nine duties, the bundled weights end to end, and a real capture |
-| `transport` | `tools/suites/transport.mjs` | window | 64 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim |
+| `transport` | `tools/suites/transport.mjs` | window | 83 | **the source view's transport** — L1 over the shipped preload, the closed write set, a content jump vs a corrective seek, the speed clamp executed out of the vendored `speed.js`, autoplay-next, and the keyboard claim; and **a live export's ONE CONTIGUOUS PASS** — a seek ends it and a drop ends it the same way, what was captured stays exportable, and autoplay-next is suspended for its whole duration and restored even when the recording is aborted |
 | `deck-host` | `tools/suites/deck-host.mjs` | window | 29 | **the deck half, over one real launch** — the vendored deck really boots under our Host and paints; SESSION and ARM_ERROR reach the surface; `drive` lands on a real `<video>`; the autoplay-next checkbox moves a stored preference through main into the transport. The CONTRACT is `deck-seam`, and this suite deliberately does not repeat it |
 | `p1` | `tools/suites/p1.mjs` | window | 24 | **P1′** — every session the app creates reaches the update host and nothing else |
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
@@ -1188,34 +1188,36 @@ suppression that silently never applies.
 |---|---|---|
 | 1–4 | the clamp executed **is** the file the ladder is pinned to; its range and key-lock are that file's own; nothing under `src/` re-declares a range; `PREFS_KEY` is the unit's | the two paths, the declared values, the files scanned |
 | 5–7 | the preload's `VIDEO_EVENTS` and `JUMP_EVENTS` are the reference Host's, parsed out of the vendored `content.js`; `ratechange` is in one list and not the other | both arrays, from both files |
-| 8–13 | **L1, statically**: the complete member-write set is the closed one plus the key-lock policy; it writes all four; every property touched is allow-listed; no forbidden name appears; the scanner is looking at code; `play()` never appears | the write set, the strangers, the bytes scanned |
-| 14–21 | the pure decisions: `filterDrive` drops everything outside the set and coerces nothing; the event→reason mapping is `speed.js`'s entry-point rule; the same want and current **write** on a remount and **yield** on a ratechange; the clamp, the refusal, the release; `resolveSuppress`; every autonav failure has a name; the original is recorded once; the selector matches on ARIA | the values, both directions |
-| 22 | the app launches and the gate writes a report | exit code, section count |
-| 23 | **the gate was actually listening while it drove** | `tap.subscribed`, the emitted counts |
-| 24–26 | the five transport values come back; states are **pushed** on media events and a tick with nobody asking; `adShowing` is `null` and not `false` before the Host has named the ad selector | the five values, the event names |
-| 27–30 | the three writes land; the key-lock policy lands with the rate; the four fields outside the set leave **no trace on the element**; `release` hands it back | the element read back, `srcScheme`, `volume`, `loop`, `srcObject` |
-| 31–33 | **our own corrective seek is not a content jump, and the seek really happened**; a seek the page made **is** one; a rate change is not | jump counts, the self-seek counter, the element's position |
-| 34–40 | the user's speed reaches the element and reports the literal `'ok'`; a rate above the ceiling is clamped, applied and reported; an unreadable rate is refused out loud; the page's own speed menu is **yielded** to; an ad neutralises to 1 and remembers the claim; the ad-end edge puts it back; the run wrote the rate a handful of times, not once per tick | every report, the element's rate at each point |
-| 41–45 | with no deck armed a claimed digit is the page's; armed, it is taken and the page does **not** see it; an unclaimed key stays the page's; a claimed digit **typed into a text field** is the page's; `?` is taken by character | both ends of every case — the page's own witness and the transport's |
-| 46–51 | the page ships autoplay-next **on** and the Host takes it; the value is put back; turning it off re-takes it; a toggle that ignores its click is `stuck` after a bounded number of tries; an absent control is `looking` then `missing`; every state is in the deck's vocabulary | the `aria-checked` at each point, the state names, the click count |
-| 52–55 | an announced single-page navigation is one jump and one swap; the speed claim goes with the video; **an unannounced one is noticed anyway**; the element *arriving* is not a jump | the change list, the rate before and after |
-| 56–57 | a window in which nothing changed carries **zero** speed and autonav reports (the control); `resend()` puts all three back | both counts |
-| 58–63 | L1 at run time; nothing but the source view spoke on the channel; a deck host was already subscribed to all five channels before the gate looked; every `on*()` returns a working unsubscribe | the requests, the listener counts before and after |
+| 8–14 | **L1, statically**: the complete member-write set is the closed one plus the key-lock policy; it writes all four; every property touched is allow-listed; no forbidden name appears; the scanner is looking at code; `play()` never appears; and **there is no computed member access at all**, so the allow-list cannot be walked around with a string | the write set, the strangers, the bytes scanned |
+| 15–23 | the pure decisions: `filterDrive` drops everything outside the set and coerces nothing; the event→reason mapping is `speed.js`'s entry-point rule; the same want and current **write** on a remount and **yield** on a ratechange; the clamp, the refusal, the release; `resolveSuppress`; every autonav failure has a name; the original is recorded once; the selector matches on ARIA | the values, both directions |
+| 24–38 | **§4b — the live export's ONE CONTIGUOUS PASS, in plain node and ON A REAL FILE.** Which observation is a boundary and which is not; a reason the unit has no wording for is refused; all four members are reachable; the pinned unit exports no pass-end vocabulary **yet** and this Host's names are therefore unpinned; no file under `src/` spells a pass-end sentence; **a seek ends the pass and the file stops where the seek did**; what was captured stays exportable; **a drop ends it the same way, so no delivered file contains a gap** (RULING 29); the reason is first-writer-wins; a seek and a drop stay distinguishable through the one shared `end()`; the buffers retained at 60 s equal those at 10 s; every refusal is named and counted; a throwing write aborts and removes the partial file; autoplay-next is held over the user's preference and their own value comes back; **and an aborted recording releases the hold** | the frame count and the distinct values ON DISK, the record `{frames, drops, endedBy}`, the retained count at both durations |
+| 39 | the app launches and the gate writes a report | exit code, section count |
+| 40 | **the gate was actually listening while it drove** | `tap.subscribed`, the emitted counts |
+| 41–43 | the five transport values come back; states are **pushed** on media events and a tick with nobody asking; `adShowing` is `null` and not `false` before the Host has named the ad selector | the five values, the event names |
+| 44–47 | the three writes land; the key-lock policy lands with the rate; the four fields outside the set leave **no trace on the element**; `release` hands it back | the element read back, `srcScheme`, `volume`, `loop`, `srcObject` |
+| 48–50 | **our own corrective seek is not a content jump, and the seek really happened**; a seek the page made **is** one; a rate change is not | jump counts, the self-seek counter, the element's position |
+| 51–58 | the user's speed reaches the element and reports the literal `'ok'`; a rate above the ceiling is clamped, applied and reported; an unreadable rate is refused out loud; the page's own speed menu is **yielded** to; an ad neutralises to 1 and remembers the claim; the ad-end edge puts it back; the run wrote the rate a handful of times, not once per tick | every report, the element's rate at each point |
+| 59–63 | with no deck armed a claimed digit is the page's; armed, it is taken and the page does **not** see it; an unclaimed key stays the page's; a claimed digit **typed into a text field** is the page's; `?` is taken by character | both ends of every case — the page's own witness and the transport's |
+| 64–69 | the page ships autoplay-next **on** and the Host takes it; the value is put back; turning it off re-takes it; a toggle that ignores its click is `stuck` after a bounded number of tries; an absent control is `looking` then `missing`; every state is in the deck's vocabulary | the `aria-checked` at each point, the state names, the click count |
+| 70–73 | an announced single-page navigation is one jump and one swap; the speed claim goes with the video; **an unannounced one is noticed anyway**; the element *arriving* is not a jump | the change list, the rate before and after |
+| 74–75 | a window in which nothing changed carries **zero** speed and autonav reports (the control); `resend()` puts all three back | both counts |
+| 76–79 | L1 at run time; nothing but the source view spoke on the channel; a deck host was already subscribed to all five channels before the gate looked; every `on*()` returns a working unsubscribe | the requests, the listener counts before and after |
+| 80–83 | **§5.10 — the same contiguity rule over the REAL PAGE.** A live export suspends the page's **own** autoplay-next control for the whole of its duration, with the user's preference turned ON first so `false` can only be the recording; an **aborted** recording puts it back to the user's value and takes the partial file with it; a seek the page made ends the real recording and the file stops where it did; and **our own corrective seek ends it too**, though the jump channel deliberately hides that from `onJump` | the page's own `aria-checked` at every sample, the jump counts, the frames and values on disk |
 
-**Assertion 23 is not decoration.** The first run of this gate produced a
+**Assertion 40 is not decoration.** The first run of this gate produced a
 complete-looking report in which every channel was empty, because `subscribe()`
 had never fired — `main.js` had stopped calling `beforeLoad` and the tap's only
 other entry was untaken. Every count in the report was zero and every count-based
 assertion would have been trivially satisfied. *"Nothing happened" is also what a
 dead instrument looks like.*
 
-**Assertions 41–45 are witnessed at both ends.** The page records the keys it
+**Assertions 59–63 are witnessed at both ends.** The page records the keys it
 saw; the transport records the keys it took. "The deck got nothing" on its own is
 also what a broken wire looks like, and the product ruling is a claim about the
 *page* — with no deck armed, `1`–`6` must do on somebody else's site exactly what
 they do with this app not running.
 
-**Assertion 54 is the one that matters most.** `yt-navigate-finish` is the site's
+**Assertion 72 is the one that matters most.** `yt-navigate-finish` is the site's
 **private** event name. A Host that only listened for it would lose the feature
 the day it is renamed, with nothing to see. The fixture's `spaNavigate(announce)`
 runs the same navigation both ways, and the unannounced one is the only evidence
@@ -1285,6 +1287,41 @@ was doing its job and was not.
 The battery is **25 cases, 24 of them one-line edits**; nine need no launch.
 Reproduce with `tools/suites/transport-mutations.sh` (or `--static` for the cheap
 half, 0.3 s).
+
+#### The S7a battery, and why it is a SECOND file
+
+`tools/suites/transport-s7a-mutations.sh` covers the nineteen assertions the
+live-export contiguity slice added (§4b and §5.10). It is separate rather than
+twenty more cases in the file above because it enforces a stricter rule, and
+retro-fitting that rule to somebody else's twenty-five cases is a different piece
+of work:
+
+> **A case FAILS if its red set differs in EITHER direction.** An assertion that
+> was declared and did not go red is a MISS, as always — and an assertion that
+> went red and was **not** declared is a MISS too.
+
+The battery above prints its extra reds without failing on them, which is the
+right default for a wide blast radius. But an aggregate — "all N watched red" —
+is a claim about the UNION of every mutation, so coverage MIGRATING from one
+mutation to another leaves it unchanged; that is how a real coverage loss once
+read as a clean sweep. Only a per-case set can see it, and the rule earned its
+keep immediately: **two cases (S10 and S12) were recorded MISSED on the first run
+for an UNDECLARED red** — a drop that no longer ends the pass also makes `drop`
+unreachable, which the table had not said.
+
+Nineteen cases, fifteen of them needing no launch. The four that do are the
+autoplay-next suspension, its release on an **aborted** recording, and the two
+seek paths — and they need one because issue #7 asks for *"the state the preload
+is actually in"*. A preference recorded and never applied to the page is
+invisible to every pure assertion, and it is the way this obligation is most
+often shipped dead.
+
+**S1 is the headline, and its red is the FILE.** Dropping the seek boundary makes
+§4b/6 print *"66150 frames of 44100 fed before the seek, values
+[0.25,0.5,0.75]"* — the recording running past the seek, in the bytes on disk,
+rather than a flag reading differently.
+
+Reproduce with `tools/suites/transport-s7a-mutations.sh` (or `--static`, ~8 s).
 
 ### The block guard, and exactly what it buys
 

@@ -520,6 +520,18 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     page: await page(),
     states: since(m).states.map((s) => s.event).slice(0, 8),
   };
+  /**
+   * THE JUMP TOTAL AS THIS SECTION LEAVES IT.
+   *
+   * The element-change arithmetic below is about the jumps this section and the
+   * ones before it produced, and it used to read `R.transportStats.jumps` —
+   * captured at the END of the whole run. That was the same number only for as
+   * long as nothing after §7 ever caused a jump. §10 now records a live export
+   * ending on a seek the PAGE made, which is a jump, so the two parted company.
+   * Snapshotting it here says which jumps the claim is about, which is what the
+   * claim always meant.
+   */
+  R.spa.jumpsAtEnd = t.stats.jumps;
 
   // =====================================================================
   // 8. RELEASE — hand the player back the way it was found
@@ -574,6 +586,138 @@ export async function runGate({ state, outDir, sourceUrl, appRoot }) {
     offSchemes: reqs.filter((r) => !/^(file|blob|data|devtools):/.test(r.url)).slice(0, 20),
     preloadFile: 'src/preload/youtube.cjs',
   };
+
+  // =====================================================================
+  // 11. THE LIVE EXPORT'S CONTIGUOUS PASS — S7a
+  // =====================================================================
+  /**
+   * LAST, AND THAT IS NOT ARBITRARY. This section ends a recording on a seek the
+   * PAGE made, which is a content jump — and §7's element-change arithmetic is
+   * about the jumps up to §7. Running here, after `R.spa.jumpsAtEnd` has been
+   * taken, keeps this section's traffic out of every window another section is
+   * measuring. It makes no request, replaces no element and claims no key.
+   *
+   * IT DRIVES THE PUBLIC MEMBERS AND NOTHING ELSE — `startRecording`,
+   * `recordChunk`, `stopRecording`, `abortRecording`, `drive`, `setPrefs`,
+   * `recording()`. `src/main/deck-host.js` is what will call them for a deck; a
+   * gate reaching past them into `createPass` would be gating a door nothing
+   * else opens.
+   *
+   * THE PAGE'S OWN TOGGLE HANDLER IS PUT BACK FIRST. §5 deliberately deafened it
+   * — `b.replaceWith(b.cloneNode(true))` drops the site's listener while leaving
+   * the markup — so that `stuck` was a reachable state. A suspension asserted
+   * over a control that cannot move is a suspension asserted over nothing, so
+   * the page's handler is re-attached in the page's own world before anything
+   * here is measured, and the repair is WITNESSED rather than assumed.
+   */
+  const SR_FIX = 44100;
+  const CHUNK_FRAMES = 4410;                    // 0.1 s, so the files stay small
+  const passFile = (n) => path.join(outDir, `pass-${n}.f32`);
+  const feed = (v, n = 1) => {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const samples = new Float32Array(CHUNK_FRAMES * 2).fill(v);
+      out.push(t.recordChunk({ samples, frames: CHUNK_FRAMES }));
+    }
+    return out;
+  };
+
+  R.rec = { sr: SR_FIX, chunkFrames: CHUNK_FRAMES };
+
+  // --- the page's own handler back, and witnessed moving
+  R.rec.repair = await evalIn(wc, `(() => {
+    const b = document.getElementById('autonav-button');
+    if (!b) return 'no button';
+    const flag = document.querySelector('.ytp-autonav-toggle-button');
+    if (!flag) return 'no flag';
+    b.addEventListener('click', () => {
+      flag.setAttribute('aria-checked', flag.getAttribute('aria-checked') === 'true' ? 'false' : 'true');
+    });
+    const was = flag.getAttribute('aria-checked');
+    b.click();
+    const mid = flag.getAttribute('aria-checked');
+    b.click();
+    return { was, mid, back: flag.getAttribute('aria-checked'), moves: was !== mid };
+  })()`);
+
+  /**
+   * THE CONTROL, AND WITHOUT IT NONE OF THIS CAN LOSE. Suppression is the
+   * DEFAULT (`resolveSuppress(undefined) === true`), so a page whose toggle
+   * reads `false` during a recording reads exactly like a page nobody recorded.
+   * The user's preference is turned ON first, so `false` for the length of the
+   * recording can only have come from the recording.
+   */
+  t.setPrefs({ autoplayNext: true });
+  await wait(1600);
+  R.rec.control = { page: await page(), held: t.autonav.heldNow(), suppressed: t.autonav.suppressed() };
+
+  // --- 11a. a recording suspends it for the WHOLE of its duration
+  m = mark('rec:hold');
+  R.rec.started = t.startRecording({ file: passFile(1) });
+  R.rec.afterStart = { held: t.autonav.heldNow(), recording: t.recording() };
+  // ONE POLL PERIOD BEFORE THE FIRST SAMPLE. `holdSuppress` asks the preload to
+  // look and the page's handler flips the attribute in that round trip; sampling
+  // inside it would be measuring the request rather than the state.
+  await wait(900);
+  const samples = [];
+  for (let i = 0; i < 8; i++) {
+    await wait(400);
+    feed(0.25);
+    samples.push((await page()).autonav);
+  }
+  R.rec.duringHold = {
+    samples,
+    autonavs: since(m).autonavs.map((a) => a.state),
+    recording: t.recording(),
+  };
+
+  // --- 11b. OUR OWN corrective seek ends it, though the jump channel hides it
+  m = mark('rec:self-seek');
+  const beforeSelfSeek = t.recording();
+  t.drive({ currentTime: 20 });
+  await wait(600);
+  R.rec.selfSeek = {
+    before: beforeSelfSeek,
+    after: t.recording(),
+    jumps: since(m).jumps.length,
+    afterEndChunk: feed(0.75)[0],
+    file: passFile(1),
+  };
+  await wait(400);
+  R.rec.afterSelfSeek = { held: t.autonav.heldNow(), page: await page() };
+
+  // --- 11c. a seek the PAGE made ends it too
+  R.rec.started2 = t.startRecording({ file: passFile(2) });
+  feed(0.5, 2);
+  m = mark('rec:page-seek');
+  await evalIn(wc, 'window.__wbFixture.seek(35)');
+  await wait(800);
+  R.rec.pageSeek = {
+    jumps: since(m).jumps.length,
+    after: t.recording(),
+    afterEndChunk: feed(0.9)[0],
+    file: passFile(2),
+  };
+
+  // --- 11d. an ABORTED recording puts the page's toggle back
+  R.rec.started3 = t.startRecording({ file: passFile(3) });
+  feed(0.3, 2);
+  R.rec.beforeAbort = { held: t.autonav.heldNow(), page: await page(), recording: t.recording() };
+  R.rec.aborted = t.abortRecording('gate');
+  await wait(1600);
+  R.rec.afterAbort = {
+    held: t.autonav.heldNow(),
+    page: await page(),
+    recording: t.recording(),
+    fileGone: !fs.existsSync(passFile(3)),
+    suppressed: t.autonav.suppressed(),
+  };
+  R.rec.log = t.passLog();
+  R.rec.names = t.PASS_END_NAMES;
+  // Put the preference back the way §5 left it, so nothing after this reads a
+  // page this section changed.
+  t.setPrefs({ autoplayNext: false });
+  await wait(800);
 
   // ------------------------------------------------------------ the record
   R.log = {

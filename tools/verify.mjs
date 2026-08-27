@@ -534,8 +534,8 @@ export const STEPS = [
   },
   {
     id: 'transport',
-    assertions: 64,
-    title: 'node tools/suites/transport.mjs — the source view\'s transport: L1, the closed write set, the jump rule, speed, autoplay-next, the keys',
+    assertions: 83,
+    title: 'node tools/suites/transport.mjs — the source view\'s transport: L1, the closed write set, the jump rule, speed, autoplay-next, the keys, and a live export\'s contiguous pass',
     cmd: ['node', 'tools/suites/transport.mjs'],
     window: true,
   },
