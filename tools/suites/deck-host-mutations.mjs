@@ -44,6 +44,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mutationGuard } from '../lib/mutation-guard.mjs';
+import { countOf } from '../verify.mjs';
 
 const ID = 'deck-host-mutations';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -284,17 +285,55 @@ function runSuite() {
     { cwd: ROOT,
       env: { ...process.env, STEM_WORKBENCH_ALLOW_DIRTY: '1' },
       encoding: 'utf8', timeout: 300000 });
-  return `${r.stdout || ''}${r.stderr || ''}`;
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  return { out, status: r.status, signal: r.signal, error: r.error };
 }
+
+/**
+ * A SUITE THAT DID NOT REPORT IS NOT A SUITE THAT FOUND NOTHING, AND THIS
+ * BATTERY COULD NOT TELL THE TWO APART.
+ *
+ * Every verdict below was computed from `failedNames()` alone — a search for
+ * `FAIL` lines — and a suite that never got as far as printing one yields the
+ * same empty list as a suite that ran clean. So a REFUSAL (exit 3), a CRASH
+ * (a throw at top level: the defect at `tools/suites/transport.mjs:472` was
+ * exactly this, and it is why that file now carries a block guard), a TIMEOUT
+ * and a spawn failure all read as
+ *
+ *     0 reds: (none — the suite is blind to this)
+ *
+ * which blames the suite for a hole in the battery's own harness. This is the
+ * same failure as the tree-guard blindness one level in: an instrument that
+ * cannot distinguish silence from success.
+ *
+ * THE EVIDENCE DEMANDED IS THE SUMMARY LINE, using the RUNNER's own `countOf`
+ * rather than a second regex here — `docs/TESTING.md` §3 rule 6 makes that line
+ * the suite's statement that it ran to its end, and `tools/verify.mjs` already
+ * decides what counts as one. A second copy of that formula is a copy that
+ * drifts.
+ */
+const reported = (r) => countOf(r.out) !== null;
+const whyNotReported = (r) => {
+  const last = (r.out || '').trimEnd().split('\n').filter(Boolean).pop() || '(no output at all)';
+  const how = r.error ? `spawn failed: ${r.error.message}`
+    : r.signal ? `killed by ${r.signal} (the 300 s timeout, or somebody else)`
+      : `exit ${r.status}`;
+  return `${how} — last line: ${last.slice(0, 160)}`;
+};
 
 console.log(`${ID}: ${rows.length} rows\n`);
 
 // The clean run is the reference: every assertion that exists, and the proof
 // that the tree is green BEFORE anything is broken.
 const clean = runSuite();
-fs.writeFileSync(path.join(OUTDIR, 'clean.log'), clean);
-const allNames = new Set(assertionNames(clean));
-const cleanReds = failedNames(clean);
+fs.writeFileSync(path.join(OUTDIR, 'clean.log'), clean.out);
+if (!reported(clean)) {
+  console.error(`${ID}: THE REFERENCE RUN NEVER REPORTED — ${whyNotReported(clean)}`);
+  console.error(`${ID}: that is a broken harness, not a clean tree. out/${ID}/clean.log has the transcript.`);
+  process.exit(2);
+}
+const allNames = new Set(assertionNames(clean.out));
+const cleanReds = failedNames(clean.out);
 if (cleanReds.length) {
   console.error(`the tree is NOT GREEN before mutating: ${cleanReds.join(' | ')}`);
   process.exit(2);
@@ -350,10 +389,10 @@ for (const m of rows) {
       fs.writeFileSync(p, src.replace(from, to));
       applied++;
     }
-    const out = runSuite();
-    fs.writeFileSync(path.join(OUTDIR, `${m.id}.log`), out);
-    const reds = failedNames(out);
-    for (const r of reds) covered.add(r);
+    const r = runSuite();
+    fs.writeFileSync(path.join(OUTDIR, `${m.id}.log`), r.out);
+    const reds = failedNames(r.out);
+    for (const n of reds) covered.add(n);
 
     const missing = m.expect.filter((want) => !reds.some((r) => r.startsWith(want)));
     /**
@@ -364,11 +403,19 @@ for (const m of rows) {
      * purpose — an unexpected red is how an interaction between two mutations, or
      * an assertion that is not measuring what it says, shows up.
      */
-    const unexpected = m.atLeast ? [] : reds.filter((r) => !m.expect.some((want) => r.startsWith(want)));
-    const verdict = reds.length === 0 ? 'NO RED' : (missing.length || unexpected.length ? 'WRONG SET' : 'red');
+    const unexpected = m.atLeast ? [] : reds.filter((n) => !m.expect.some((want) => n.startsWith(want)));
+    // NO REPORT FIRST, and it is a different word from NO RED on purpose: one
+    // says the suite cannot see this defect, the other says nobody looked.
+    const verdict = !reported(r) ? 'NO REPORT'
+      : reds.length === 0 ? 'NO RED' : (missing.length || unexpected.length ? 'WRONG SET' : 'red');
     if (verdict !== 'red') bad++;
     console.log(`${verdict === 'red' ? 'ok  ' : 'FAIL'}  ${m.id}  ${m.why}`);
-    console.log(`        ${reds.length} red${reds.length === 1 ? '' : 's'}: ${reds.join(' | ') || '(none — the suite is blind to this)'}`);
+    if (verdict === 'NO REPORT') {
+      console.log(`        THE SUITE NEVER REPORTED — ${whyNotReported(r)}`);
+      console.log('        (that is this battery\'s harness, not the suite\'s blindness — the two used to print the same line)');
+    } else {
+      console.log(`        ${reds.length} red${reds.length === 1 ? '' : 's'}: ${reds.join(' | ') || '(none — the suite is blind to this)'}`);
+    }
     if (missing.length) console.log(`        EXPECTED AND STILL GREEN: ${missing.join(' | ')}`);
     if (unexpected.length) console.log(`        UNEXPECTED: ${unexpected.join(' | ')}`);
   } catch (err) {
