@@ -229,6 +229,12 @@ async function answerIfItAppears(titleOrTitles, target, budgetMs) {
   const r = await answerChooser(titleOrTitles, target, 1000);
   return { appeared: true, ...r };
 }
+/** Never let one hung await cost every assertion after it. */
+async function within(ms, promise, what) {
+  let timer;
+  const t = new Promise((res) => { timer = setTimeout(() => res({ TIMED_OUT: `${what} did not settle in ${ms} ms` }), ms); });
+  try { return await Promise.race([promise, t]); } finally { clearTimeout(timer); }
+}
 
 /**
  * POLL A COUNT, AND SAY WHAT IT WAS WHEN THE BUDGET RAN OUT.

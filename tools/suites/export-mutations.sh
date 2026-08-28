@@ -555,7 +555,7 @@ mutate_case_exact 24 "the probe presses without recording whether the control wa
 
 mutate_case_exact 25 "the Export control ships \`disabled\` — the defect this suite was rewired to see" \
   "$S8A_HTML" "$FULL" \
-  "FAIL  INSTRUMENT CHECK: every gesture below is a PRESS on a LIVE control|FAIL  pressing Export with nothing loaded is REFUSED BY NAME on the bar|FAIL  pressing \`Export stems…\` opens the REAL native folder chooser|FAIL  ...and the options it was opened with are a FOLDER picker|FAIL  a second PRESS of Export while the chooser is UP joins that ask|FAIL  the folder is asked EXACTLY ONCE|FAIL  ...and export #2 resolved to the REMEMBERED folder|FAIL  ...and the bar SHOWS where the stems go|FAIL  the remembered folder survives a RESTART|FAIL  ...and it is the SAME folder|FAIL  ...and the bar carries it at BOOT|FAIL  ...and a remembered folder that has been DELETED is not used" \
+  "FAIL  INSTRUMENT CHECK: every gesture below is a PRESS on a LIVE control|FAIL  pressing Export with nothing loaded is REFUSED BY NAME on the bar|FAIL  pressing \`Export stems…\` opens the REAL native folder chooser|FAIL  a second PRESS of Export while the chooser is UP joins that ask|FAIL  ...and export #2 resolved to the REMEMBERED folder|FAIL  ...and the bar SHOWS where the stems go|FAIL  the remembered folder survives a RESTART|FAIL  ...and a remembered folder that has been DELETED is not used" \
   -- "$S8A_HTML" \
 '<button id="export" title=' \
 '<button id="export" disabled title='

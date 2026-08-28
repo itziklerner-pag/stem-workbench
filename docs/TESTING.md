@@ -155,7 +155,7 @@ node tools/verify.mjs --list         # the steps table
 | `conformance` | `tools/suites/conformance.mjs` | — | 11 | **VENDORING.md option 3, delivered** — the unit's own `group('host')` pointed at this Host's two hole modules and run to completion under `tools/conformance-platform.mjs`, with every red it does not pass pinned by name and justified in `docs/CONFORMANCE.md` |
 | `updates` | `tools/suites/updates.mjs` | — | 36 | **the update check's HOST and CHANNEL, and the toggle's LIFETIME** — one host and one endpoint that can actually carry a pre-release (`/releases/latest` by definition cannot); `pickRelease()` driven over a table of drafts, pre-releases and stable tags; the auto-update preference defaulting ON, surviving a restart in the `local` area, and a CONTROL proving `session` would not; and the macOS, Windows and Linux `build` blocks, two of which have never been built anywhere |
 | `smoke` | `tools/suites/smoke.mjs` | window | 26 | boot, the Host seam, the transport, the deck — against a **local fake player** — **seed §9's anonymous fallback** (with an empty cookie jar the app works out that it is signed out, says so, and arms and plays anyway), and **the chrome bar's File controls**: both gestures present and LIVE, an export with nothing loaded refused by name and asking for no chooser, and the separation readout carrying the ENGINE's own `job` — from the engine's renderer only, with the same envelope from the deck's ignored |
-| `export` | `tools/suites/export.mjs` | window | 31 | **file intake, driven from the controls a user presses, and the export WRITER and the engine-facing export sink** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, **the export folder asked exactly once** over two real launches sharing one profile, the WRITER's six WAVs byte-identical to the planes (G1, G2a, G2b-path), and the vendored exportSink duty driven end to end through the real preload bridge into main's append-only session. The probe presses `#source-file` and `#export` in the app's own chrome renderer — so a control that ships `disabled` takes every count to zero — and then drives the writer into the folder the press settled, because the control refuses `no-stems` until a separation exists; the dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog` or the control |
+| `export` | `tools/suites/export.mjs` | window | 49 | **file intake, driven from the controls a user presses, and the export WRITER and the engine-facing export sink** — the extension/MIME allowlist, a title that can never be a path, the one-shot path token, **the export folder asked exactly once** over two real launches sharing one profile, the WRITER's six WAVs byte-identical to the planes (G1, G2a, G2b-path), and the vendored exportSink duty driven end to end through the real preload bridge into main's append-only session. The probe presses `#source-file` and `#export` in the app's own chrome renderer — so a control that ships `disabled` takes every count to zero — and then drives the writer into the folder the press settled, because the control refuses `no-stems` until a separation exists; the dialog count is read off a counter in main beside the real call; the suite answers the REAL native GTK chooser with `xdotool` and never stubs `dialog` or the control |
 | `capture-mute` | `tools/suites/capture-mute.mjs` | window, sink | 15 | **the permanent gate** — the view is captured at full level while the audio device stays silent |
 | `dist-linux` | `tools/suites/dist-linux.mjs` | window | 10 | **the only step that BUILDS AN INSTALLER AND RUNS IT** — `electron-builder --linux --publish never` produces the AppImage AND the deb, `app-update.yml` carries the pre-release feed INSIDE the bundle, the 109 MB of weights are packaged at the unit's pinned byte count, `tools/` is not in the asar, and the built AppImage is launched to the app's own `[main] ready` line with the bundled weights hash-verified (rule M1) — a COUNTED marker, never a sleep. Skips on a machine with no electron-builder, no weights, no ORT drop, no `xvfb-run` or no `flock` |
 | `youtube` | `tools/suites/youtube.mjs` | window, **manual** | 26 | **the whole product against the real site — and the only step anywhere that proves SIX STEMS come out of the engine inside this app.** Boot, the seam, play by real input event, arm from the application menu, the 109 MB weights, the engine's own per-stem `METERS`, and a live capture through a full page reload. Nightly / by hand, never on the default path |
@@ -1656,11 +1656,11 @@ launch half cannot test late binding at all.
 
 ## 5f. `export` — file intake, the export writer, and the folder chosen once
 
-`tools/suites/export.mjs`, 31 assertions, `window`. **The only suite anywhere in
+`tools/suites/export.mjs`, 49 assertions, `window`. **The only suite anywhere in
 this repository that answers a native operating-system dialog** — and it reaches
 that dialog by pressing the app's own controls.
 
-Eighteen of the thirty-one need no display at all — the extension/MIME
+Eighteen of the forty-nine need no display at all — the extension/MIME
 allowlist, the title derivation, the one-shot path tokens, the writer's own
 bytes (the pure half of G1, G2a and G2b-path, re-derived by the suite with
 plain `Buffer` ops against the vendored encoder) and the sink session are plain
@@ -1720,8 +1720,10 @@ There is therefore a SECOND instrument beside the dialog one: every gesture
 records whether the control it pressed was enabled, at the moment of the press,
 rather than leaving a zero count to be read as "it did not ask". Case 24 takes
 that record away and only the instrument notices; case 25 ships `#export`
-`disabled` and twelve assertions go red at once. They are the pair, in the shape
-of 16 and 22.
+`disabled` and eight assertions go red at once — every count driven from the bar
+goes to zero, and only the engine-side sink's own ask survives, because it is
+driven over the bridge rather than through the control. They are the pair, in
+the shape of 16 and 22.
 
 **A third machine fact comes with pressing:** a native chooser is modal to the
 window, and that grabs INPUT — it does not stop a renderer running script. So
@@ -1775,7 +1777,8 @@ it. `#export` deliberately does not disable itself in flight for that reason;
   edit that makes the app ask there is an ordering change whose blast radius runs
   the suite into two stacked native choosers — a case nobody can reason about is
   worse than a named gap. What IS watched is that the refusal has a name and a
-  sentence (case 26), and that a dead control takes every count to zero (case 25).
+  sentence (case 26), and that a dead control takes every count driven from the
+  bar to zero, with the engine-side sink's own ask the only survivor (case 25).
 
 ### Watched red
 

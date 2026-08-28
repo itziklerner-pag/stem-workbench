@@ -167,9 +167,11 @@
  *  24  gate/export.mjs: press without recording        -> INSTRUMENT CHECK: every gesture below
  *      whether the control was enabled                    is a PRESS on a LIVE control — and
  *                                                         nothing else
- *  25  chrome.html: `#export` ships `disabled`          -> TWELVE assertions, which is the point:
- *      (the defect this suite was rewired to see)          a dead control now takes every count
- *                                                         in this suite to zero
+ *  25  chrome.html: `#export` ships `disabled`          -> EIGHT assertions, which is the point:
+ *      (the defect this suite was rewired to see)          every count driven from the BAR goes
+ *                                                         to zero — only the engine-side sink's
+ *                                                         own ask survives, driven over the
+ *                                                         bridge, not the bar
  *  26  main.js: the no-source refusal loses its name    -> pressing Export with nothing loaded is
  *      and its sentence                                    REFUSED BY NAME on the bar
  *  27  main.js + chrome.js: the bar is handed the       -> ...and the bar was told the title and
@@ -1063,13 +1065,19 @@ ok('...and the bar carries it at BOOT, before any gesture in that run  '
  * the END of a long operation, with half a track on disk. TWO facts, because a
  * build that asked again and then kept the dead path would satisfy the first on
  * its own: it asked, AND it took the new answer.
+ *
+ * `folderGone >= 1`, not `=== 1`: the probe's own scenario deletes `moved`
+ * again after the writer's writes, so the sink-refusal gesture below finds the
+ * remembered folder gone too — a SECOND, deliberate detection. Main's suite
+ * (pre-s8a) already used `>= 1` for exactly this reason; zero detections still
+ * reddens.
  */
 ok('...and a remembered folder that has been DELETED is not used — the app asks again, and takes the new answer  '
   + '[entry point: #export -> ensureExportFolder()]',
   A2.goneChooserMapped === true && O(A2.goneAnswered).answered === true
   && A2.asksAfterRestart === 0 && A2.asksAfterGone === 1 && A2.askReason === 'gone'
   && O(A2.export4).ok === true && O(A2.export4).folder === A2.moved
-  && O(A2.storedAfterGone).local === A2.moved && O(A2.stats).folderGone === 1
+  && O(A2.storedAfterGone).local === A2.moved && O(A2.stats).folderGone >= 1
   && O(O(O(A2.afterGone).bar).dest).title === A2.moved,
   `${A2.asksAfterRestart} ask(s) while it existed, ${A2.asksAfterGone} after it was removed `
   + `(reason ${JSON.stringify(A2.askReason)}); ${JSON.stringify(path.basename(String(A2.moved)))} `

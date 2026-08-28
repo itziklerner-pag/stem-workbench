@@ -145,7 +145,11 @@ restore_current() {
 }
 on_signal() { restore_current; exit 130; }
 MG_ALSO=on_signal
-trap restore_current EXIT
+# THE EXIT TRAP CHAINS THE GUARD'S mg_end. The guard installs `trap 'mg_end'
+# EXIT` inside mg_begin, and this battery's own restore trap would REPLACE it —
+# a battery that never clears its /tmp marker makes the NEXT battery's begin
+# repair a files:{} marker and refuse, which is a run that measures nothing.
+trap 'restore_current; mg_end' EXIT
 
 # ---------------------------------------------------------------- the edits
 # `edit FILE OLD NEW` — exact, first occurrence, and a HARD ERROR if the anchor
@@ -470,7 +474,12 @@ mutate_case 15 "transport.drive() becomes a no-op" \
   "src/main/transport.js" \
   "the deck reaches the player: \`transport.drive\` lands" \
   -- src/main/transport.js \
-"    drive(patch) { stats.drives++; toPreload({ c: 'drive', ...filterDrive(patch) }); }," \
+"    drive(patch) {
+      stats.drives++;
+      const cmd = filterDrive(patch);
+      if (pass && cmd.seekTo !== undefined) pass.end('seek');
+      toPreload({ c: 'drive', ...cmd });
+    }," \
 "    drive(patch) { stats.drives++; void patch; },"
 
 # ALL THREE FILTERS AT ONCE, AND THAT IS THE POINT RATHER THAN A CONVENIENCE.

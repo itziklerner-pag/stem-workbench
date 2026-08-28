@@ -701,7 +701,7 @@ export const STEPS = [
   },
   {
     id: 'export',
-    assertions: 31,
+    assertions: 49,
     title: 'node tools/suites/export.mjs — the bar\'s File gestures pressed for real, and the export WRITER (G1, G2a, G2b-path) and the export sink driven into the folder the press settled: the allowlist, the title, the one-shot path token, and the folder asked exactly once over two real launches',
     cmd: ['node', 'tools/suites/export.mjs'],
     window: true,
@@ -741,12 +741,13 @@ export const STEPS = [
      * GTK chooser appear, so it is done for the launch rather than left to the
      * machine. The suite's header carries the measurement and what it costs.
      *
-     * HALF OF IT NEEDS NO DISPLAY. Eighteen assertions drive the allowlist, the
-     * title derivation, the path tokens, the writer's own bytes and the sink
-     * session in plain node, and `--quick` therefore drops thirteen assertions
-     * it did not have to — the same trade `deck-host` makes and for the same
-     * reason: splitting them would let the pure half go green over an app that
-     * cannot ask for a folder at all.
+     * HALF OF IT NEEDS NO DISPLAY. Eighteen of the forty-nine assertions drive
+     * the allowlist, the title derivation, the path tokens, the writer's own
+     * bytes and the sink session in plain node; the other thirty-one come out
+     * of two real launches, and `--quick` drops the whole step with every other
+     * windowed one — the same trade `deck-host` makes and for the same reason:
+     * splitting them would let the pure half go green over an app that cannot
+     * ask for a folder at all.
      *
      * THE WRITER IS IN. G1, G2a and G2b-path — the bit-exact 32-bit-float
      * headers, six planes written unaltered in `STEMS` order, and a title that
